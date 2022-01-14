@@ -60,17 +60,17 @@ units = [
     [r"Esclaves?", 4, 4, 3],
     [r"Maîtres? esclaves?", 6, 6, 4],
     [r"Jeunes? soldates?", 16, 8, 7],
-    [r"Soldates?", 20, 11, 10],
+    [r"Soldates?(?!s? d'élite)", 20, 11, 10],
     [r"Soldates? d'élite", 26, 17, 14],
-    [r"Gardiennes?", 25, 1, 27],
+    [r"Gardiennes?(?!s? d'élite)", 25, 1, 27],
     [r"Gardiennes? d'élite", 32, 1, 35],
-    [r"Tirailleuses?", 12, 32, 10],
+    [r"Tirailleuses?(?!s? d'élite)", 12, 32, 10],
     [r"Tirailleuses? d'élite", 15, 40, 12],
     [r"Jeunes? légionnaires?", 40, 45, 35],
-    [r"Légionnaires?", 55, 60, 45],
+    [r"Légionnaires?(?!s? d'élite)", 55, 60, 45],
     [r"Légionnaires? d'élite", 60, 65, 50],
     [r"Jeunes? tanks?", 40, 80, 1],
-    [r"Tanks?", 70, 140, 1],
+    [r"Tanks?(?!s? d'élite)", 70, 140, 1],
     [r"Tanks? d'élite", 80, 160, 1],
 ]
 
@@ -171,13 +171,13 @@ def parseRC(rc):
     def_losses, def_left = first_n_units(armee_def, fr_atk_kills)
 
     stats_atk_ab = [
-        stats_atk[0] * atk_bonuses[1],
+        stats_atk[0] * (1 + atk_bonuses[1]),
         stats_atk[1] * (1 + atk_bonuses[0]),
         stats_atk[2] * (1 + atk_bonuses[0]),
         stats_atk[3],
     ]
     stats_def_ab = [
-        stats_def[0] * def_bonuses[1],
+        stats_def[0] * (1 + def_bonuses[1]),
         stats_def[1] * (1 + def_bonuses[0]),
         stats_def[2] * (1 + def_bonuses[0]),
         stats_def[3],
@@ -185,15 +185,15 @@ def parseRC(rc):
 
     armies_df = pd.DataFrame(
         columns=["", "Attaquant", "Defenseur"],
-        data=list(zip([x[0].replace("s?", "") for x in units], armee_atk, armee_def)),
+        data=list(zip([x[0].replace("s?", "").replace("(?! d'élite)", "") for x in units], armee_atk, armee_def)),
     )
     armies_df = armies_df.append(
         pd.DataFrame(
             columns=["", "Attaquant", "Defenseur"],
             data=[
-                ["Vie", stats_atk_ab[0], stats_def_ab[0]],
-                ["Attaque", stats_atk_ab[1], stats_def_ab[1]],
-                ["Riposte", stats_atk_ab[2], stats_def_ab[2]],
+                ["Vie AB", stats_atk_ab[0], stats_def_ab[0]],
+                ["Attaque AB", stats_atk_ab[1], stats_def_ab[1]],
+                ["Riposte AB", stats_atk_ab[2], stats_def_ab[2]],
                 ["CDF", stats_atk_ab[3], stats_def_ab[3]],
             ],
         )
@@ -202,27 +202,17 @@ def parseRC(rc):
     stats_def_left = armeeStats(def_left)
     left_df = pd.DataFrame(
         columns=["", "Attaquant", "Defenseur"],
-        data=list(zip([x[0].replace("s?", "") for x in units], atk_left, def_left)),
+        data=list(zip([x[0].replace("s?", "").replace("(?! d'élite)", "") for x in units], atk_left, def_left)),
     )
-    left_df.append(
+    print(f"bonus atk: {atk_bonuses}")
+    print(f"bonus def: {def_bonuses}")
+    left_df = left_df.append(
         pd.DataFrame(
             columns=["", "Attaquant", "Defenseur"],
             data=[
-                [
-                    "Vie",
-                    stats_atk_left[0] * atk_bonuses[1],
-                    stats_def_left[0] * def_bonuses[1],
-                ],
-                [
-                    "Attaque",
-                    stats_atk_left[1] * (1 + atk_bonuses[0]),
-                    stats_def_left[1] * (1 + def_bonuses[0]),
-                ],
-                [
-                    "Riposte",
-                    stats_atk_left[2] * (1 + atk_bonuses[0]),
-                    stats_def_left[2] * (1 + def_bonuses[0]),
-                ],
+                ["Vie AB", stats_atk_left[0] * (1 + atk_bonuses[1]), stats_def_left[0] * (1 + def_bonuses[1])],
+                ["Attaque AB", stats_atk_left[1] * (1 + atk_bonuses[0]), stats_def_left[1] * (1 + def_bonuses[0])],
+                ["Riposte AB", stats_atk_left[2] * (1 + atk_bonuses[0]), stats_def_left[2] * (1 + def_bonuses[0])],
                 ["CDF", stats_atk_left[3], stats_def_left[3]],
             ],
         )

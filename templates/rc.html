@@ -8,7 +8,7 @@
 {% endblock %}
 
 {% block content %}
-    <h3>Duree d'attaque</h3>
+    <h3>Analyse de RC</h3>
     {{ wtf.quick_form(rcform, form_type="basic", button_map={'submit': 'primary'})}}
     {{ rcform.results|safe }}
 {% endblock %}
