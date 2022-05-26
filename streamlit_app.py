@@ -1,6 +1,5 @@
 import streamlit as st
-import guerre
-
+from naw_tools import guerre
 def RC():
     st.title("Analyse de RC")
 

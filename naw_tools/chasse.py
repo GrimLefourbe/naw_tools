@@ -1,7 +1,7 @@
 import functools
 import scipy.optimize
 import numpy as np
-import formula
+import naw_tools.formula as formula
 
 
 def opti_chasse(tdc_initial, diff, n=2, params=formula.difficulte2_params, **kwargs):
