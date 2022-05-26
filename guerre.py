@@ -197,7 +197,7 @@ def parseRC(rc):
                 ["CDF", stats_atk_ab[3], stats_def_ab[3]],
             ],
         )
-    )
+    ).set_index("")
     stats_atk_left = armeeStats(atk_left)
     stats_def_left = armeeStats(def_left)
     left_df = pd.DataFrame(
@@ -216,12 +216,12 @@ def parseRC(rc):
                 ["CDF", stats_atk_left[3], stats_def_left[3]],
             ],
         )
-    )
+    ).set_index("")
     niveaux_df = pd.DataFrame(
         columns=["", "Attaquant", "Defenseur"],
-        data=list(zip(["Bonus attaque", "Bonus défense"], atk_bonuses, def_bonuses)),
+        data=list(zip(["Bonus Dégats", "Bonus Vie"], atk_bonuses, def_bonuses)),
     )
-    return armies_df, left_df, niveaux_df
+    return armies_df.round().astype(pd.Int64Dtype()), left_df.round().astype(pd.Int64Dtype()), niveaux_df.set_index("")
 
 
 def format_stats(
