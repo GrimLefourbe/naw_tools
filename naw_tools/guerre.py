@@ -219,7 +219,7 @@ def parseRC(rc):
     ).set_index("")
     niveaux_df = pd.DataFrame(
         columns=["", "Attaquant", "Defenseur"],
-        data=list(zip(["Bonus Dégats", "Bonus Vie"], atk_bonuses, def_bonuses)),
+        data=list(zip(["Bonus Dégats", "Bonus Vie"], [i for i in atk_bonuses], [i for i in def_bonuses]))
     )
     return armies_df.round().astype(pd.Int64Dtype()), left_df.round().astype(pd.Int64Dtype()), niveaux_df.set_index("")
 
@@ -230,14 +230,14 @@ def format_stats(
     if mode == "html":
         formatter = lambda x: x.to_html(
             classes="data",
-            index=False,
+            index=True,
             float_format=lambda i: f"{int(i):,}".replace(",", " ")
             if i >= 100
             else f"{i:,.3g}".replace(",", " "),
         )
     elif mode == "string":
         formatter = lambda x: x.to_string(
-            index=False,
+            index=True,
             float_format=lambda i: f"{int(i):,}".replace(",", " ")
             if i >= 100
             else f"{i:,.3g}".replace(",", " "),

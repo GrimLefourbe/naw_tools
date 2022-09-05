@@ -5,14 +5,11 @@ import werkzeug.utils
 from flask import Flask, render_template, request
 from flask_bootstrap import Bootstrap
 
-import chasse
-import guerre
-
+from naw_tools import chasse, guerre, formula
 app = Flask(__name__)
 bootstrap = Bootstrap(app)
 app.config["SECRET_KEY"] = "blablablablebleble"
 
-import formula
 from flask_wtf import FlaskForm
 from wtforms import (
     SubmitField,
@@ -20,8 +17,6 @@ from wtforms import (
     FloatField,
     TimeField,
     FormField,
-    FieldList,
-    TextField,
     TextAreaField,
 )
 from wtforms.validators import InputRequired
