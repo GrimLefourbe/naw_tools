@@ -1,11 +1,11 @@
 import time
+import sys
 
 import flask
-import werkzeug.utils
 from flask import Flask, render_template, request
 from flask_bootstrap import Bootstrap
 
-from naw_tools import chasse, guerre, formula
+from naw_tools import chasse, guerre2, formula
 app = Flask(__name__)
 bootstrap = Bootstrap(app)
 app.config["SECRET_KEY"] = "blablablablebleble"
@@ -15,11 +15,15 @@ from wtforms import (
     SubmitField,
     IntegerField,
     FloatField,
+    DateTimeField,
     TimeField,
     FormField,
     TextAreaField,
 )
 from wtforms.validators import InputRequired
+
+
+from loguru import logger
 
 
 class ChasseForm(FlaskForm):
@@ -114,7 +118,8 @@ def calculs():
     dureeform = DepartToArrivalForm()
     if dureeform.validate_on_submit():
         f = dureeform
-        duree = guerre.depart_to_arrival(
+        print(f.depart.data, file=sys.stderr)
+        duree = guerre2.depart_to_arrival(
             depart=f.depart.data,
             x1=f.attaquant.x.data,
             y1=f.attaquant.y.data,
@@ -131,8 +136,8 @@ def rc_analysis():
     rcform = RCAnalysisForm()
     if rcform.validate_on_submit():
         f = rcform
-        results = guerre.parseRC(f.text.data)
-        armies_avant, armies_apres, niveaux = guerre.format_stats(*results, mode="html")
+        results = guerre2.pipeline(f.text.data)
+        armies_avant, armies_apres, niveaux = guerre2.format_stats(*results, mode="html")
         f.results = f"Niveaux\n{niveaux}\nAvant\n{armies_avant}\nAprès\n{armies_apres}"
 
     return render_template("rc.html", rcform=rcform)
@@ -146,8 +151,8 @@ def rc_csv():
     t = request.args.get("type", "niveaux")
     if columns is not None:
         columns = columns.split(",")
-    armies_avant, armies_apres, niveaux = guerre.parseRC(s)
-    armies_avant, armies_apres, niveaux = guerre.format_stats(armies_avant, armies_apres, niveaux, index=index, columns=columns, mode="csv")
+    armies_avant, armies_apres, niveaux = guerre2.pipeline(s)
+    armies_avant, armies_apres, niveaux = guerre2.format_stats(armies_avant, armies_apres, niveaux, index=index, columns=columns, mode="csv")
     if t == "niveaux":
         return niveaux
     elif t == "avant":

@@ -1,6 +1,5 @@
 import functools
 import scipy.optimize
-import numpy as np
 import naw_tools.formula as formula
 
 
