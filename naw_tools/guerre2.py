@@ -123,18 +123,18 @@ class Armee:
         )
 
     @property
-    @functools.cache
+    @functools.lru_cache
     def stats_hb(self) -> np.ndarray:
         return (unit_stats * self._data[:, np.newaxis]).sum(axis=0, dtype=np.int64)
 
     @property
-    @functools.cache
+    @functools.lru_cache
     def stats_ab(self) -> np.ndarray:
         return np.array([
             stat_hb * (1 + bonus) if bonus is not None else None for stat_hb, bonus in zip(self.stats_hb, [self.bonuses[1], self.bonuses[0], self.bonuses[0]])
         ])
 
-    @functools.cache
+    @functools.lru_cache
     def count(self) -> np.ndarray:
         return self._data.sum()
 
