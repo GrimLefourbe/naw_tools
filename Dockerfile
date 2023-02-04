@@ -13,4 +13,4 @@ COPY server.py server.py
 COPY templates templates
 COPY app.py app.py
 
-CMD ["python"]
+CMD ["bash"]

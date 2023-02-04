@@ -70,7 +70,7 @@ class RCAnalysisForm(FlaskForm):
 
 @application.route("/")
 def hello():
-    return "Hello, world"
+    return "Hello, world!"
 
 
 @application.route("/chasse", methods=["GET", "POST"])
@@ -161,4 +161,5 @@ def rc_csv():
 
 
 if __name__ == "__main__":
-    application.run(debug=True)
+    print("running")
+    application.run(host="0.0.0.0", debug=True)
