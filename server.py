@@ -24,12 +24,8 @@ from wtforms.validators import InputRequired
 
 
 class ChasseForm(FlaskForm):
-    initial = IntegerField(
-        "TDC initial", validators=[InputRequired("TDC initial manquant")]
-    )
-    chasse = IntegerField(
-        "TDC chassé", validators=[InputRequired("TDC chassé manquant")]
-    )
+    initial = IntegerField("TDC initial", validators=[InputRequired("TDC initial manquant")])
+    chasse = IntegerField("TDC chassé", validators=[InputRequired("TDC chassé manquant")])
     submit = SubmitField("Calcule!")
 
 
@@ -54,9 +50,7 @@ class PositionField(FlaskForm):
 
 
 class DepartToArrivalForm(FlaskForm):
-    depart = TimeField(
-        "Heure de départ", validators=[InputRequired()], format="%H:%M:%S"
-    )
+    depart = TimeField("Heure de départ", validators=[InputRequired()], format="%H:%M:%S")
     va = IntegerField("Vitesse d'attaque", validators=[InputRequired()], default=0)
     attaquant = FormField(PositionField)
     cible = FormField(PositionField)
@@ -79,9 +73,7 @@ def chasse_calculator():
     opti_chasse_form = OptiChasseForm()
     if chasse_form.validate_on_submit():
 
-        diff = formula.difficulte_chasse2(
-            initial=chasse_form.initial.data, chasse=chasse_form.chasse.data
-        )
+        diff = formula.difficulte_chasse2(initial=chasse_form.initial.data, chasse=chasse_form.chasse.data)
 
         res = f"{diff:,}".replace(",", " ")
         chasse_form.result = res
@@ -93,14 +85,9 @@ def chasse_calculator():
             n=opti_chasse_form.n.data,
         )
         opti_chasse_form.result = {
-            "data": [
-                (qte, dif, round(dif / opti_chasse_form.securite.data))
-                for qte, dif in opti_chasses
-            ]
+            "data": [(qte, dif, round(dif / opti_chasse_form.securite.data)) for qte, dif in opti_chasses]
         }
-        opti_chasse_form.result["total"] = [
-            sum(j) for j in zip(*opti_chasse_form.result["data"])
-        ]
+        opti_chasse_form.result["total"] = [sum(j) for j in zip(*opti_chasse_form.result["data"])]
 
     return flask.render_template(
         "chasse.html",
@@ -149,7 +136,9 @@ def rc_csv():
     if columns is not None:
         columns = columns.split(",")
     armies_avant, armies_apres, niveaux = guerre2.pipeline(s)
-    armies_avant, armies_apres, niveaux = guerre2.format_stats(armies_avant, armies_apres, niveaux, index=index, columns=columns, mode="csv")
+    armies_avant, armies_apres, niveaux = guerre2.format_stats(
+        armies_avant, armies_apres, niveaux, index=index, columns=columns, mode="csv"
+    )
     if t == "niveaux":
         return niveaux
     elif t == "avant":
