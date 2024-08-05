@@ -41,8 +41,7 @@ class ArmyInput:
             outputs=army_state,
         )
         def parse_units(*inputs):
-            army = nm.army.Army(np.array(inputs))
-            return army
+            return nm.army.Army(inputs)
 
         self.unit_boxes = unit_boxes
         self.state = army_state

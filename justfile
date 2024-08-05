@@ -15,3 +15,6 @@ run: build
 lint:
     poetry run black .
 
+test:
+    poetry run pytest tests -vv
+

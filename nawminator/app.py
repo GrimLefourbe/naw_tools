@@ -29,8 +29,8 @@ with gr.Blocks(title="Nawminator") as demo:
 
     with gr.Tab("Simulateur Combat"):
         with gr.Row():
-            attacker_party_state = gr.State(nm.war.WarParty(nm.army.Army(), (0, 0), True))
-            defender_party_state = gr.State(nm.war.WarParty(nm.army.Army(), (0, 0), False))
+            attacker_party_state = gr.State(nm.war.WarParty(nm.army.Army(), nm.war.Bonuses(0, 0), True))
+            defender_party_state = gr.State(nm.war.WarParty(nm.army.Army(), nm.war.Bonuses(0, 0), False))
 
             with gr.Column(variant="compact", render=False) as attacker_col:
                 attacker_levels_input = nm.interface.LevelsInput(atk=True)
@@ -117,7 +117,7 @@ with gr.Blocks(title="Nawminator") as demo:
                     outputs=attacker_party_state,
                 )
                 def attacker_update(army: nm.army.Army, levels: nm.levels.Levels):
-                    return nm.war.WarParty(army, levels.bonus_atk, atk=True)
+                    return nm.war.WarParty(army, nm.war.Bonuses(*levels.bonus_atk), atk=True)
 
                 @gr.on(
                     triggers=[
@@ -142,7 +142,7 @@ with gr.Blocks(title="Nawminator") as demo:
                             bonuses = levels.bonus_loge
                         case _:
                             raise AssertionError
-                    return nm.war.WarParty(army, bonuses, atk=False)
+                    return nm.war.WarParty(army, nm.war.Bonuses(*bonuses), atk=False)
 
                 @gr.on(
                     triggers=invert_button.click,
@@ -182,8 +182,8 @@ with gr.Blocks(title="Nawminator") as demo:
                     outputs=output,
                 )
                 def result_update(atk_party: nm.war.WarParty, def_party: nm.war.WarParty, lieu):
-                    rapport, (atk_losses, atk_left), (def_losses, def_left) = nm.war.make_fight(atk_party, def_party)
-                    return gr.Textbox(value=rapport, label=f"Résultat en {lieu}")
+                    battle = nm.war.simulate_battle(attacker=atk_party, defender=def_party)
+                    return gr.Textbox(value=battle.to_rc(), label=f"Résultat en {lieu}")
 
             defender_col.render()
 

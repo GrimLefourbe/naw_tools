@@ -5,6 +5,19 @@ import hypothesis.strategies as st
 
 import nawminator as nm
 
+army_strategy = st.builds(
+    nm.army.Army,
+    st.lists(st.integers(min_value=0, max_value=nm.army.MAX_UNIT_COUNT), min_size=15, max_size=15),
+)
+round_strategy = st.builds(
+    nm.battle.Round,
+    attacker_base_dmg=st.integers(min_value=0),
+    attacker_bonus_dmg=st.integers(min_value=0),
+    defender_base_dmg=st.integers(min_value=0),
+    defender_bonus_dmg=st.integers(min_value=0),
+    attacker_losses=army_strategy,
+    defender_losses=army_strategy,
+)
 RC_REEL = """Rapport de combat en Loge :
 
 Vous attaquez la colonie Pandi[-220:-63] du joueur flomel avec votre colonie En vacances[47:235] en Loge.
@@ -63,11 +76,11 @@ class TestBattle:
         [
             (
                 RC_REEL,
-                (
+                nm.battle.Battle(
                     nm.army.Army(JS=100),
                     nm.army.Army(JS=1118),
                     [
-                        nm.war.Round(
+                        nm.battle.Round(
                             attacker_base_dmg=np.int64(800),
                             attacker_bonus_dmg=np.float64(840),
                             defender_base_dmg=np.int64(7826),
@@ -80,11 +93,11 @@ class TestBattle:
             ),
             (
                 RC_SIMU_NAW,
-                (
+                nm.battle.Battle(
                     nm.army.Army(JS=100, S=100),
                     nm.army.Army(S=100, T=127),
                     [
-                        nm.war.Round(
+                        nm.battle.Round(
                             attacker_base_dmg=np.int64(1900),
                             attacker_bonus_dmg=np.float64(0),
                             defender_base_dmg=np.int64(2270),
@@ -92,7 +105,7 @@ class TestBattle:
                             attacker_losses=nm.army.Army(JS=100, S=34),
                             defender_losses=nm.army.Army(S=95),
                         ),
-                        nm.war.Round(
+                        nm.battle.Round(
                             attacker_base_dmg=np.int64(726),
                             attacker_bonus_dmg=np.float64(0),
                             defender_base_dmg=np.int64(1320),
@@ -105,77 +118,70 @@ class TestBattle:
             ),
             (
                 RC_SIMU_NM,
-                (
+                nm.battle.Battle(
                     nm.army.Army(JS=100),
                     nm.army.Army(JS=100),
                     [
-                        nm.war.Round(800, 760, 700, 665, nm.army.Army(JS=50), nm.army.Army(JS=44)),
-                        nm.war.Round(448, 426, 350, 333, nm.army.Army(JS=28), nm.army.Army(JS=22)),
-                        nm.war.Round(272, 258, 154, 146, nm.army.Army(JS=17), nm.army.Army(JS=10)),
-                        nm.war.Round(192, 182, 35, 33, nm.army.Army(JS=5), nm.army.Army(JS=2)),
+                        nm.battle.Round(800, 760, 700, 665, nm.army.Army(JS=50), nm.army.Army(JS=44)),
+                        nm.battle.Round(448, 426, 350, 333, nm.army.Army(JS=28), nm.army.Army(JS=22)),
+                        nm.battle.Round(272, 258, 154, 146, nm.army.Army(JS=17), nm.army.Army(JS=10)),
+                        nm.battle.Round(192, 182, 35, 33, nm.army.Army(JS=5), nm.army.Army(JS=2)),
                     ],
                 ),
             ),
         ],
     )
     def test_parse_rc(self, rc, expected):
-        assert nm.war.parse_rc(rc) == expected
+        assert nm.battle.Battle.from_rc(rc) == expected
 
     @pytest.mark.parametrize(
         "battle",
         [
-            nm.war.Battle(
+            nm.battle.Battle(
                 attacker=nm.army.Army(JS=100),
                 defender=nm.army.Army(JS=100),
                 rounds=[
-                    nm.war.Round(800, 760, 700, 665, nm.army.Army(JS=50), nm.army.Army(JS=44)),
-                    nm.war.Round(448, 426, 350, 333, nm.army.Army(JS=28), nm.army.Army(JS=22)),
-                    nm.war.Round(272, 258, 154, 146, nm.army.Army(JS=17), nm.army.Army(JS=10)),
-                    nm.war.Round(192, 182, 35, 33, nm.army.Army(JS=5), nm.army.Army(JS=2)),
+                    nm.battle.Round(800, 760, 700, 665, nm.army.Army(JS=50), nm.army.Army(JS=44)),
+                    nm.battle.Round(448, 426, 350, 333, nm.army.Army(JS=28), nm.army.Army(JS=22)),
+                    nm.battle.Round(272, 258, 154, 146, nm.army.Army(JS=17), nm.army.Army(JS=10)),
+                    nm.battle.Round(192, 182, 35, 33, nm.army.Army(JS=5), nm.army.Army(JS=2)),
                 ],
             ),
         ],
     )
     def test_export_import_rc(self, battle):
-        assert battle == nm.war.Battle(*nm.war.parse_rc(battle.generate_rc()))
+        assert battle == nm.battle.Battle.from_rc(battle.to_rc())
 
-    @pytest.mark.skip
+    @pytest.mark.skip("Must implement simulation first to generate coherent rounds")
     @hp.given(
-        attacker=st.lists(st.integers(min_value=0, max_value=2**56), min_size=15, max_size=15),
-        defender=st.lists(st.integers(min_value=0, max_value=2**56), min_size=15, max_size=15),
+        attacker=army_strategy,
+        defender=army_strategy,
         rounds=st.lists(
-            st.tuples(
-                st.lists(st.integers(min_value=0, max_value=2**56), min_size=4, max_size=4),
-                st.lists(st.integers(min_value=0, max_value=2**56), min_size=15, max_size=15),
-                st.lists(st.integers(min_value=0, max_value=2**56), min_size=15, max_size=15),
-            ),
+            round_strategy,
             min_size=1,
             max_size=5,
         ),
     )
-    def test_export_import_rc_property(self, attacker, defender, rounds):
-        battle = nm.war.Battle(
-            nm.army.Army(attacker),
-            nm.army.Army(defender),
-            [
-                nm.war.Round(*round[0], attacker_losses=nm.army.Army(round[1]), defender_losses=nm.army.Army(round[2]))
-                for round in rounds
-            ],
+    def test_export_import_rc_property(self, attacker: nm.army.Army, defender: nm.army.Army, rounds):
+        battle = nm.battle.Battle(
+            attacker,
+            defender,
+            rounds,
         )
-        assert battle == nm.war.Battle(*nm.war.parse_rc(battle.generate_rc()))
+        assert battle == nm.battle.Battle.from_rc(battle.to_rc())
 
     @pytest.mark.parametrize(
         "battle,expected",
         [
             (
-                nm.war.Battle(
+                nm.battle.Battle(
                     attacker=nm.army.Army(JS=100),
                     defender=nm.army.Army(JS=100),
                     rounds=[
-                        nm.war.Round(800, 760, 700, 665, nm.army.Army(JS=50), nm.army.Army(JS=44)),
-                        nm.war.Round(448, 426, 350, 333, nm.army.Army(JS=28), nm.army.Army(JS=22)),
-                        nm.war.Round(272, 258, 154, 146, nm.army.Army(JS=17), nm.army.Army(JS=10)),
-                        nm.war.Round(192, 182, 35, 33, nm.army.Army(JS=5), nm.army.Army(JS=2)),
+                        nm.battle.Round(800, 760, 700, 665, nm.army.Army(JS=50), nm.army.Army(JS=44)),
+                        nm.battle.Round(448, 426, 350, 333, nm.army.Army(JS=28), nm.army.Army(JS=22)),
+                        nm.battle.Round(272, 258, 154, 146, nm.army.Army(JS=17), nm.army.Army(JS=10)),
+                        nm.battle.Round(192, 182, 35, 33, nm.army.Army(JS=5), nm.army.Army(JS=2)),
                     ],
                 ),
                 RC_SIMU_NM,
@@ -184,8 +190,25 @@ class TestBattle:
     )
     @pytest.mark.skip
     def test_generate_rc(self, battle, expected):
-        assert battle.generate_rc() == expected
+        assert battle.to_rc() == expected
 
-    @pytest.mark.skip
+    @pytest.mark.parametrize(
+        "battle,expected",
+        [
+            (
+                nm.battle.Battle(
+                    attacker=nm.army.Army(JS=100),
+                    defender=nm.army.Army(JS=100),
+                    rounds=[
+                        nm.battle.Round(800, 760, 700, 665, nm.army.Army(JS=50), nm.army.Army(JS=44)),
+                        nm.battle.Round(448, 426, 350, 333, nm.army.Army(JS=28), nm.army.Army(JS=22)),
+                        nm.battle.Round(272, 258, 154, 146, nm.army.Army(JS=17), nm.army.Army(JS=10)),
+                        nm.battle.Round(192, 182, 35, 33, nm.army.Army(JS=5), nm.army.Army(JS=2)),
+                    ],
+                ),
+                (nm.army.Army(JS=78), nm.army.Army(JS=100)),
+            ),
+        ],
+    )
     def test_get_total_losses(self, battle, expected):
-        pass
+        assert battle.get_total_losses() == expected
