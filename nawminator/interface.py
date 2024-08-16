@@ -158,74 +158,64 @@ class RCInput:
 
 
 class WarPartyStats:
-    def __init__(self, war_party_state: gr.State, show_labels=False):
+    def __init__(self, war_party_state: gr.State, show_labels=False, right_to_left=False):
         options = {
             "min_width": 10,
-            "scale": 4,
             "container": False,
             "max_lines": 1,
             "show_label": False,
         }
+
+        def make_row(label_str: str, show_extra: bool) -> tuple[gr.Text, gr.Text, gr.Text]:
+            label = gr.Text(
+                label_str,
+                max_lines=1,
+                show_label=False,
+                interactive=False,
+                container=False,
+                render=False,
+            )
+            value_display = gr.Text(**options, render=False, scale=4)
+            extra_box = gr.Text(**options, render=False, scale=2)
+            if right_to_left:
+                value_display.render()
+                if show_extra:
+                    extra_box.render()
+                if show_labels:
+                    label.render()
+            else:
+                if show_labels:
+                    label.render()
+                if show_extra:
+                    extra_box.render()
+                value_display.render()
+
+            return value_display, extra_box, label
+
         with gr.Group():
             with gr.Row("compact"):
-                if show_labels:
-                    gr.Text(
-                        "Vie",
-                        max_lines=1,
-                        show_label=False,
-                        interactive=False,
-                        container=False,
-                    )
-                self.hp = hp = gr.Text(**options)
+                self.hp, self.hp_bonus, label = make_row("Vie", True)
             with gr.Row("compact"):
-                if show_labels:
-                    gr.Text(
-                        "Attaque",
-                        max_lines=1,
-                        show_label=False,
-                        interactive=False,
-                        container=False,
-                    )
-                self.dmg = dmg = gr.Text(**options)
+                self.dmg, self.dmg_bonus, label = make_row("Attaque", True)
             with gr.Row("compact"):
-                if show_labels:
-                    gr.Text(
-                        "Flood",
-                        max_lines=1,
-                        show_label=False,
-                        interactive=False,
-                        container=False,
-                    )
-                self.cnt = cnt = gr.Text(**options)
+                self.cnt, _, label = make_row("Flood", False)
             with gr.Row("compact"):
-                if show_labels:
-                    gr.Text(
-                        "Ponte (Complet)",
-                        max_lines=1,
-                        show_label=False,
-                        container=False,
-                    )
-                self.ponte = ponte = gr.Text(**options)
+                self.ponte, _, label = make_row("Ponte (Complet)", False)
             with gr.Row("compact"):
-                if show_labels:
-                    gr.Text(
-                        "Ponte (Effectif)",
-                        max_lines=1,
-                        show_label=False,
-                        container=False,
-                    )
-                self.adj_ponte = adj_ponte = gr.Text(**options)
+                self.adj_ponte, _, label = make_row("Ponte (Effectif)", False)
 
         @gr.on(
             triggers=war_party_state.change,
             inputs=war_party_state,
-            outputs=[hp, dmg, cnt, ponte, adj_ponte],
+            outputs=[self.hp, self.hp_bonus, self.dmg, self.dmg_bonus, self.cnt, self.ponte, self.adj_ponte],
             show_progress="hidden",
         )
         def update_stats(p: nm.war.WarParty):
             return (
                 f"{p.total_hp:,.0f}".replace(",", " "),
+                f"+{p.bonuses.hp:.0%}",
                 f"{p.total_dmg:,.0f}".replace(",", " "),
+                f"+{p.bonuses.dmg:.0%}",
                 f"{p.army.count:,.0f}".replace(",", " "),
                 f"{nm.utils.format_yjhms(nm.utils.seconds_to_yjhms(p.army.recruit_time()[1]))}",
                 f"{nm.utils.format_yjhms(nm.utils.seconds_to_yjhms(p.army.non_xp_recruit_time()[1]))}",

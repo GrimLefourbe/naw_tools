@@ -47,8 +47,8 @@ with gr.Blocks(title="Nawminator") as demo:
                     gr.Text(scale=1, show_label=False, max_lines=1, interactive=False)
                     invert_button = gr.Button("<--->", scale=0, min_width=75)
                     lieu_input = gr.Radio(
-                        value="Dôme",
-                        choices=["TDC", "Dôme", "Loge"],
+                        value=nm.levels.FightZone.DOME,
+                        choices=list(nm.levels.FightZone),
                         scale=1,
                         show_label=False,
                     )
@@ -104,8 +104,11 @@ with gr.Blocks(title="Nawminator") as demo:
                         nm.interface.WarPartyStats(
                             defender_party_state,
                             show_labels=False,
+                            right_to_left=True,
                         )
-                simu_btn = gr.Button("Bagarre!")
+                with gr.Row():
+                    analyse_button = gr.Button("Analyse!")
+                    simu_btn = gr.Button("Bagarre!")
                 output = gr.Textbox(label="Résultat")
 
                 @gr.on(
@@ -132,13 +135,13 @@ with gr.Blocks(title="Nawminator") as demo:
                     ],
                     outputs=defender_party_state,
                 )
-                def defender_update(army: nm.army.Army, levels: nm.levels.Levels, lieu):
+                def defender_update(army: nm.army.Army, levels: nm.levels.Levels, lieu: nm.levels.FightZone):
                     match lieu:
-                        case "TDC":
+                        case nm.levels.FightZone.TDC:
                             bonuses = levels.bonus_tdc
-                        case "Dôme":
+                        case nm.levels.FightZone.DOME:
                             bonuses = levels.bonus_dome
-                        case "Loge":
+                        case nm.levels.FightZone.LOGE:
                             bonuses = levels.bonus_loge
                         case _:
                             raise AssertionError
@@ -181,9 +184,72 @@ with gr.Blocks(title="Nawminator") as demo:
                     inputs=[attacker_party_state, defender_party_state, lieu_input],
                     outputs=output,
                 )
-                def result_update(atk_party: nm.war.WarParty, def_party: nm.war.WarParty, lieu):
+                def simulate_fight(atk_party: nm.war.WarParty, def_party: nm.war.WarParty, lieu: nm.levels.FightZone):
                     battle = nm.war.simulate_battle(attacker=atk_party, defender=def_party)
                     return gr.Textbox(value=battle.to_rc(), label=f"Résultat en {lieu}")
+
+                @gr.on(
+                    triggers=analyse_button.click,
+                    inputs=[
+                        output,
+                        lieu_input,
+                        attacker_levels_input.alliance_input,
+                        defender_levels_input.alliance_input,
+                    ],
+                    outputs=[
+                        attacker_party_state,
+                        defender_party_state,
+                        attacker_army_input.state,
+                        *attacker_army_input.unit_boxes,
+                        attacker_levels_input.state,
+                        *attacker_levels_input.input_fields,
+                        defender_army_input.state,
+                        *defender_army_input.unit_boxes,
+                        defender_levels_input.state,
+                        *defender_levels_input.input_fields,
+                    ],
+                    show_progress="hidden",
+                )
+                def analyse_fight(rc: str, lieu: nm.levels.FightZone, atk_alli, def_alli):
+                    attacker, defender = nm.war.analyze_battle(nm.battle.Battle.from_rc(rc))
+                    attacker_levels = l = nm.levels.Levels.from_bonuses(
+                        attacker.bonuses.dmg, attacker.bonuses.hp, lieu=lieu, alli_type=atk_alli, atk=True
+                    )
+
+                    attacker_levels_fields = [
+                        l.mandibule,
+                        l.carapace,
+                        l.hero_lvl,
+                        l.hero_type,
+                        l.dome,
+                        l.loge,
+                        l.alliance,
+                    ]
+                    defender_levels = l = nm.levels.Levels.from_bonuses(
+                        defender.bonuses.dmg, defender.bonuses.hp, lieu=lieu, alli_type=def_alli, atk=False
+                    )
+                    defender_levels_fields = [
+                        l.mandibule,
+                        l.carapace,
+                        l.hero_lvl,
+                        l.hero_type,
+                        l.dome,
+                        l.loge,
+                        l.alliance,
+                    ]
+
+                    return (
+                        attacker,
+                        defender,
+                        attacker.army,
+                        *attacker.army._units,
+                        attacker_levels,
+                        *attacker_levels_fields,
+                        defender.army,
+                        *defender.army._units,
+                        defender_levels,
+                        *defender_levels_fields,
+                    )
 
             defender_col.render()
 

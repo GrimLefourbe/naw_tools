@@ -18,6 +18,12 @@ class HeroType(StrEnum):
     VIE = "Vie"
 
 
+class FightZone(StrEnum):
+    TDC = "TDC"
+    DOME = "Dôme"
+    LOGE = "Loge"
+
+
 @dataclass
 class Levels:
     mandibule: int = 0
@@ -133,3 +139,98 @@ class Levels:
 D{self.dome} L{self.loge}
 H{self.hero_type[:1]}{self.hero_lvl}
 A{self.alliance[:1] if self.alliance else "R"}"""
+
+    @classmethod
+    def from_bonuses(cls, bonus_dmg, bonus_hp, lieu: FightZone, alli_type: AllianceType = None, atk=True):
+        step = 1 / 100
+        hero_type = HeroType.ATTAQUE
+        hero_lvl = 0
+
+        explained_dmg_bonus = 0
+        unexplained_dmg_bonus = round(bonus_dmg / step)
+
+        if alli_type == AllianceType.GUERRIER:
+            explained_dmg_bonus += 10
+            unexplained_dmg_bonus -= 10
+        elif alli_type == AllianceType.NEUTRE:
+            explained_dmg_bonus += 5
+            unexplained_dmg_bonus -= 5
+
+        if unexplained_dmg_bonus % 5 != 0:
+            # hero must explain diff
+            hero_type = HeroType.ATTAQUE if atk else HeroType.DEFENSE
+            hero_lvl = 100 + 20 * (unexplained_dmg_bonus % 5)
+            explained_dmg_bonus += hero_lvl / 20
+            unexplained_dmg_bonus -= hero_lvl / 20  ## TODO: check if that makes it subzero
+
+        # no hero needed to explain leftover
+        mandi = unexplained_dmg_bonus // 5
+
+        explained_hp_bonus = 0
+        unexplained_hp_bonus = round(bonus_hp / step)
+
+        if alli_type == AllianceType.NEUTRE:
+            explained_hp_bonus += 5
+            unexplained_hp_bonus -= 5
+        elif alli_type == AllianceType.PACIFISTE:
+            explained_hp_bonus += 10
+            unexplained_hp_bonus -= 10
+
+        if atk or lieu == FightZone.TDC:
+            loge = 0
+            dome = 0
+            if unexplained_hp_bonus % 5 != 0:
+                hero_type = HeroType.VIE
+                hero_lvl = 100 + 20 * (unexplained_hp_bonus % 5)
+                explained_hp_bonus += hero_lvl / 20
+                unexplained_hp_bonus -= hero_lvl / 20
+
+            cara = unexplained_hp_bonus // 5
+
+        elif lieu == FightZone.DOME:
+            loge = 0
+            explained_hp_bonus += 5
+            unexplained_hp_bonus -= 5
+
+            # change step to 0.05
+            explained_hp_bonus *= 2
+            unexplained_hp_bonus *= 2
+
+            if unexplained_hp_bonus % 5 != 0:
+                hero_type = (HeroType.VIE,)
+                hero_lvl = 150 + 10 * (unexplained_hp_bonus % 5)
+                explained_hp_bonus += hero_lvl / 10
+                unexplained_hp_bonus -= hero_lvl / 10  # TODO: check if subzero
+            cara = mandi
+            explained_hp_bonus += cara * 10
+            unexplained_hp_bonus -= cara * 10  # TODO: check if subzero
+
+            dome = unexplained_hp_bonus // 5
+
+        elif lieu == FightZone.LOGE:
+            dome = 0
+            explained_hp_bonus += 10
+            unexplained_hp_bonus -= 10
+
+            if unexplained_hp_bonus % 5 != 0:
+                hero_type = (HeroType.VIE,)
+                hero_lvl = 100 + 20 * (unexplained_hp_bonus % 5)
+                explained_hp_bonus += hero_lvl / 20
+                unexplained_hp_bonus -= hero_lvl / 20
+
+            cara = mandi
+            explained_hp_bonus += cara * 5
+            unexplained_hp_bonus -= cara * 5
+            loge = unexplained_hp_bonus // 5
+        else:
+            raise ValueError(f"Unknown FightZone: {lieu}")
+
+        return cls(
+            mandibule=mandi,
+            carapace=cara,
+            hero_lvl=hero_lvl,
+            hero_type=hero_type,
+            dome=dome,
+            loge=loge,
+            alliance=alli_type,
+        )

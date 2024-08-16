@@ -12,19 +12,8 @@ packages = [
 python = ">=3.12.0,<3.13"
 pandas = "^2.2.2"
 scipy = "^1.8.1"
-protobuf = "3.20.*"
-WTForms = "^3.0.1"
 loguru = "^0.6.0"
-click = "^8.1.7"
 regex = "^2024.7.24"
-
-[tool.poetry.group.flask_app]
-optional = true
-
-[tool.poetry.group.flask_app.dependencies]
-Flask = "^2.0.1"
-Flask-WTF = "^0.15.1"
-Flask-Bootstrap4 = "^4.0.2"
 
 [tool.poetry.group.gradio_app.dependencies]
 gradio = "^4.38.1"
