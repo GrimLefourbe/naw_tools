@@ -14,7 +14,7 @@ run: build
 
 remote_run: build
     docker push $IMAGE_NAME
-    ssh $SSH_USERNAME@$SSH_HOST "cd nawminator && docker pull $IMAGE_NAME && docker compose restart"
+    ssh $SSH_USERNAME@$SSH_HOST "cd nawminator && docker pull $IMAGE_NAME && docker compose up -d"
 
 lint:
     poetry run black .
