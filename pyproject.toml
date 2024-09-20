@@ -5,7 +5,6 @@ description = ""
 authors = ["Vivien Robert <vivienrobertbarbe@gmail.com>"]
 packages = [
     {include = "naw_tools"},
-    {include = "naw_utils"}
 ]
 
 [tool.poetry.dependencies]
