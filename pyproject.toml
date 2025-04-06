@@ -4,7 +4,7 @@ version = "0.1.0"
 description = ""
 authors = ["Vivien Robert <vivienrobertbarbe@gmail.com>"]
 packages = [
-    {include = "naw_tools"},
+    {include = "nawminator"},
 ]
 
 [tool.poetry.dependencies]
