@@ -31,7 +31,7 @@ class Battle:
         defender = Army.from_str(re.search(r"Troupe en défense : (.*?)\n", rc).group(1))
 
         res = re.findall(
-            rf"^.*?inflige\w* ({NAW_INT_REGEX}) \(\+ ({NAW_INT_REGEX})\) dégâts .*? tu\w+ ({NAW_INT_REGEX}) (unités?|ennemis?)\W*$",
+            rf"^.*?inflig[eé]\w* ({NAW_INT_REGEX}) \(\+ ({NAW_INT_REGEX})\) dégâts .*? tu\w+ ({NAW_INT_REGEX}) (unités?|ennemis?)\W*$",
             rc,
             re.MULTILINE,
         )
