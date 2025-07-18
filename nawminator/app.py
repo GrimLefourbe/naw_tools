@@ -215,12 +215,14 @@ with gr.Blocks(title="Nawminator") as demo:
                     attacker_levels = l = nm.levels.Levels.from_bonuses(
                         attacker.bonuses.dmg, attacker.bonuses.hp, lieu=lieu, alli_type=atk_alli, atk=True
                     )
-
+                    if l.hero_lvl is None:
+                        raise ValueError("Hero lvl can't be None")
                     attacker_levels_fields = [
                         l.mandibule,
                         l.carapace,
                         l.hero_lvl,
                         l.hero_type,
+                        l.special,
                         l.dome,
                         l.loge,
                         l.alliance,
@@ -228,11 +230,14 @@ with gr.Blocks(title="Nawminator") as demo:
                     defender_levels = l = nm.levels.Levels.from_bonuses(
                         defender.bonuses.dmg, defender.bonuses.hp, lieu=lieu, alli_type=def_alli, atk=False
                     )
+                    if l.hero_lvl is None:
+                        raise ValueError("Hero lvl can't be None")
                     defender_levels_fields = [
                         l.mandibule,
                         l.carapace,
                         l.hero_lvl,
                         l.hero_type,
+                        l.special,
                         l.dome,
                         l.loge,
                         l.alliance,

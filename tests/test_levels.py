@@ -154,6 +154,10 @@ def test_tdc_bonus(levels: Levels, expected):
             "M1 C5 D5 AP",
             Levels(1, 5, 0, HeroType.ATTAQUE, 0, 5, 0, AllianceType.PACIFISTE),
         ),
+        (
+            "M1 C5 S2 D5 L20",
+            Levels(mandibule=1, carapace=5, dome=5, loge=20, special=2),
+        )
     ],
 )
 def test_import(s, expected: Levels):
@@ -161,9 +165,10 @@ def test_import(s, expected: Levels):
 
 
 @pytest.mark.parametrize(
-    "bonus_dmg,bonus_hp,lieu,alli_type,atk,expected",
+    "hero_enabled,bonus_dmg,bonus_hp,lieu,alli_type,atk,expected",
     [
         (
+            True,
             np.float64(1.14),
             np.float64(1.0),
             FightZone.TDC,
@@ -172,6 +177,7 @@ def test_import(s, expected: Levels):
             Levels(mandibule=19, carapace=20, hero_type=HeroType.ATTAQUE, hero_lvl=180, alliance=AllianceType.GUERRIER),
         ),
         (
+            True,
             np.float64(1.05),
             np.float64(1.45),
             FightZone.DOME,
@@ -180,6 +186,7 @@ def test_import(s, expected: Levels):
             Levels(mandibule=20, carapace=20, hero_lvl=0, dome=14, alliance=AllianceType.NEUTRE),
         ),
         (
+            True,
             np.float64(1.1),
             np.float64(2.1),
             FightZone.LOGE,
@@ -187,7 +194,25 @@ def test_import(s, expected: Levels):
             False,
             Levels(mandibule=22, carapace=22, hero_lvl=0, loge=16, alliance=AllianceType.PACIFISTE),
         ),
+        (
+            False,
+            np.float64(1.11),
+            np.float64(2.11),
+            FightZone.LOGE,
+            AllianceType.NEUTRE,
+            False,
+            Levels(mandibule=20, carapace=20, hero_lvl=0, loge=18, alliance=AllianceType.NEUTRE, special=3)
+        ),
+        (
+            False,
+            np.float64(0.8),
+            np.float64(0.75),
+            FightZone.DOME,
+            AllianceType.NEUTRE,
+            False,
+            Levels(mandibule=15, carapace=13, hero_lvl=0, dome=0, alliance=AllianceType.NEUTRE, special=0)
+        )
     ],
 )
-def test_from_bonuses(bonus_dmg: np.float64, bonus_hp: np.float64, lieu, alli_type, atk, expected):
-    assert Levels.from_bonuses(bonus_dmg, bonus_hp, lieu=lieu, alli_type=alli_type, atk=atk) == expected
+def test_from_bonuses(hero_enabled, bonus_dmg: np.float64, bonus_hp: np.float64, lieu, alli_type, atk, expected):
+    assert Levels.from_bonuses(bonus_dmg, bonus_hp, lieu=lieu, alli_type=alli_type, atk=atk, hero_enabled=hero_enabled) == expected

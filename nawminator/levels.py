@@ -5,6 +5,8 @@ import numpy as np
 from enum import Enum, StrEnum
 import typing as t
 
+from loguru import logger
+
 
 class AllianceType(StrEnum):
     GUERRIER = "Guerrier"
@@ -23,6 +25,7 @@ class FightZone(StrEnum):
     DOME = "Dôme"
     LOGE = "Loge"
 
+HERO_ENABLED = False
 
 @dataclass
 class Levels:
@@ -34,6 +37,7 @@ class Levels:
     dome: int = 0
     loge: int = 0
     alliance: t.Optional[AllianceType] = AllianceType.NEUTRE
+    special: int = 0
 
     def _mandi(self):
         return 0.05 * self.mandibule
@@ -57,11 +61,13 @@ class Levels:
                 return np.array((0, 0.1))
             case None:
                 return np.array((0, 0))
+    def _special(self):
+        return np.array((self.special * 0.02, self.special * 0.02))
 
     @property
     def bonus_atk(self) -> (np.float64, np.float64):
         """(dmg, hp) bonuses when attacking"""
-        dmg, hp = (self._mandi(), self._cara()) + self._alli()
+        dmg, hp = (self._mandi(), self._cara()) + self._special() + self._alli()
 
         if self.hero_type == HeroType.ATTAQUE:
             dmg += self.hero_lvl * 0.0005
@@ -72,7 +78,7 @@ class Levels:
     @property
     def bonus_tdc(self) -> (np.float64, np.float64):
         """(dmg, hp) bonuses when defending in tdc"""
-        dmg, hp = (self._mandi(), self._cara()) + self._alli()
+        dmg, hp = (self._mandi(), self._cara()) + self._special() + self._alli()
         if self.hero_type == HeroType.DEFENSE:
             dmg += self.hero_lvl * 0.0005
         if self.hero_type == HeroType.VIE:
@@ -82,7 +88,7 @@ class Levels:
     @property
     def bonus_dome(self) -> (np.float64, np.float64):
         """(dmg, hp) bonuses when defending in dome"""
-        dmg, hp = (self._mandi(), self._cara() + self._dome()) + self._alli()
+        dmg, hp = (self._mandi(), self._cara() + self._dome()) + self._special() + self._alli()
         if self.hero_type == HeroType.DEFENSE:
             dmg += self.hero_lvl * 0.0005
         if self.hero_type == HeroType.VIE:
@@ -92,7 +98,7 @@ class Levels:
     @property
     def bonus_loge(self) -> (np.float64, np.float64):
         """(dmg, hp) bonuses when defending in loge"""
-        dmg, hp = (self._mandi(), self._cara() + self._loge()) + self._alli()
+        dmg, hp = (self._mandi(), self._cara() + self._loge()) + self._special() + self._alli()
         if self.hero_type == HeroType.DEFENSE:
             dmg += self.hero_lvl * 0.0005
         if self.hero_type == HeroType.VIE:
@@ -101,7 +107,7 @@ class Levels:
 
     @classmethod
     def from_str(cls, s: str):
-        num_args = ["mandibule", "carapace", "dome", "loge"]
+        num_args = ["mandibule", "carapace", "special", "dome", "loge"]
         pat = r"\s*".join(rf"(?:{i[0].upper()}(?P<{i}>\d+))?" for i in num_args)
         pat += r"(?:\s*H([ADV])(\d+))?"
         pat += r"(?:\s*A([PNGR]))?"
@@ -109,7 +115,7 @@ class Levels:
         if not (match := pat.search(s)):
             raise ValueError(f"Can't interpret {s} as levels.")
         args = {k: int(v) for k, v in match.groupdict().items() if v is not None}
-        match match.group(7):
+        match match.group(8):
             case "P":
                 args["alliance"] = AllianceType.PACIFISTE
             case "N":
@@ -121,7 +127,7 @@ class Levels:
             case None:
                 pass
 
-        match match.group(5), match.group(6):
+        match match.group(6), match.group(7):
             case "A", level:
                 args["hero_type"] = HeroType.ATTAQUE
             case "D", level:
@@ -135,20 +141,25 @@ class Levels:
         return cls(**args)
 
     def to_str(self) -> str:
-        return f"""M{self.mandibule} C{self.carapace}
-D{self.dome} L{self.loge}
-H{self.hero_type[:1]}{self.hero_lvl}
-A{self.alliance[:1] if self.alliance else "R"}"""
+        s = ""
+        s += f"M{self.mandibule} C{self.carapace} S{self.special}\n"
+        s += f"D{self.dome} L{self.loge}\n"
+        if HERO_ENABLED:
+            s += f"H{self.hero_type[:1]}{self.hero_lvl}\n"
+        s += f"A{self.alliance[:1] if self.alliance else "R"}"
+        return s
 
     @classmethod
-    def from_bonuses(cls, bonus_dmg, bonus_hp, lieu: FightZone, alli_type: AllianceType = None, atk=True):
-        step = 1 / 100
-        hero_type = HeroType.ATTAQUE
-        hero_lvl = 0
+    def from_bonuses(cls, bonus_dmg, bonus_hp, lieu: FightZone, alli_type: AllianceType = None, atk=True, step=1/100, hero_enabled=None):
+        args = {"alliance": alli_type}
+        if hero_enabled is None:
+            hero_enabled = HERO_ENABLED
 
         explained_dmg_bonus = 0
         unexplained_dmg_bonus = round(bonus_dmg / step)
 
+        ## finding atk bonus
+        mandi = 0
         if alli_type == AllianceType.GUERRIER:
             explained_dmg_bonus += 10
             unexplained_dmg_bonus -= 10
@@ -156,23 +167,35 @@ A{self.alliance[:1] if self.alliance else "R"}"""
             explained_dmg_bonus += 5
             unexplained_dmg_bonus -= 5
 
-        if unexplained_dmg_bonus % 5 != 0:
-            # hero must explain diff
-            hero_type = HeroType.ATTAQUE if atk else HeroType.DEFENSE
-            hero_lvl = 100 + 20 * (unexplained_dmg_bonus % 5)
-            explained_dmg_bonus += hero_lvl / 20
-            unexplained_dmg_bonus -= hero_lvl / 20  ## TODO: check if that makes it subzero
+        if unexplained_dmg_bonus % 5 != 0: # mandi is not enough to explain
+            if hero_enabled:
+                # hero must explain diff
+                args["hero_type"] = HeroType.ATTAQUE if atk else HeroType.DEFENSE
+                args["hero_lvl"] = hero_lvl = 100 + 20 * (unexplained_dmg_bonus % 5)
+                explained_dmg_bonus += hero_lvl / 20
+                unexplained_dmg_bonus -= hero_lvl / 20  ## TODO: check if that makes it subzero
+                # TODO: Enable both hero and specialisation together
+            else:
+                # specialisation must explain diff
+                if unexplained_dmg_bonus % 2: # mandi is odd
+                    mandi += 1
+                    unexplained_dmg_bonus -= 5
+                    explained_dmg_bonus += 5
+                args["special"] = special = unexplained_dmg_bonus % 10 / 2
+                unexplained_dmg_bonus -= special * 2
+                explained_dmg_bonus += special * 2
 
         # no hero needed to explain leftover
-        mandi = unexplained_dmg_bonus // 5
-
+        mandi += unexplained_dmg_bonus // 5
+        args ["mandibule"] = mandi
         if bonus_hp is None:
-            loge = 0
-            dome = 0
-            cara = 0
+            unexplained_hp_bonus = None
         else:
             explained_hp_bonus = 0
             unexplained_hp_bonus = round(bonus_hp / step)
+            if "special" in args:
+                explained_hp_bonus += special * 2
+                unexplained_hp_bonus -= special * 2
 
             if alli_type == AllianceType.NEUTRE:
                 explained_hp_bonus += 5
@@ -182,18 +205,16 @@ A{self.alliance[:1] if self.alliance else "R"}"""
                 unexplained_hp_bonus -= 10
 
             if atk or lieu == FightZone.TDC:
-                loge = 0
-                dome = 0
-                if unexplained_hp_bonus % 5 != 0:
-                    hero_type = HeroType.VIE
-                    hero_lvl = 100 + 20 * (unexplained_hp_bonus % 5)
-                    explained_hp_bonus += hero_lvl / 20
-                    unexplained_hp_bonus -= hero_lvl / 20
+                if HERO_ENABLED:
+                    if unexplained_hp_bonus % 5 != 0:
+                        args["hero_type"] = HeroType.VIE
+                        args["hero_lvl"] = hero_lvl = 100 + 20 * (unexplained_hp_bonus % 5)
+                        explained_hp_bonus += hero_lvl / 20
+                        unexplained_hp_bonus -= hero_lvl / 20
 
                 cara = unexplained_hp_bonus // 5
 
             elif lieu == FightZone.DOME:
-                loge = 0
                 explained_hp_bonus += 5
                 unexplained_hp_bonus -= 5
 
@@ -202,40 +223,38 @@ A{self.alliance[:1] if self.alliance else "R"}"""
                 unexplained_hp_bonus *= 2
 
                 if unexplained_hp_bonus % 5 != 0:
-                    hero_type = HeroType.VIE
-                    hero_lvl = 150 + 10 * (unexplained_hp_bonus % 5)
-                    explained_hp_bonus += hero_lvl / 10
-                    unexplained_hp_bonus -= hero_lvl / 10  # TODO: check if subzero
-                cara = mandi
-                explained_hp_bonus += cara * 10
-                unexplained_hp_bonus -= cara * 10  # TODO: check if subzero
+                    if HERO_ENABLED:
+                        if hero_enabled:
+                            args["hero_type"] = HeroType.VIE
+                            args["hero_lvl"] = hero_lvl = 150 + 10 * (unexplained_hp_bonus % 5)
+                            explained_hp_bonus += hero_lvl / 10
+                            unexplained_hp_bonus -= hero_lvl / 10  # TODO: check if subzero
 
-                dome = unexplained_hp_bonus // 5
+                cara = min(mandi, unexplained_hp_bonus // 10)
+                explained_hp_bonus += cara * 10
+                unexplained_hp_bonus -= cara * 10
+
+                args["dome"] = unexplained_hp_bonus // 5
 
             elif lieu == FightZone.LOGE:
-                dome = 0
                 explained_hp_bonus += 10
                 unexplained_hp_bonus -= 10
+                
+                if HERO_ENABLED:
+                    if unexplained_hp_bonus % 5 != 0:
+                        args["hero_type"] = HeroType.VIE
+                        args["hero_lvl"] = hero_lvl = 100 + 20 * (unexplained_hp_bonus % 5)
+                        explained_hp_bonus += hero_lvl / 20
+                        unexplained_hp_bonus -= hero_lvl / 20
 
-                if unexplained_hp_bonus % 5 != 0:
-                    hero_type = HeroType.VIE
-                    hero_lvl = 100 + 20 * (unexplained_hp_bonus % 5)
-                    explained_hp_bonus += hero_lvl / 20
-                    unexplained_hp_bonus -= hero_lvl / 20
-
-                cara = mandi
+                cara = min(mandi, unexplained_hp_bonus // 5)
                 explained_hp_bonus += cara * 5
                 unexplained_hp_bonus -= cara * 5
-                loge = unexplained_hp_bonus // 5
+                args["loge"] = unexplained_hp_bonus // 5
             else:
                 raise ValueError(f"Unknown FightZone: {lieu}")
-
+            args["carapace"] = cara
+        logger.debug(f"Unexplained bonuses left: {unexplained_dmg_bonus}/{unexplained_hp_bonus}")
         return cls(
-            mandibule=mandi,
-            carapace=cara,
-            hero_lvl=hero_lvl,
-            hero_type=hero_type,
-            dome=dome,
-            loge=loge,
-            alliance=alli_type,
+            **args
         )

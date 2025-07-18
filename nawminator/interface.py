@@ -74,13 +74,17 @@ class LevelsInput:
                             show_label=False,
                             container=False,
                         )
+            self.input_fields = [
+                self.mandi_input,
+                self.cara_input,
+            ]
             with gr.Column(min_width=100):
-                with gr.Group():
+                with gr.Group(visible=nm.levels.HERO_ENABLED):
                     with gr.Row():
                         gr.Text("Hero", **options, max_lines=0, container=False)
                     with gr.Row():
                         self.herolvl_input = gr.Number(
-                            value=180,
+                            value=0,
                             minimum=0,
                             maximum=180,
                             **options,
@@ -94,12 +98,21 @@ class LevelsInput:
                             scale=3,
                             container=False,
                         )
-        self.input_fields = [
-            self.mandi_input,
-            self.cara_input,
-            self.herolvl_input,
-            self.herotype_input,
-        ]
+                        self.input_fields.append(self.herolvl_input)
+                        self.input_fields.append(self.herotype_input)
+                with gr.Group(visible=not nm.levels.HERO_ENABLED):
+                    with gr.Row():
+                        gr.Text("Specialisation lvl", **options, max_lines=0, container=False)
+                    with gr.Row():
+                        self.spe_input = gr.Number(
+                            value=0,
+                            minimum=0,
+                            maximum=5,
+                            **options,
+                            scale=2,
+                            container=False
+                        )
+                        self.input_fields.append(self.spe_input)
 
         with gr.Row():
             self.alliance_input = gr.Dropdown(
@@ -133,6 +146,7 @@ class LevelsInput:
                 l.carapace,
                 l.hero_lvl,
                 l.hero_type,
+                l.special,
                 l.dome,
                 l.loge,
                 l.alliance,
@@ -145,8 +159,21 @@ class LevelsInput:
             outputs=[self.state, self.input_box],
             show_progress="hidden",
         )
-        def on_input_change(m, c, hl, ht, d, l, a):
-            l = nm.levels.Levels(m, c, hl, ht, 0, d, l, a)
+        def on_input_change(m, c, hl, ht, s, d, l, a):
+            print(hl, ht)
+            args = {}
+            if hl is not None and ht is not None:
+                args = {"hero_lvl": hl, "hero_type": ht}
+            l = nm.levels.Levels(
+                mandibule=m, 
+                carapace=c,
+                **args,
+                train=0, 
+                dome=d, 
+                loge=l, 
+                alliance=a, 
+                special=s
+                )
             return l, l.to_str()
 
 
