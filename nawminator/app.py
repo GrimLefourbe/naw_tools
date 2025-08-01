@@ -5,44 +5,31 @@ import numpy as np
 
 
 with gr.Blocks(title="Nawminator") as demo:
-    with gr.Tab("Simulateur pontes"):
-        with gr.Row():
-            with gr.Column(variant="compact"):
-                army_input = nm.interface.ArmyInput()
-            with gr.Column(variant="compact", scale=3):
-                with gr.Group():
-                    with gr.Row("compact"):
-                        bonuses = [
-                            gr.Number(label="TDP", precision=0),
-                            gr.Number(label="Quête Alliance", precision=0),
-                        ]
-                output = gr.Text(label="Durée", scale=7, interactive=False)
-
-            @gr.on(
-                triggers=[army_input.state.change, *[i.change for i in bonuses]],
-                inputs=[army_input.state, *bonuses],
-                outputs=output,
-            )
-            def compute_duration(army: nm.army.Army, tdp, bonus_alli):
-                durations, total_duration = army.recruit_time(tdp, bonus_alli)
-                return format_yjhms(seconds_to_yjhms(total_duration))
-
     with gr.Tab("Simulateur Combat"):
         with gr.Row():
             attacker_party_state = gr.State(nm.war.WarParty(nm.army.Army(), nm.war.Bonuses(0, 0), True))
             defender_party_state = gr.State(nm.war.WarParty(nm.army.Army(), nm.war.Bonuses(0, 0), False))
 
             with gr.Column(variant="compact", render=False) as attacker_col:
+                gr.Markdown(
+                    "<div style='text-align:center; font-weight:bold; font-size:18px;'>Attaquant</div>"
+                )
                 attacker_levels_input = nm.interface.LevelsInput(atk=True)
                 attacker_army_input = nm.interface.ArmyInput()
 
             with gr.Column(variant="compact", render=False) as defender_col:
+                gr.Markdown(
+                    "<div style='text-align:center; font-weight:bold; font-size:18px;'>Défenseur</div>"
+                )
                 defender_levels_input = nm.interface.LevelsInput(atk=False)
                 defender_army_input = nm.interface.ArmyInput()
 
             attacker_col.render()
 
             with gr.Column(scale=2):
+                gr.Markdown(
+                    "<div style='text-align:center; font-weight:bold; font-size:18px;'>Combat</div>"
+                )
                 with gr.Row():
                     gr.Text(scale=1, show_label=False, max_lines=1, interactive=False)
                     invert_button = gr.Button("<--->", scale=0, min_width=75)
@@ -109,7 +96,7 @@ with gr.Blocks(title="Nawminator") as demo:
                 with gr.Row():
                     analyse_button = gr.Button("Analyse!")
                     simu_btn = gr.Button("Bagarre!")
-                output = gr.Textbox(label="Résultat")
+                output = gr.Textbox(label="Rapport de Combat")
 
                 @gr.on(
                     triggers=[
@@ -257,6 +244,55 @@ with gr.Blocks(title="Nawminator") as demo:
                     )
 
             defender_col.render()
+
+    with gr.Tab("Simulateur pontes"):
+        with gr.Row():
+            with gr.Column(variant="compact"):
+                army_input = nm.interface.ArmyInput()
+            with gr.Column(variant="compact", scale=3):
+                with gr.Group():
+                    with gr.Row("compact"):
+                        bonuses = [
+                            gr.Number(label="TDP", precision=0),
+                            gr.Number(label="Quête Alliance", precision=0),
+                        ]
+                output = gr.Text(label="Durée", scale=7, interactive=False)
+
+            @gr.on(
+                triggers=[army_input.state.change, *[i.change for i in bonuses]],
+                inputs=[army_input.state, *bonuses],
+                outputs=output,
+            )
+            def compute_duration(army: nm.army.Army, tdp, bonus_alli):
+                durations, total_duration = army.recruit_time(tdp, bonus_alli)
+                return format_yjhms(seconds_to_yjhms(total_duration))
+
+
+    with gr.Tab("Simulateur Durée"):
+        with gr.Row():
+            from_x = gr.Number(value=0, label="x")
+            from_y = gr.Number(value=0, label="y")
+            from_va = gr.Number(value=0, label="va")
+        with gr.Row():
+            to_x = gr.Number(value=0, label="x")
+            to_y = gr.Number(value=0, label="y")
+        with gr.Row():
+            duration = gr.Text("0s")
+
+        @gr.on(
+            triggers=[
+                from_x.change, from_y.change, from_va.change, to_x.change, to_y.change
+            ],
+            inputs=[
+                from_x, from_y, to_x, to_y, from_va,
+            ],
+            outputs=[
+                duration
+            ]
+        )
+        def compute_duration(x1, y1, x2, y2, va):
+            return nm.utils.format_yjhms(nm.utils.seconds_to_yjhms(nm.distance.duree_attaque(x1, y1, x2, y2, va)))
+
 
 if __name__ == "__main__":
     demo.launch(server_name="0.0.0.0")
