@@ -27,8 +27,13 @@ class Battle:
 
     @classmethod
     def from_rc(cls, rc: str):
-        attacker = Army.from_str(re.search(r"Troupe en attaque : (.*?)\n", rc).group(1))
-        defender = Army.from_str(re.search(r"Troupe en défense : (.*?)\n", rc).group(1))
+        if res := re.search(r"Troupe en attaque : (.*?)\n", rc):
+            attacker = Army.from_str(res.group(1))
+        else:
+            raise ValueError(f"Could not parse attacker in {rc}")
+        
+        if res := re.search(r"Troupe en défense : (.*?)\n", rc):
+            defender = Army.from_str(res.group(1))
 
         res = re.findall(
             rf"^.*?inflig[eé]\w* ({NAW_INT_REGEX}) \(\+ ({NAW_INT_REGEX})\) dégâts .*? tu\w+ ({NAW_INT_REGEX}) (unités?|ennemis?)\W*$",
@@ -45,10 +50,10 @@ class Battle:
 
         cur_atk = attacker
         cur_def = defender
-        rounds = []
+        rounds: list[Round] = []
         for atk, riposte in it.batched(damage_lines, n=2):
-            atk_loss, cur_atk = cur_atk.split_by_count(riposte[2])
-            def_loss, cur_def = cur_def.split_by_count(atk[2])
+            atk_loss, cur_atk = cur_atk.split_by_count(np.int64(riposte[2]))
+            def_loss, cur_def = cur_def.split_by_count(np.int64(atk[2]))
             rounds.append(
                 Round(
                     attacker_base_dmg=np.int64(atk[0]),

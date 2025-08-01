@@ -1,4 +1,5 @@
 from collections import namedtuple
+import typing as t
 
 YJHMS = namedtuple("YJHMS", "Y J H M S")
 
@@ -22,7 +23,7 @@ def parse_naw_int(s: str) -> int:
     return int(s.replace(" ", ""))
 
 
-def format_naw_int(i: int) -> str:
+def format_naw_int(i) -> str:
     return f"{i:,}".replace(",", " ")
 
 

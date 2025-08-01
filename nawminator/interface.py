@@ -1,6 +1,9 @@
 import gradio as gr
 import nawminator as nm
 
+import typing as t
+if t.TYPE_CHECKING: 
+    from gradio.components import FormComponent
 ### INPUTS
 
 
@@ -14,7 +17,7 @@ class ArmyInput:
         with gr.Accordion("Units", open=False):
             with gr.Group():
                 for _, short_name, _ in nm.army.unit_names:
-                    with gr.Row("compact"):
+                    with gr.Row(variant="compact"):
                         gr.Text(
                             short_name,
                             max_lines=1,
@@ -50,7 +53,7 @@ class ArmyInput:
 class LevelsInput:
     def __init__(self, atk=True):
         self.state = gr.State(nm.levels.Levels())
-        options = {"min_width": 50}
+        options: dict[str, t.Any] = {"min_width": 50}
         with gr.Row():
             with gr.Column(min_width=100):
                 with gr.Group():
@@ -74,7 +77,7 @@ class LevelsInput:
                             show_label=False,
                             container=False,
                         )
-            self.input_fields = [
+            self.input_fields: list[FormComponent] = [
                 self.mandi_input,
                 self.cara_input,
             ]
@@ -120,7 +123,7 @@ class LevelsInput:
                 label="Alliance",
                 choices=[
                     *list(nm.levels.AllianceType),
-                    None,
+                    "None",
                 ],
                 **options,
                 scale=1,
@@ -154,7 +157,7 @@ class LevelsInput:
             )
 
         @gr.on(
-            triggers=[inp.change for inp in self.input_fields],
+            triggers=[inp.change for inp in self.input_fields], # type: ignore
             inputs=self.input_fields,
             outputs=[self.state, self.input_box],
             show_progress="hidden",
@@ -220,15 +223,15 @@ class WarPartyStats:
             return value_display, extra_box, label
 
         with gr.Group():
-            with gr.Row("compact"):
+            with gr.Row(variant="compact"):
                 self.hp, self.hp_bonus, label = make_row("Vie", True)
-            with gr.Row("compact"):
+            with gr.Row(variant="compact"):
                 self.dmg, self.dmg_bonus, label = make_row("Attaque", True)
-            with gr.Row("compact"):
+            with gr.Row(variant="compact"):
                 self.cnt, _, label = make_row("Flood", False)
-            with gr.Row("compact"):
+            with gr.Row(variant="compact"):
                 self.ponte, _, label = make_row("Ponte (Complet)", False)
-            with gr.Row("compact"):
+            with gr.Row(variant="compact"):
                 self.adj_ponte, _, label = make_row("Ponte (Effectif)", False)
 
         @gr.on(
