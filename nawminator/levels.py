@@ -65,7 +65,7 @@ class Levels:
         return np.array((self.special * 0.02, self.special * 0.02))
 
     @property
-    def bonus_atk(self) -> (np.float64, np.float64):
+    def bonus_atk(self) -> tuple[np.float64, np.float64]:
         """(dmg, hp) bonuses when attacking"""
         dmg, hp = (self._mandi(), self._cara()) + self._special() + self._alli()
 
@@ -76,7 +76,7 @@ class Levels:
         return dmg, hp
 
     @property
-    def bonus_tdc(self) -> (np.float64, np.float64):
+    def bonus_tdc(self) -> tuple[np.float64, np.float64]:
         """(dmg, hp) bonuses when defending in tdc"""
         dmg, hp = (self._mandi(), self._cara()) + self._special() + self._alli()
         if self.hero_type == HeroType.DEFENSE:
@@ -86,7 +86,7 @@ class Levels:
         return dmg, hp
 
     @property
-    def bonus_dome(self) -> (np.float64, np.float64):
+    def bonus_dome(self) -> tuple[np.float64, np.float64]:
         """(dmg, hp) bonuses when defending in dome"""
         dmg, hp = (self._mandi(), self._cara() + self._dome()) + self._special() + self._alli()
         if self.hero_type == HeroType.DEFENSE:
@@ -96,7 +96,7 @@ class Levels:
         return dmg, hp
 
     @property
-    def bonus_loge(self) -> (np.float64, np.float64):
+    def bonus_loge(self) -> tuple[np.float64, np.float64]:
         """(dmg, hp) bonuses when defending in loge"""
         dmg, hp = (self._mandi(), self._cara() + self._loge()) + self._special() + self._alli()
         if self.hero_type == HeroType.DEFENSE:
@@ -114,7 +114,7 @@ class Levels:
         pat = re.compile(pat)
         if not (match := pat.search(s)):
             raise ValueError(f"Can't interpret {s} as levels.")
-        args = {k: int(v) for k, v in match.groupdict().items() if v is not None}
+        args: dict[str, t.Any] = {k: int(v) for k, v in match.groupdict().items() if v is not None}
         match match.group(8):
             case "P":
                 args["alliance"] = AllianceType.PACIFISTE
@@ -150,8 +150,8 @@ class Levels:
         return s
 
     @classmethod
-    def from_bonuses(cls, bonus_dmg, bonus_hp, lieu: FightZone, alli_type: AllianceType = None, atk=True, step=1/100, hero_enabled=None):
-        args = {"alliance": alli_type}
+    def from_bonuses(cls, bonus_dmg, bonus_hp, lieu: FightZone, alli_type: t.Optional[AllianceType] = None, atk=True, step=1/100, hero_enabled=None):
+        args: dict[str, t.Any] = {"alliance": alli_type}
         if hero_enabled is None:
             hero_enabled = HERO_ENABLED
 

@@ -10,8 +10,8 @@ class TestBonuses:
             (
                 nm.battle.Round(800, 760, 700, 665, nm.army.Army(JS=50), nm.army.Army(JS=44)),
                 (
-                    nm.war.Bonuses(np.float64(0.95), hp=np.float64(0.96), min_hp=np.float64(0.92)),
-                    nm.war.Bonuses(np.float64(0.95), hp=np.float64(0.965), min_hp=np.float64(0.935)),
+                    nm.war.Bonuses(dmg=np.float64(0.95), min_dmg=np.float64(0.95), hp=np.float64(0.96), min_hp=np.float64(0.92)),
+                    nm.war.Bonuses(dmg=np.float64(0.95), min_dmg=np.float64(0.95), hp=np.float64(0.965), min_hp=np.float64(0.935)),
                 ),
             ),
             (
@@ -34,7 +34,10 @@ class TestBonuses:
                     nm.army.Army(JS=99989, S=909880, SE=3856893, JTK=31776, TK=114476, TKE=144322),
                     nm.army.Army(E=999990, ME=502, JS=2480000, S=777537, SE=276848),
                 ),
-                (nm.war.Bonuses(np.float64(1.14), np.float64(1.0)), nm.war.Bonuses(np.float64(1.05), np.float64(1.45))),
+                (
+                    nm.war.Bonuses(dmg=np.float64(1.14), min_dmg=np.float64(1.14), hp=np.float64(1.0), min_hp=np.float64(1.0)), 
+                    nm.war.Bonuses(dmg=np.float64(1.05), min_dmg=np.float64(1.05), hp=np.float64(1.45), min_hp=np.float64(1.45))
+                ),
             ),
             (
                 nm.battle.Round(
@@ -46,8 +49,8 @@ class TestBonuses:
                     defender_losses=nm.army.Army(JS=33),
                 ),
                 (
-                    nm.war.Bonuses(np.float64(1.05), None),
-                    nm.war.Bonuses(np.float64(0.89), np.float64(2.15), min_hp=np.float64(2.06)),
+                    nm.war.Bonuses(dmg=np.float64(1.05), min_dmg=np.float64(1.05), hp=None),
+                    nm.war.Bonuses(dmg=np.float64(0.89), min_dmg=np.float64(0.89), hp=np.float64(2.15), min_hp=np.float64(2.06)),
                 ),
             ),
         ],
@@ -66,8 +69,8 @@ class TestBonuses:
                     nm.battle.Round(192, 182, 35, 33, nm.army.Army(JS=5), nm.army.Army(JS=2)),
                 ],
                 (
-                    nm.war.Bonuses(np.float64(0.95), np.float64(0.96), min_hp=np.float64(0.92)),
-                    nm.war.Bonuses(np.float64(0.95), np.float64(0.965), min_hp=np.float64(0.935)),
+                    nm.war.Bonuses(dmg=np.float64(0.95), min_dmg=np.float64(0.95), hp=np.float64(0.96), min_hp=np.float64(0.92)),
+                    nm.war.Bonuses(dmg=np.float64(0.95), min_dmg=np.float64(0.95), hp=np.float64(0.965), min_hp=np.float64(0.935)),
                 ),
             ),
             (
@@ -81,7 +84,10 @@ class TestBonuses:
                         nm.army.Army(E=999990, ME=502, JS=2480000, S=777537, SE=276848),
                     )
                 ],
-                (nm.war.Bonuses(np.float64(1.14), np.float64(1.0)), nm.war.Bonuses(np.float64(1.05), np.float64(1.45))),
+                (
+                    nm.war.Bonuses(dmg=np.float64(1.14), min_dmg=np.float64(1.14), hp=np.float64(1.0), min_hp=np.float64(1.0)),
+                    nm.war.Bonuses(dmg=np.float64(1.05), min_dmg=np.float64(1.05), hp=np.float64(1.45), min_hp=np.float64(1.45)),
+                ),
             ),
         ],
     )

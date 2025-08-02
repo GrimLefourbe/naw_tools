@@ -27,10 +27,6 @@ class Bonuses:
         min_dmg: t.Optional[np.float64] = None,
         min_hp: t.Optional[np.float64] = None,
     ):
-        if dmg == min_dmg:
-            min_dmg = None
-        if hp == min_hp:
-            min_hp = None
         self.dmg = dmg
         self.min_dmg = min_dmg
         self.hp = hp
@@ -42,31 +38,34 @@ class Bonuses:
             rounds = [rounds]
 
         atk_bonuses, def_bonuses = cls.compute_bonuses(rounds[0])
-        atk_dmg, atk_hp = (atk_bonuses.dmg, atk_bonuses.min_dmg), (atk_bonuses.hp, atk_bonuses.min_hp)
-        def_dmg, def_hp = (def_bonuses.dmg, def_bonuses.min_dmg), (def_bonuses.hp, def_bonuses.min_hp)
-
         for br in rounds[1:]:
             new_atk_bonuses, new_def_bonuses = cls.compute_bonuses(br)
 
-            if atk_dmg[1] is not None:
-                atk_dmg = (min(atk_dmg[0], new_atk_bonuses.dmg), max(atk_dmg[1], new_atk_bonuses.min_dmg))
-            if def_dmg[1] is not None:
-                def_dmg = (min(def_dmg[0], new_def_bonuses.dmg), max(def_dmg[1], new_def_bonuses.min_dmg))
+            atk_bonuses = atk_bonuses.combine(new_atk_bonuses)
+            def_bonuses = def_bonuses.combine(new_def_bonuses)
 
-            if new_atk_bonuses.min_hp is not None:
-                atk_hp = (
-                    min(atk_hp[0], new_atk_bonuses.hp),
-                    max(atk_hp[1], new_atk_bonuses.min_hp),
-                )
-            if new_def_bonuses.min_hp is not None:
-                def_hp = (
-                    min(def_hp[0], new_def_bonuses.hp),
-                    max(def_hp[1], new_def_bonuses.min_hp),
-                )
+        return atk_bonuses, def_bonuses
 
-        return Bonuses(dmg=atk_dmg[0], min_dmg=atk_dmg[1], hp=atk_hp[0], min_hp=atk_hp[1]), Bonuses(
-            dmg=def_dmg[0], min_dmg=def_dmg[1], hp=def_hp[0], min_hp=def_hp[1]
-        )
+    def combine(self, b: "Bonuses") -> "Bonuses":
+        match (self.hp, b.hp):
+            case (hp, None) | (None, hp):
+                pass
+            case ah, bh:
+                hp = np.min((ah, bh))
+
+        match (self.min_dmg, b.min_dmg):
+            case (min_dmg, None) | (None, min_dmg):
+                pass
+            case amd, bmd:
+                min_dmg = np.max([amd, bmd])
+
+        match (self.min_hp, b.min_hp):
+            case (min_hp, None) | (None, min_hp):
+                pass
+            case amh, bmh:
+                min_hp = np.max([amh, bmh])
+        
+        return Bonuses(dmg=np.min([self.dmg, b.dmg]), hp=hp, min_dmg=min_dmg, min_hp=min_hp)
 
     @classmethod
     def compute_bonuses(cls, br: nm.battle.Round, step=5e-3) -> tuple["Bonuses", "Bonuses"]:
@@ -117,7 +116,7 @@ class WarParty:
         pass
 
     def to_str(self) -> str:
-        pass
+        raise NotImplementedError
 
     @property
     def base_dmg(self):
@@ -133,9 +132,11 @@ class WarParty:
 
     @property
     def total_hp(self) -> np.float64:
-        return np.floor(0.5 + self.army.base_hp * (1 + self.bonuses.hp))
+        return np.float64(np.nan) if self.bonuses.hp is None else np.floor(0.5 + self.army.base_hp * (1 + self.bonuses.hp))
 
     def after_dmg(self, dmg: np.float64) -> tuple["WarParty", "WarParty"]:
+        if self.bonuses.hp is None:
+            raise ValueError("Can't compute after damage without knowing hp bonus")
         base_hp_lost = dmg / (1 + self.bonuses.hp)
         lost, kept = self.army.split_by_hp(base_hp_lost)
 

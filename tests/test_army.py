@@ -79,7 +79,7 @@ def test_import(string, expected: Army):
         (Army(JS=500, S=500), 10000, (Army(JS=500, S=100), Army(S=400))),
     ],
 )
-def test_split_by_hp(army: Army, dmg, expected: (Army, Army)):
+def test_split_by_hp(army: Army, dmg, expected: tuple[Army, Army]):
     lost, left = army.split_by_hp(dmg)
     assert expected[0] == lost
     assert expected[1] == left

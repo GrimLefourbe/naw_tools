@@ -7,8 +7,8 @@ import numpy as np
 with gr.Blocks(title="Nawminator") as demo:
     with gr.Tab("Simulateur Combat"):
         with gr.Row():
-            attacker_party_state = gr.State(nm.war.WarParty(nm.army.Army(), nm.war.Bonuses(0, 0), True))
-            defender_party_state = gr.State(nm.war.WarParty(nm.army.Army(), nm.war.Bonuses(0, 0), False))
+            attacker_party_state = gr.State(nm.war.WarParty(nm.army.Army(), nm.war.Bonuses(np.float64(0), np.float64(0)), True))
+            defender_party_state = gr.State(nm.war.WarParty(nm.army.Army(), nm.war.Bonuses(np.float64(0), np.float64(0)), False))
 
             with gr.Column(variant="compact", render=False) as attacker_col:
                 gr.Markdown(
@@ -251,7 +251,7 @@ with gr.Blocks(title="Nawminator") as demo:
                 army_input = nm.interface.ArmyInput()
             with gr.Column(variant="compact", scale=3):
                 with gr.Group():
-                    with gr.Row("compact"):
+                    with gr.Row(variant="compact"):
                         bonuses = [
                             gr.Number(label="TDP", precision=0),
                             gr.Number(label="Quête Alliance", precision=0),
@@ -263,7 +263,7 @@ with gr.Blocks(title="Nawminator") as demo:
                 inputs=[army_input.state, *bonuses],
                 outputs=output,
             )
-            def compute_duration(army: nm.army.Army, tdp, bonus_alli):
+            def compute_ponte_duration(army: nm.army.Army, tdp, bonus_alli):
                 durations, total_duration = army.recruit_time(tdp, bonus_alli)
                 return format_yjhms(seconds_to_yjhms(total_duration))
 
