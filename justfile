@@ -12,8 +12,10 @@ build:
 run: build
     docker run --rm -it -p 7860:7860 --log-driver local $IMAGE_NAME
 
-remote_run: build
+push: build
     docker push $IMAGE_NAME
+
+remote_run: build push
     ssh $SSH_USERNAME@$SSH_HOST "cd grim-infra/nawminator && docker pull $IMAGE_NAME && docker compose up -d"
 
 lint:
