@@ -9,6 +9,9 @@ requirements:
 build:
     docker build -t $IMAGE_NAME .
 
+dev_run:
+    poetry run gradio nawminator/app.py
+
 run: build
     docker run --rm -it -p 7860:7860 --log-driver local $IMAGE_NAME
 
