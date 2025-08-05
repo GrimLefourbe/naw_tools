@@ -1,5 +1,6 @@
 import numpy as np
 import regex as re
+import typing as t
 from .utils import parse_naw_int, NAW_INT_REGEX
 
 MAX_UNIT_COUNT = 2**56
@@ -45,9 +46,9 @@ unit_stats = np.array(
 
 
 class Army:
-    def __init__(self, units: np.array = None, **units_args):
+    def __init__(self, units: t.Optional[np.ndarray] = None, **units_args):
         if units is None:
-            units = [units_args.setdefault(short_name, 0) for name, short_name, _ in unit_names]
+            units = np.array([units_args.setdefault(short_name, 0) for name, short_name, _ in unit_names])
         assert len(units) == len(unit_names), f"Expected array of length {len(unit_names)}, got {len(units)}"
         self._units: np.ndarray = np.array(units, dtype=np.int64)
         if (max_unit := max(self._units)) > MAX_UNIT_COUNT:

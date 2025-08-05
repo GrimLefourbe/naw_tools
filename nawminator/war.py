@@ -15,8 +15,8 @@ def compute_hp_bonus_range(dmg: np.float64, losses: nm.army.Army):
 
 @dataclass
 class Bonuses:
-    dmg: np.float64
-    hp: t.Optional[np.float64]
+    max_dmg: np.float64
+    max_hp: t.Optional[np.float64]
     min_dmg: t.Optional[np.float64] = None
     min_hp: t.Optional[np.float64] = None
 
@@ -27,10 +27,18 @@ class Bonuses:
         min_dmg: t.Optional[np.float64] = None,
         min_hp: t.Optional[np.float64] = None,
     ):
-        self.dmg = dmg
+        self.max_dmg = dmg
         self.min_dmg = min_dmg
-        self.hp = hp
+        self.max_hp = hp
         self.min_hp = min_hp
+
+    @property
+    def hp(self):
+        return self.max_hp
+    
+    @property
+    def dmg(self):
+        return self.max_dmg
 
     @classmethod
     def from_rounds(cls, rounds: list[nm.battle.Round] | nm.battle.Round) -> tuple["Bonuses", "Bonuses"]:

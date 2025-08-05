@@ -12,12 +12,12 @@ class ArmyInput:
         import numpy as np
 
         army_state = gr.State(nm.army.Army())
-        input_box = gr.Textbox(placeholder="Coller Armée", scale=0, show_label=False)
+        input_box = gr.Textbox(placeholder="Coller Armée", scale=0, show_label=False, container=False)
         unit_boxes = []
         with gr.Accordion("Units", open=False):
             with gr.Group():
                 for _, short_name, _ in nm.army.unit_names:
-                    with gr.Row(variant="compact"):
+                    with gr.Row():
                         gr.Text(
                             short_name,
                             max_lines=1,
@@ -26,7 +26,7 @@ class ArmyInput:
                             container=False,
                             min_width=100,
                         )
-                        unit_boxes.append(gr.Number(scale=2, precision=0, label=short_name, show_label=False))
+                        unit_boxes.append(gr.Number(scale=2, precision=0, label=short_name, show_label=False, container=False))
 
         @gr.on(
             triggers=[input_box.input],
@@ -55,28 +55,28 @@ class LevelsInput:
         self.state = gr.State(nm.levels.Levels())
         options: dict[str, t.Any] = {"min_width": 50}
         with gr.Row():
-            with gr.Column(min_width=100):
-                with gr.Group():
-                    with gr.Row():
-                        gr.Text("Mandibule", **options, max_lines=0, container=False)
-                        gr.Text("Carapace", **options, max_lines=0, container=False)
-                    with gr.Row():
-                        self.mandi_input = gr.Number(
-                            label="Mandi",
-                            minimum=0,
-                            **options,
-                            scale=1,
-                            show_label=False,
-                            container=False,
-                        )
-                        self.cara_input = gr.Number(
-                            label="Cara",
-                            minimum=0,
-                            **options,
-                            scale=1,
-                            show_label=False,
-                            container=False,
-                        )
+            with gr.Column(min_width=100), gr.Group():
+                with gr.Row():
+                    pass
+                    gr.Text("Mandibule", **options, max_lines=0, container=False)
+                    gr.Text("Carapace", **options, max_lines=0, container=False)
+                with gr.Row():
+                    self.mandi_input = gr.Number(
+                        label="Mandi",
+                        minimum=0,
+                        **options,
+                        scale=1,
+                        show_label=False,
+                        container=False,
+                    )
+                    self.cara_input = gr.Number(
+                        label="Cara",
+                        minimum=0,
+                        **options,
+                        scale=1,
+                        show_label=False,
+                        container=False,
+                    )
             self.input_fields: list[FormComponent] = [
                 self.mandi_input,
                 self.cara_input,
@@ -105,7 +105,7 @@ class LevelsInput:
                         self.input_fields.append(self.herotype_input)
                 with gr.Group(visible=not nm.levels.HERO_ENABLED):
                     with gr.Row():
-                        gr.Text("Specialisation lvl", **options, max_lines=0, container=False)
+                        gr.Text("Specialisation", scale=1, **options, max_lines=0, container=False)
                     with gr.Row():
                         self.spe_input = gr.Number(
                             value=0,
@@ -119,13 +119,14 @@ class LevelsInput:
 
         with gr.Row():
             self.alliance_input = gr.Dropdown(
-                value=nm.levels.AllianceType.NEUTRE,
+                value="None",
                 label="Alliance",
                 choices=[
                     *list(nm.levels.AllianceType),
-                    "None",
+                    ("Alliance", "None"),
                 ],
                 **options,
+                container=False,
                 scale=1,
             )
             with gr.Group(visible=not atk), gr.Row():
@@ -134,7 +135,19 @@ class LevelsInput:
                 self.input_fields.extend([self.dome_input, self.loge_input])
         self.input_fields.append(self.alliance_input)
 
-        self.input_box = gr.Textbox(placeholder="Coller Niveaux", scale=0, show_label=False, max_lines=4)
+        with gr.Group(), gr.Row(equal_height=False):
+            self.input_box = gr.Textbox(
+                placeholder="Coller Niveaux",
+                scale=6, 
+                show_label=False, 
+                max_lines=3, 
+                container=False
+            )
+            copy_btn = gr.Button("📋", scale=1, variant="secondary", size="sm", min_width=10)
+            copy_btn.click(
+                lambda x: x, inputs=self.input_box, outputs=None,
+                js="x => { navigator.clipboard.writeText(x); return []; }" # Gradio expects a list return for outputs
+            )
 
         @gr.on(
             triggers=self.input_box.input,
@@ -174,7 +187,7 @@ class LevelsInput:
                 train=0, 
                 dome=d, 
                 loge=l, 
-                alliance=a, 
+                alliance=a if a != "None" else None, 
                 special=s
                 )
             return l, l.to_str()
@@ -223,15 +236,15 @@ class WarPartyStats:
             return value_display, extra_box, label
 
         with gr.Group():
-            with gr.Row(variant="compact"):
+            with gr.Row():
                 self.hp, self.hp_bonus, label = make_row("Vie", True)
-            with gr.Row(variant="compact"):
+            with gr.Row():
                 self.dmg, self.dmg_bonus, label = make_row("Attaque", True)
-            with gr.Row(variant="compact"):
+            with gr.Row():
                 self.cnt, _, label = make_row("Flood", False)
-            with gr.Row(variant="compact"):
+            with gr.Row():
                 self.ponte, _, label = make_row("Ponte (Complet)", False)
-            with gr.Row(variant="compact"):
+            with gr.Row():
                 self.adj_ponte, _, label = make_row("Ponte (Effectif)", False)
 
         @gr.on(
