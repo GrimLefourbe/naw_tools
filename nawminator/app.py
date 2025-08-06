@@ -13,9 +13,14 @@ css = """
     margin: 0 !important;
     padding: 0 !important;
     margin-right: -4 !important; /* cancel flex gap */
+}
+
+.smgroup {
+    gap: 0.25rem;
+    min-width: 0 !important;
 }"""
 
-with gr.Blocks(title="Nawminator", css=css) as demo:
+with gr.Blocks(title="Nawminator", css=css, fill_width=True) as demo:
     with gr.Tab("Simulateur Combat"):
         gr.HTML("""
         <style>
@@ -24,8 +29,8 @@ with gr.Blocks(title="Nawminator", css=css) as demo:
         .middle { order: 2; }
         .right  { order: 3; }
 
-        /* When screen < 1050px, middle wraps first */
-        @media (max-width: 1050px) {
+        /* When screen < 900px, middle wraps first */
+        @media (max-width: 900px) {
             .middle { order: 3; }  /* move to last -> wraps first */
             .right  { order: 2; }
         }
@@ -52,7 +57,7 @@ with gr.Blocks(title="Nawminator", css=css) as demo:
             attacker_col.render()
             defender_col.render()
 
-            with gr.Column(scale=2, min_width=350, elem_classes=["middle"]):
+            with gr.Column(scale=2, min_width=400, elem_classes=["middle"]):
                 gr.Markdown(
                     "<div style='text-align:center; font-weight:bold; font-size:18px;'>Combat</div>"
                 )

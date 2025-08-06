@@ -63,15 +63,7 @@ class LevelsInput:
         with gr.Column(min_width=200):
             self._research_block(min_width=half_min_width)
             self._hero_spe_block(min_width=half_min_width)
-            self.alliance_input = gr.Dropdown(
-                value="None",
-                label="Alliance",
-                choices=[
-                    *list(nm.levels.AllianceType),
-                    ("Alliance", "None"),
-                ],
-                container=False,
-            )
+
             self._buildings_block(atk, half_min_width)
             self.input_fields.append(self.alliance_input)
 
@@ -175,32 +167,46 @@ class LevelsInput:
     def _hero_spe_block(self, min_width):
         with gr.Row(): #Hero/Spe section
             with gr.Group(visible=nm.levels.HERO_ENABLED):
-                gr.Text("Hero", max_lines=0, container=False)
+                # gr.Text("Hero", max_lines=0, container=False)
                 self.herolvl_input = gr.Number(
                     value=0,
                     minimum=0,
                     maximum=180,
                     scale=2,
                     container=False,
+                    min_width=10,
                 )
                 self.herotype_input = gr.Dropdown(
                     value=nm.levels.HeroType.ATTAQUE,
                     choices=list(nm.levels.HeroType),
                     scale=3,
                     container=False,
+                    min_width=10,
                 )
                 self.input_fields.append(self.herolvl_input)
                 self.input_fields.append(self.herotype_input)
-            with gr.Group(visible=not nm.levels.HERO_ENABLED), gr.Column(min_width=min_width):
-                gr.Text("Specialisation", max_lines=0, container=False)
+            with gr.Group(visible=not nm.levels.HERO_ENABLED, elem_classes=["smgroup"]), gr.Row():
+                gr.Textbox("Spe", max_lines=0, container=False, min_width=45, scale=25)
                 self.spe_input = gr.Number(
                     value=0,
                     minimum=0,
                     maximum=5,
-                    container=False
+                    container=False,
+                    min_width=50,
+                    scale=1,
                 )
                 self.input_fields.append(self.spe_input)
-        
+            self.alliance_input = gr.Dropdown(
+                value="None",
+                label="Alliance",
+                choices=[
+                    *list(nm.levels.AllianceType),
+                    ("Alliance", "None"),
+                ],
+                container=False,
+                min_width=105,
+                scale=0,
+            )
     def _buildings_block(self, atk: bool, min_width: int):
         with gr.Group(visible=not atk), gr.Row(): #Buildings section
             with gr.Column(min_width=min_width):
