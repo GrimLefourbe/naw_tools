@@ -43,81 +43,26 @@ class ArmyInput:
             inputs=unit_boxes,
             outputs=army_state,
         )
-        def parse_units(*inputs):
-            return nm.army.Army(inputs)
+        def parse_units(*inputs: tuple[str]):
+            return nm.army.Army(inputs) # type: ignore
 
         self.unit_boxes = unit_boxes
         self.state = army_state
 
 
 class LevelsInput:
-    def __init__(self, atk=True):
+    def __init__(self, atk=True, min_width=200):
         self.state = gr.State(nm.levels.Levels())
-        options: dict[str, t.Any] = {"min_width": 50}
-        with gr.Row():
-            with gr.Column(min_width=100), gr.Group():
-                with gr.Row():
-                    pass
-                    gr.Text("Mandibule", **options, max_lines=0, container=False)
-                    gr.Text("Carapace", **options, max_lines=0, container=False)
-                with gr.Row():
-                    self.mandi_input = gr.Number(
-                        label="Mandi",
-                        minimum=0,
-                        **options,
-                        scale=1,
-                        show_label=False,
-                        container=False,
-                    )
-                    self.cara_input = gr.Number(
-                        label="Cara",
-                        minimum=0,
-                        **options,
-                        scale=1,
-                        show_label=False,
-                        container=False,
-                    )
-            self.input_fields: list[FormComponent] = [
-                self.mandi_input,
-                self.cara_input,
-            ]
-            with gr.Column(min_width=100):
-                with gr.Group(visible=nm.levels.HERO_ENABLED):
-                    with gr.Row():
-                        gr.Text("Hero", **options, max_lines=0, container=False)
-                    with gr.Row():
-                        self.herolvl_input = gr.Number(
-                            value=0,
-                            minimum=0,
-                            maximum=180,
-                            **options,
-                            scale=2,
-                            container=False,
-                        )
-                        self.herotype_input = gr.Dropdown(
-                            value=nm.levels.HeroType.ATTAQUE,
-                            choices=list(nm.levels.HeroType),
-                            **options,
-                            scale=3,
-                            container=False,
-                        )
-                        self.input_fields.append(self.herolvl_input)
-                        self.input_fields.append(self.herotype_input)
-                with gr.Group(visible=not nm.levels.HERO_ENABLED):
-                    with gr.Row():
-                        gr.Text("Specialisation", scale=1, **options, max_lines=0, container=False)
-                    with gr.Row():
-                        self.spe_input = gr.Number(
-                            value=0,
-                            minimum=0,
-                            maximum=5,
-                            **options,
-                            scale=2,
-                            container=False
-                        )
-                        self.input_fields.append(self.spe_input)
+        self.input_fields: list[FormComponent] = []
+        self._build_layout(atk, min_width)
+        self._configure_triggers()
 
-        with gr.Row():
+    def _build_layout(self, atk, min_width):
+        half_min_width = (min_width // 2) - 5
+
+        with gr.Column(min_width=200):
+            self._research_block(min_width=half_min_width)
+            self._hero_spe_block(min_width=half_min_width)
             self.alliance_input = gr.Dropdown(
                 value="None",
                 label="Alliance",
@@ -125,30 +70,26 @@ class LevelsInput:
                     *list(nm.levels.AllianceType),
                     ("Alliance", "None"),
                 ],
-                **options,
                 container=False,
-                scale=1,
             )
-            with gr.Group(visible=not atk), gr.Row():
-                self.dome_input = gr.Number(label="Dôme", minimum=0, **options)
-                self.loge_input = gr.Number(label="Loge", minimum=0, **options)
-                self.input_fields.extend([self.dome_input, self.loge_input])
-        self.input_fields.append(self.alliance_input)
+            self._buildings_block(atk, half_min_width)
+            self.input_fields.append(self.alliance_input)
 
-        with gr.Group(), gr.Row(equal_height=False):
-            self.input_box = gr.Textbox(
-                placeholder="Coller Niveaux",
-                scale=6, 
-                show_label=False, 
-                max_lines=3, 
-                container=False
-            )
-            copy_btn = gr.Button("📋", scale=1, variant="secondary", size="sm", min_width=10)
-            copy_btn.click(
-                lambda x: x, inputs=self.input_box, outputs=None,
-                js="x => { navigator.clipboard.writeText(x); return []; }" # Gradio expects a list return for outputs
-            )
+            with gr.Group(), gr.Row(equal_height=True):
+                self.input_box = gr.Textbox(
+                    placeholder="Coller Niveaux",
+                    show_label=False, 
+                    max_lines=3, 
+                    scale=4, 
+                    min_width=60,
+                    container=False,
+                    render=False,
+                )
+                self.paste_btn = gr.Button("📥︎", scale=1, variant="secondary", size="sm", min_width=20)
+                self.input_box.render()
+                self.copy_btn = gr.Button("📤︎", scale=1, variant="secondary", size="sm", min_width=20)
 
+    def _configure_triggers(self):
         @gr.on(
             triggers=self.input_box.input,
             inputs=self.input_box,
@@ -157,6 +98,7 @@ class LevelsInput:
         )
         def on_text_change(text_input: str):
             l = nm.levels.Levels.from_str(text_input)
+            print(f"Updating with {l.alliance}")
             return (
                 l.mandibule,
                 l.carapace,
@@ -191,7 +133,83 @@ class LevelsInput:
                 special=s
                 )
             return l, l.to_str()
+        
+        self.copy_btn.click(
+            lambda x: x, inputs=self.input_box, outputs=None, show_progress="hidden",
+            js="x => { navigator.clipboard.writeText(x); return []; }" # Gradio expects a list return for outputs
+        )
+        self.paste_btn.click(
+            on_text_change, 
+            inputs=self.input_box,
+            outputs=[*self.input_fields, self.state],
+            show_progress="hidden",
+            js="() => navigator.clipboard.readText().then(t => [t])" # Gradio expects a list return for outputs
+        )
 
+
+    def _research_block(self, min_width):
+        with gr.Group(), gr.Row(): #Mandi/Cara section
+            with gr.Column(min_width=min_width):
+                gr.Text("Mandibule", scale=3, max_lines=0, container=False)
+                self.mandi_input = gr.Number(
+                    label="Mandi",
+                    minimum=0,
+                    scale=1,
+                    show_label=False,
+                    container=False,
+                )
+            with gr.Column(min_width=min_width):
+                gr.Text("Carapace", scale=3, max_lines=0, container=False)
+                self.cara_input = gr.Number(
+                    label="Cara",
+                    minimum=0,
+                    scale=1,
+                    show_label=False,
+                    container=False,
+                )
+        self.input_fields.extend([
+            self.mandi_input,
+            self.cara_input,
+        ])
+
+    def _hero_spe_block(self, min_width):
+        with gr.Row(): #Hero/Spe section
+            with gr.Group(visible=nm.levels.HERO_ENABLED):
+                gr.Text("Hero", max_lines=0, container=False)
+                self.herolvl_input = gr.Number(
+                    value=0,
+                    minimum=0,
+                    maximum=180,
+                    scale=2,
+                    container=False,
+                )
+                self.herotype_input = gr.Dropdown(
+                    value=nm.levels.HeroType.ATTAQUE,
+                    choices=list(nm.levels.HeroType),
+                    scale=3,
+                    container=False,
+                )
+                self.input_fields.append(self.herolvl_input)
+                self.input_fields.append(self.herotype_input)
+            with gr.Group(visible=not nm.levels.HERO_ENABLED), gr.Column(min_width=min_width):
+                gr.Text("Specialisation", max_lines=0, container=False)
+                self.spe_input = gr.Number(
+                    value=0,
+                    minimum=0,
+                    maximum=5,
+                    container=False
+                )
+                self.input_fields.append(self.spe_input)
+        
+    def _buildings_block(self, atk: bool, min_width: int):
+        with gr.Group(visible=not atk), gr.Row(): #Buildings section
+            with gr.Column(min_width=min_width):
+                gr.Text("Dôme", max_lines=0, container=False)
+                self.dome_input = gr.Number(label="Dôme", minimum=0, show_label=False, container=False)
+            with gr.Column(min_width=min_width):
+                gr.Text("Loge", max_lines=0, container=False)
+                self.loge_input = gr.Number(label="Loge", minimum=0, show_label=False, container=False)
+        self.input_fields.extend([self.dome_input, self.loge_input])
 
 class RCInput:
     pass

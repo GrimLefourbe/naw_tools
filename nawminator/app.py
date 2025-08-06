@@ -3,21 +3,46 @@ from nawminator.utils import seconds_to_yjhms, format_yjhms
 import nawminator as nm
 import numpy as np
 
+css = """
+/* 1️⃣ Hide the HTML block itself */
+.css-injector {
+    opacity: 0;
+    pointer-events: none;
+    height: 0 !important;
+    flex: 0 0 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    margin-right: -4 !important; /* cancel flex gap */
+}"""
 
-with gr.Blocks(title="Nawminator") as demo:
+with gr.Blocks(title="Nawminator", css=css) as demo:
     with gr.Tab("Simulateur Combat"):
+        gr.HTML("""
+        <style>
+        /* Desktop order */
+        .left   { order: 1; }
+        .middle { order: 2; }
+        .right  { order: 3; }
+
+        /* When screen < 1050px, middle wraps first */
+        @media (max-width: 1050px) {
+            .middle { order: 3; }  /* move to last -> wraps first */
+            .right  { order: 2; }
+        }
+        </style>
+        """, container=False, elem_classes=["css-injector"], render=True, visible=True)
         with gr.Row():
             attacker_party_state = gr.State(nm.war.WarParty(nm.army.Army(), nm.war.Bonuses(np.float64(0), np.float64(0)), True))
             defender_party_state = gr.State(nm.war.WarParty(nm.army.Army(), nm.war.Bonuses(np.float64(0), np.float64(0)), False))
 
-            with gr.Column(variant="compact", render=False) as attacker_col:
+            with gr.Column(variant="panel", render=False, min_width=175, elem_classes=["left"]) as attacker_col:
                 gr.Markdown(
                     "<div style='text-align:center; font-weight:bold; font-size:18px;'>Attaquant</div>"
                 )
                 attacker_levels_input = nm.interface.LevelsInput(atk=True)
                 attacker_army_input = nm.interface.ArmyInput()
 
-            with gr.Column(variant="compact", render=False) as defender_col:
+            with gr.Column(variant="panel", render=False, min_width=175, elem_classes=["right"]) as defender_col:
                 gr.Markdown(
                     "<div style='text-align:center; font-weight:bold; font-size:18px;'>Défenseur</div>"
                 )
@@ -25,8 +50,9 @@ with gr.Blocks(title="Nawminator") as demo:
                 defender_army_input = nm.interface.ArmyInput()
 
             attacker_col.render()
+            defender_col.render()
 
-            with gr.Column(scale=2):
+            with gr.Column(scale=2, min_width=350, elem_classes=["middle"]):
                 gr.Markdown(
                     "<div style='text-align:center; font-weight:bold; font-size:18px;'>Combat</div>"
                 )
@@ -243,7 +269,7 @@ with gr.Blocks(title="Nawminator") as demo:
                         *defender_levels_fields,
                     )
 
-            defender_col.render()
+            # defender_col.render()
 
     with gr.Tab("Simulateur pontes"):
         with gr.Row():
@@ -270,12 +296,24 @@ with gr.Blocks(title="Nawminator") as demo:
 
     with gr.Tab("Simulateur Durée"):
         with gr.Row():
-            from_x = gr.Number(value=0, label="x")
-            from_y = gr.Number(value=0, label="y")
-            from_va = gr.Number(value=0, label="va")
-        with gr.Row():
-            to_x = gr.Number(value=0, label="x")
-            to_y = gr.Number(value=0, label="y")
+            with gr.Column(), gr.Group():
+                args = {"container": False, "min_width": 60}
+                with gr.Row():
+                    gr.Text("x", **args)
+                    from_x = gr.Number(value=0, scale=0, **args)
+                with gr.Row():
+                    gr.Text("y", **args)
+                    from_y = gr.Number(value=0, scale=0, **args)
+                with gr.Row():
+                    gr.Text("VA", **args)
+                    from_va = gr.Number(value=0, scale=0, **args)
+            with gr.Column(), gr.Group():
+                with gr.Row():
+                    gr.Text("x", **args)
+                    to_x = gr.Number(value=0, scale=0, **args)
+                with gr.Row():
+                    gr.Text("y", **args)
+                    to_y = gr.Number(value=0, scale=0, **args)
         with gr.Row():
             duration = gr.Text("0s")
 
