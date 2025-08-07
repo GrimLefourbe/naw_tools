@@ -1,5 +1,6 @@
 import math
 
+
 def duree_attaque(
     x1,
     y1,
