@@ -21,17 +21,24 @@ css = """
 }"""
 
 with gr.Blocks(title="Nawminator", css=css, fill_width=True) as demo:
-    with gr.Tab("Combat"):
-        from nawminator.tabs import combat
-        combat.combat_tab()
+    with gr.Tabs() as tabs:
+        with gr.Tab("Combat"):
+            from nawminator.tabs import combat
+            combat.combat_tab()
 
-    with gr.Tab("Pontes"):
-        from nawminator.tabs import pontes
-        pontes.pontes_tab()
+        with gr.Tab("Pontes"):
+            from nawminator.tabs import pontes
+            pontes.pontes_tab()
 
-    with gr.Tab("Durées"):
-        from nawminator.tabs import durees
-        durees.durees_tab()
+        with gr.Tab("Durées"):
+            from nawminator.tabs import durees
+            durees.durees_tab()
+
+        with gr.Tab("Synchro"):
+            from nawminator.tabs import synchro
+            synchro.synchro_tab()
+        
+
 
 
 if __name__ == "__main__":
