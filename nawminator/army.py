@@ -2,6 +2,8 @@ import numpy as np
 import regex as re
 import typing as t
 from .utils import parse_naw_int, NAW_INT_REGEX
+import logging
+logger = logging.getLogger(__name__)
 
 MAX_UNIT_COUNT = 2**56
 
@@ -95,7 +97,7 @@ class Army:
 
     @classmethod
     def from_str(cls, s: str) -> "Army":
-        print(s)
+        logger.info(s)
         pattern = rf"^.*?(?={"|".join(rf"(?:{unit_regex}\s*:\s*{NAW_INT_REGEX}|{NAW_INT_REGEX}\s+{unit_regex})" for name, short_name, unit_regex in unit_names)})"
         pattern += rf"\W*".join(
             rf"(?:{unit_regex}\s*:\s*(?P<{short_name}>{NAW_INT_REGEX})|(?P<{short_name}>{NAW_INT_REGEX})\s+{unit_regex})?"
@@ -172,8 +174,8 @@ class Army:
             ]
         )
 
-    def to_str_compact(self) -> str:
-        return "\n".join(
+    def to_str_compact(self, sep="\n") -> str:
+        return sep.join(
             f"{short_name}: {n:,}".replace(",", " ") for n, (_, short_name, _) in zip(self._units, unit_names) if n > 0
         )
 

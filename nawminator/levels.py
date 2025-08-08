@@ -140,14 +140,14 @@ class Levels:
         args["hero_lvl"] = int(level)
         return cls(**args)
 
-    def to_str(self) -> str:
-        s = ""
-        s += f"M{self.mandibule} C{self.carapace} S{self.special}\n"
-        s += f"D{self.dome} L{self.loge}\n"
+    def to_str(self, sep="\n") -> str:
+        s = []
+        s.append(f"M{self.mandibule} C{self.carapace} S{self.special}")
+        s.append(f"D{self.dome} L{self.loge}")
         if HERO_ENABLED:
-            s += f"H{self.hero_type[:1]}{self.hero_lvl}\n"
-        s += f"A{self.alliance[:1] if self.alliance else "R"}"
-        return s
+            s.append(f"H{self.hero_type[:1]}{self.hero_lvl}")
+        s.append(f"A{self.alliance[:1] if self.alliance else "R"}")
+        return sep.join(s)
 
     @classmethod
     def from_bonuses(cls, bonus_dmg, bonus_hp, lieu: FightZone, alli_type: t.Optional[AllianceType] = None, atk=True, step=1/100, hero_enabled=None):
