@@ -63,11 +63,12 @@ class SynchroTab:
             self.time_input = gr.DateTime(label="Heure de départ", value=dt.datetime.now(), type="datetime")
             self.va_input = gr.Number(label="Vitesse d'attaque", value=0, minimum=0)
         self.synchro_button = gr.Button("Calcule!")
-
+        self.synchro_copy_btn = gr.Button("Copier les synchros", visible=False)
+        self.synchro_copy = gr.Textbox(visible=False)
         self.synchro_outputs = gr.DataFrame(
             pd.DataFrame(columns=["Horaire", "Durée", "Joueur", "Colonie", "Alli", "TDC"]),
             label="Heures de passage",
-            show_copy_button=True,
+            show_copy_button=False,
         )
 
     def configure_triggers(self):
@@ -100,27 +101,23 @@ class SynchroTab:
             return state
 
 
-        gr.on(
-            self.result_df.change,
+        self.result_df.change(
+            fn=self.load_data,
             inputs=self.result_df,
             outputs=[self.player_select, self.target_alliance, self.loaded_accordion],
             js=save_to_local_js,
-        )(self.load_data)
+        )
 
 
         @gr.on(
             self.synchro_button.click,
             inputs=[self.result_df, self.va_input, self.time_input, self.player_select, self.target_alliance],
-            outputs=self.synchro_outputs
+            outputs=[self.synchro_outputs, self.synchro_copy, self.synchro_copy_btn]
         )
         def calc_synchros(data: pd.DataFrame, va: int, depart: dt.datetime, target_player: str, target_allis: list[str]):
             base_pos = [int(i) for i in target_player.split(":")]
-            base_tdc = data[(data[["x", "y"]] == base_pos).all(axis=1)]["tdc"].iloc[0]
-            print(target_allis)
-            print(data["tdc"])
-            print(data["alliance"].str.strip(" ").isin(target_allis))
-            print(data["tdc"] >= base_tdc * 0.5)
-            print(data["tdc"] <= base_tdc * 3)
+            player = data[(data[["x", "y"]] == base_pos).all(axis=1)].iloc[0]
+            base_tdc = player["tdc"]
             targets = data[
                 (data["alliance"].str.strip(" ").isin(target_allis))
                 & (data["tdc"] >= base_tdc * 0.5)
@@ -130,9 +127,24 @@ class SynchroTab:
             targets["Durée"] = targets[["x", "y"]].apply(lambda pos : nm.formulas.duree_attaque(*pos, *base_pos, va=va), axis=1)
             targets = targets.sort_values("Durée")
             targets["Horaire"] = targets["Durée"].apply(lambda x: (depart + dt.timedelta(seconds=x)).time())
-            targets["Durée"] = targets["Durée"].apply(lambda x: nm.utils.format_yjhms(nm.utils.seconds_to_yjhms(x)))
+            targets["Durée"] = targets["Durée"].apply(lambda x: nm.utils.format_yjhms(nm.utils.seconds_to_yjhms(x), pad=True))
             targets["Joueur"] = targets["player_name"]
             targets["Colonie"] = targets["colo_name"]
             targets["Alli"] = targets["alliance"]
             targets["TDC"] = targets["tdc"].apply(nm.utils.format_naw_int)
-            return targets[["Horaire", "Durée", "Joueur", "Colonie", "Alli", "TDC"]]
+            targets = targets[["Horaire", "Durée", "Joueur", "Colonie", "Alli", "TDC"]]
+            copy_data = f"""Cible: {player["player_name"]}({player["colo_name"]})[{player["alliance"]}]\nVA: {va}\nHeure de départ: {depart.strftime("%H:%M:%S")} - TDC: {nm.utils.format_naw_int(base_tdc)}\n"""
+            copy_data += "\n".join(
+                [f"{h} - {d}: {j}({c})[{a}] - {t}" for h, d, j, c, a, t in targets.itertuples(index=False)]
+            )
+            print(copy_data)
+            return targets, copy_data, gr.Button(visible=True)
+        
+
+        self.synchro_copy_btn.click(
+            lambda x: print(f"{x=}"),
+            inputs=self.synchro_copy,
+            outputs=None,
+            js="x => { console.log(x); navigator.clipboard.writeText(x); return []; }"
+        )
+        
