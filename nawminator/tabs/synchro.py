@@ -60,7 +60,11 @@ class SynchroTab:
             self.player_select = gr.Dropdown(label="Joueur à synchro")
             self.target_alliance = gr.Dropdown(label="Alliances Cibles", multiselect=True)
         with gr.Row():
-            self.time_input = gr.DateTime(label="Heure de départ", value=dt.datetime.now(), type="datetime")
+            self.time_input = gr.DateTime(
+                label="Heure de départ", 
+                value=lambda : dt.datetime.now(),  # type: ignore
+                type="datetime"
+            )
             self.va_input = gr.Number(label="Vitesse d'attaque", value=0, minimum=0)
         self.synchro_button = gr.Button("Calcule!")
         self.synchro_copy_btn = gr.Button("Copier les synchros", visible=False)
