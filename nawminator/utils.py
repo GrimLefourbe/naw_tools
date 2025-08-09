@@ -30,7 +30,7 @@ def format_yjhms(d: YJHMS):
 
 
 def parse_naw_int(s: str) -> int:
-    return int(s.replace(" ", ""))
+    return int(s.replace(" ", "").replace(",", ""))
 
 
 def format_naw_int(i) -> str:

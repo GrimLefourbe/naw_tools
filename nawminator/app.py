@@ -36,7 +36,7 @@ with gr.Blocks(title="Nawminator", css=css, fill_width=True) as demo:
 
         with gr.Tab("Synchro"):
             from nawminator.tabs import synchro
-            synchro.synchro_tab()
+            demo.load(**synchro.synchro_tab(demo))
         
 
 
