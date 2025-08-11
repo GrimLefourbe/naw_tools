@@ -126,6 +126,7 @@ class SynchroTab:
                 (data["alliance"].str.strip(" ").isin(target_allis))
                 & (data["tdc"] >= base_tdc * 0.5)
                 & (data["tdc"] <= base_tdc * 3)
+                & ~(data[["x", "y"]] == base_pos).all(axis="columns")
             ]
             print(targets)
             targets["Durée"] = targets[["x", "y"]].apply(lambda pos : nm.formulas.duree_attaque(*pos, *base_pos, va=va), axis=1)
@@ -137,9 +138,10 @@ class SynchroTab:
             targets["Alli"] = targets["alliance"]
             targets["TDC"] = targets["tdc"].apply(nm.utils.format_naw_int)
             targets = targets[["Horaire", "Durée", "Joueur", "Colonie", "Alli", "TDC"]]
-            copy_data = f"""Cible: {player["player_name"]}({player["colo_name"]})[{player["alliance"]}]\nVA: {va}\nHeure de départ: {depart.strftime("%H:%M:%S")} - TDC: {nm.utils.format_naw_int(base_tdc)}\n"""
+            copy_data = f"""Cible: [joueur]{player["player_name"]}[/joueur]({player["colo_name"]})[{player["alliance"]}] [{":".join(str(i) for i in base_pos)}]\nVA: {va}\nHeure de départ: {depart.strftime("%H:%M:%S")} - TDC: {nm.utils.format_naw_int(base_tdc)}\n"""
+            copy_data += f"{"-"*30}\n"
             copy_data += "\n".join(
-                [f"{h} - {d}: {j}({c})[{a}] - {t}" for h, d, j, c, a, t in targets.itertuples(index=False)]
+                [f"[b]{h}[/b] - {d}: {j}({c})[{a}] - {t}" for h, d, j, c, a, t in targets.itertuples(index=False)]
             )
             print(copy_data)
             return targets, copy_data, gr.Button(visible=True)

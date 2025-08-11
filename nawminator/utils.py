@@ -26,7 +26,7 @@ def YJHMS_to_seconds(d: YJHMS):
 
 
 def format_yjhms(d: YJHMS, pad=False):
-    return " ".join(f"{i:2d}{t}" if pad else f"{i}{t}" for i, t in zip(d, ["A", "J", "H", "M", "S"]) if i != 0)
+    return " ".join(f"{i:02d}{t}" if pad else f"{i}{t}" for i, t in zip(d, ["A", "J", "H", "M", "S"]) if i != 0)
 
 
 def parse_naw_int(s: str) -> int:
