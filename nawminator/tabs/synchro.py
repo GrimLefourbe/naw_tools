@@ -70,11 +70,14 @@ class SynchroTab:
         self.data_input = gr.Textbox(
             label="Copiez les données depuis la page joueur ici.", 
             info="" \
-            "1. Allez sur la page Joueurs, mettez le tdc minimum à 1 et le tdc maximum à un très grand nombre (ajoutez plein de 0).\n" \
-            "2. Mettez le nom de l'alliance que vous cherchez dans la barre de recherche." \
-            "3. Copiez le contenu du tableau (de la 1ère ligne sans les noms de colonnes) à la dernière et collez le dans la boite.\n" \
-            "4. Répétez pour les alliances que vous souhaitez voir et collez à la suite du c/c précédent (vérifiez bien que vous n'avez pas collé sur la même ligne que le précédent).\n" \
-            "5. Vérifiez dans l'onglet Données Chargées qu'il y a bien ceux que vous cherchez."
+            "1. Allez sur la page Joueurs, mettez le tdc minimum à 1 et le tdc maximum à un très grand nombre (ajoutez plein de 0) puis appuyez sur filtrer.\n" \
+            "2.a Option A Code Source:\n" \
+            "2.a.1 Utilisez ctrl + U ou ajoutez view-source: devant l'URL pour afficher le code source puis copiez le dans la boite.\n\n"
+            "2.b Option B C/C: \n"
+            "2.b.1 Mettez le nom de l'alliance que vous cherchez dans la barre de recherche.\n" \
+            "2.b.2 Copiez le tableau ou la page complète (ctrl-A)  et copiez-collez la dans la boite.\n" \
+            "2.b.3 Répétez pour les alliances que vous souhaitez voir et collez à la suite du c/c précédent (vérifiez bien que vous n'avez pas collé sur la même ligne que le précédent).\n" \
+            "3. Vérifiez dans l'onglet Données Chargées qu'il y a bien ceux que vous cherchez."
         )
         self.data_input_btn = gr.Button("Charger les données")
         with gr.Accordion(label="0 joueurs chargés", open=False) as self.loaded_accordion:
