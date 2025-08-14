@@ -185,8 +185,8 @@ class SynchroTab:
             inputs=[self.result_df, self.va_input, self.time_input, self.player_select, self.target_alliance],
             outputs=[self.synchro_outputs, self.synchro_copy, self.synchro_copy_btn]
         )
-        def calc_synchros(data: pd.DataFrame, va: int, depart: dt.datetime, target_player: str, target_allis: list[str]):
-            base_pos = [int(i) for i in target_player.split(":")]
+        def calc_synchros(data: pd.DataFrame, va: int, depart: dt.datetime, target_coords: str, target_allis: list[str]):
+            base_pos = [int(i) for i in target_coords.split(":")]
             player = data[(data[["x", "y"]] == base_pos).all(axis=1)].iloc[0]
             base_tdc = player["tdc"]
             targets = data[
@@ -204,12 +204,9 @@ class SynchroTab:
             targets["Colonie"] = targets["colo_name"]
             targets["Alli"] = targets["alliance"]
             targets["TDC"] = targets["tdc"].apply(nm.utils.format_naw_int)
-            targets = targets[["Horaire", "Durée", "Joueur", "Colonie", "Alli", "TDC"]]
-            copy_data = f"""Cible: [joueur]{player["player_name"]}[/joueur]({player["colo_name"]})[{player["alliance"]}] [{":".join(str(i) for i in base_pos)}]\nVA: {va}\nHeure de départ: {depart.strftime("%H:%M:%S")} - TDC: {nm.utils.format_naw_int(base_tdc)}\n"""
-            copy_data += f"{"-"*30}\n"
-            copy_data += "\n".join(
-                [f"[b]{h}[/b] - {d}: {j}({c})[{a}] - {t}" for h, d, j, c, a, t in targets.itertuples(index=False)]
-            )
+            targets["Pos"] = targets[["x", "y"]].apply(lambda x: ":".join(str(i) for i in x), axis=1)
+            targets = targets[["Horaire", "Durée", "Joueur", "Colonie", "Alli", "Pos", "TDC"]]
+            copy_data = format_copy_data(targets=targets, player=player, va=va, depart=depart)
             print(copy_data)
             return targets, copy_data, gr.Button(visible=True)
         
@@ -221,3 +218,15 @@ class SynchroTab:
             js="x => { console.log(x); navigator.clipboard.writeText(x); return []; }"
         )
         
+def format_copy_data(targets: pd.DataFrame, player: pd.Series, va: int, depart: dt.datetime):
+    base_tdc = player["tdc"]
+    base_pos = player[["x", "y"]]
+
+    copy_data = f"""Cible: [joueur]{player["player_name"]}[/joueur]({player["colo_name"]})[[alliance]{player["alliance"]}[/alliance]] [{":".join(str(i) for i in base_pos)}]\nVA: {va}\nHeure de départ: {depart.strftime("%H:%M:%S")} - TDC: {nm.utils.format_naw_int(base_tdc)}\n"""
+    copy_data += f"{"-"*30}\n"
+    copy_data += "\n".join(
+        [f"[b]{h}[/b] - {d}: [{p}] {j}[{a}]({c}) - {t}" for h, d, j, c, a, p, t in targets.itertuples(index=False)]
+    )
+    return copy_data
+
+
