@@ -11,7 +11,7 @@ class CombatTab():
         with gr.Row():
             with gr.Column(variant="panel", min_width=175, elem_classes=["left"]) as attacker_col:
                 gr.Markdown(
-                    "<div style='text-ali                       gn:center; font-weight:bold; font-size:18px;'>Attaquant</div>"
+                    "<div style='text-align:center; font-weight:bold; font-size:18px;'>Attaquant</div>"
                 )
                 self.attacker_levels_input = nm.interface.LevelsInput(atk=False)
                 self.attacker_army_input = nm.interface.ArmyInput()
