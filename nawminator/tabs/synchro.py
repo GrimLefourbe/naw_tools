@@ -1,62 +1,27 @@
-import html
 import gradio as gr
 import nawminator as nm
-
+from nawminator.tabs.settings import ParsingError, Settings, parse_source_code, parse_table
 import pandas as pd
 import datetime as dt
-import io
-import re
 
-class ParsingError(Exception):
-    pass
 
-LOCALSTORAGE_KEY = "synchro_player_data"
-load_from_local_js = f"""(x) => {{
-    let v = localStorage.getItem('{LOCALSTORAGE_KEY}');
-    return [v? JSON.parse(v): x]
-}}"""
-save_to_local_js = f"""(v) => {{
-    console.log("test", v);
-    localStorage.setItem('{LOCALSTORAGE_KEY}', JSON.stringify(v)); 
-    return [v]; 
-}}"""
-
-def synchro_tab(blocks: gr.Blocks):
-    tab = SynchroTab()
-    return {
-        "fn": lambda x: (x, *tab.load_data(x)),
-        "inputs": tab.result_df,
-        "outputs": [tab.result_df, tab.player_select, tab.target_alliance, tab.loaded_accordion],
-        "js": load_from_local_js,
-    }
-
-copy_paste_pat = r"^([\d,]+)\s+\w+\s+(\[[-\d]+:[-\d]+\])\s+([\d,]+)\s+?([^\t]*)\s+?([^\t]+)\s+([^\s]*)\s+(?:Libre|Vassal de [^\t]+|En vacances)$"
-copy_paste_cpat = re.compile(copy_paste_pat, flags=re.MULTILINE)
-
-source_code_pat = re.compile(
-    r"""
-    <tr[^>]*>[\t \r\n]*
-    <td>[0-9,]+</td>[\t \r\n]*
-    <td[^>]*>[^<]*</td>[\t \r\n]*
-    <td>(\[[0-9:-]+\])</td>[\t \r\n]*
-    <td>([0-9,]+)</td>[\t \r\n]+
-    <td><a[^>]*>([^<]+)</a></td>[\t \r\n]*
-    <td><a[^>]+href="profil-([0-9]+)">\ <b>([^<]+)</b></a></td>[\t \r\n]*
-    <td><a[^>]*>\ <b>([^<]*)</b></a></td>[\t \r\n]*
-    <td>(?:Vassal\ de\ <a\ href='profil-)?([^<>]+)(?:'>\ <b>[^<]+</b>)?</td>[\t \r\n]*
-    </tr>
-    """, flags=re.X
-)
-
+def synchro_tab(settings: Settings):
+    SynchroTab(settings=settings)
 
 class SynchroTab:
-    def __init__(self):
-        self.set_layout()
-        self.configure_triggers()
+    def __init__(self, settings: Settings):
+        self.set_layout(settings)
+        self.configure_triggers(settings)
+        settings.post_load.then(
+            self.on_data_load,
+            inputs=settings.data_state,
+            outputs=[self.result_df, self.player_select, self.target_alliance, self.loaded_accordion]
+        )
 
-    def load_data(self, data: pd.DataFrame):
-        print("Loading data")
+    def on_data_load(self, data: pd.DataFrame):
+        print(f"Loading data from {data}")
         return (
+            data,
             gr.Dropdown(
                 choices=[(f"{player}|{colo}|{x}:{y}", (f"{x}:{y}")) for player, colo, x, y in data[["player_name", "colo_name", "x", "y"]].sort_values("player_name").values]
             ),
@@ -66,7 +31,7 @@ class SynchroTab:
             gr.Accordion(label=f"{data.shape[0]} joueurs chargés")
         )
 
-    def set_layout(self):
+    def set_layout(self, settings: Settings):
         self.data_input = gr.Textbox(
             label="Copiez les données depuis la page joueur ici.", 
             info="" \
@@ -81,7 +46,7 @@ class SynchroTab:
         )
         self.data_input_btn = gr.Button("Charger les données")
         with gr.Accordion(label="0 joueurs chargés", open=False) as self.loaded_accordion:
-            self.result_df = gr.DataFrame(pd.DataFrame(columns=["player_name", "colo_name", "alliance", "x", "y", "tdc"]), label="Joueurs")
+            self.result_df = gr.DataFrame(inputs=settings.data_state, label="Joueurs")
             self.memory_btn = gr.Button("Charger dernières données utilisées")
         with gr.Row():
             self.player_select = gr.Dropdown(label="Joueur à synchro")
@@ -102,123 +67,92 @@ class SynchroTab:
             show_copy_button=False,
         )
 
-    def parse_table(self, input_data: str) -> pd.DataFrame:
-        try:
-            lines = [i.group(0) for i in copy_paste_cpat.finditer(input_data)]
-            if len(lines) == 0:
-                raise ParsingError("Found no matching line in input_data")
-            data = pd.read_table(
-                io.StringIO("\n".join(lines)),
-                names=["distance", "duration", "coord", "tdc", "colo_name", "player_name", "alliance", "status"],
-                usecols=["coord", "tdc", "colo_name", "player_name", "alliance"],
-            )
-            data = data.apply(lambda x: x.str.strip())
-            data["tdc"] = data["tdc"].apply(nm.utils.parse_naw_int)
-        except Exception as e:
-            raise ParsingError from e
-        return data
-
-    def parse_source_code(self, input_data: str) -> pd.DataFrame:
-        try:
-            data = source_code_pat.findall(input_data)
-        except Exception as e:
-            raise ParsingError from e
-        if len(data) == 0:
-            raise ParsingError("No valid lines found")
-        df = pd.DataFrame(
-            data=data, 
-            columns=["coord", "tdc", "colo_name", "profile_link", "player_name", "alliance", "status"]
-        )
-        df = df.apply(lambda x: x.str.strip())
-        df["tdc"] = df["tdc"].apply(nm.utils.parse_naw_int)
-        df["colo_name"] = df["colo_name"].apply(html.unescape)
-        return df[["coord", "tdc", "colo_name", "player_name", "alliance"]]
-
-    def configure_triggers(self):
-        @gr.on(
-            self.data_input_btn.click,
+    def configure_triggers(self, settings: Settings):
+        self.data_input_btn.click(
+            parse_data,
             inputs=self.data_input, 
-            outputs=self.result_df,
+            outputs=settings.data_state,
         )
-        def parse_data(input_data: str):
-            print("Parsing input data")
-            exceptions = []
-            for parser in [self.parse_table, self.parse_source_code]:
-                print(f"With {parser.__name__}")
-                try:
-                    data = parser(input_data=input_data)
-                except ParsingError as e:
-                    exceptions.append(e)
-                    continue
-                print(f"No error with parser {parser.__name__}")
-                break
-            else:
-                raise ExceptionGroup("No parsing worked for the input data", exceptions)
 
-            print(data.shape)
-            print(data.columns)
-            data[["x", "y"]] = data["coord"].str.strip("[] ").str.split(":", expand=True).astype(int)
-            del data["coord"]
-            data.attrs["parsing_date"] = dt.datetime.now()
-            return data[["player_name", "colo_name", "alliance", "x", "y", "tdc"]].sort_values("alliance")
         
         @gr.on(
             self.memory_btn.click,
             inputs=self.result_df,
             outputs=self.result_df,
-            js=load_from_local_js,
         )
         def load_state(state: pd.DataFrame):
             return state
 
 
-        self.result_df.change(
-            fn=self.load_data,
-            inputs=self.result_df,
-            outputs=[self.player_select, self.target_alliance, self.loaded_accordion],
-            js=save_to_local_js,
+        settings.data_state.change(
+            self.on_data_load,
+            inputs=settings.data_state,
+            outputs=[self.result_df, self.player_select, self.target_alliance, self.loaded_accordion]
         )
 
 
-        @gr.on(
-            self.synchro_button.click,
+        self.synchro_button.click(
+            fn=calc_synchros,
             inputs=[self.result_df, self.va_input, self.time_input, self.player_select, self.target_alliance],
             outputs=[self.synchro_outputs, self.synchro_copy, self.synchro_copy_btn]
         )
-        def calc_synchros(data: pd.DataFrame, va: int, depart: dt.datetime, target_coords: str, target_allis: list[str]):
-            base_pos = [int(i) for i in target_coords.split(":")]
-            player = data[(data[["x", "y"]] == base_pos).all(axis=1)].iloc[0]
-            base_tdc = player["tdc"]
-            targets = data[
-                (data["alliance"].str.strip(" ").isin(target_allis))
-                & (data["tdc"] >= base_tdc * 0.5)
-                & (data["tdc"] <= base_tdc * 3)
-                & ~(data[["x", "y"]] == base_pos).all(axis="columns")
-            ]
-            print(targets)
-            targets["Durée"] = targets[["x", "y"]].apply(lambda pos : nm.formulas.duree_attaque(*pos, *base_pos, va=va), axis=1)
-            targets = targets.sort_values("Durée")
-            targets["Horaire"] = targets["Durée"].apply(lambda x: (depart + dt.timedelta(seconds=x)).time())
-            targets["Durée"] = targets["Durée"].apply(lambda x: nm.utils.format_yjhms(nm.utils.seconds_to_yjhms(x), pad=True))
-            targets["Joueur"] = targets["player_name"]
-            targets["Colonie"] = targets["colo_name"]
-            targets["Alli"] = targets["alliance"]
-            targets["TDC"] = targets["tdc"].apply(nm.utils.format_naw_int)
-            targets["Pos"] = targets[["x", "y"]].apply(lambda x: ":".join(str(i) for i in x), axis=1)
-            targets = targets[["Horaire", "Durée", "Joueur", "Colonie", "Alli", "Pos", "TDC"]]
-            copy_data = format_copy_data(targets=targets, player=player, va=va, depart=depart)
-            print(copy_data)
-            return targets, copy_data, gr.Button(visible=True)
         
-
         self.synchro_copy_btn.click(
             lambda x: print(f"{x=}"),
             inputs=self.synchro_copy,
             outputs=None,
             js="x => { console.log(x); navigator.clipboard.writeText(x); return []; }"
         )
-        
-def format_copy_data(targets: pd.DataFrame, player: pd.Series, va: int, depart: dt.datetime):
+
+def parse_data(input_data: str) -> pd.DataFrame:
+    print("Parsing input data")
+    exceptions = []
+    for parser in [parse_table, parse_source_code]:
+        print(f"With {parser.__name__}")
+        try:
+            data = parser(input_data=input_data)
+        except ParsingError as e:
+            exceptions.append(e)
+            continue
+        print(f"No error with parser {parser.__name__}")
+        break
+    else:
+        raise ExceptionGroup("No parsing worked for the input data", exceptions)
+
+    print(data.shape)
+    print(data.columns)
+    data[["x", "y"]] = data["coord"].str.strip("[] ").str.split(":", expand=True).astype(int)
+    del data["coord"]
+    data.attrs["parsing_date"] = dt.datetime.now()
+    return data[["player_name", "colo_name", "alliance", "x", "y", "tdc"]].sort_values("alliance")
+
+def calc_synchros(data: pd.DataFrame, va: int, depart: dt.datetime, target_coords: str, target_allis: list[str]):
+    base_pos = [int(i) for i in target_coords.split(":")]
+    player = data[(data[["x", "y"]] == base_pos).all(axis=1)].iloc[0]
+    base_tdc = player["tdc"]
+    targets = data[
+        (data["alliance"].str.strip(" ").isin(target_allis))
+        & (data["tdc"] >= base_tdc * 0.5)
+        & (data["tdc"] <= base_tdc * 3)
+        & ~(data[["x", "y"]] == base_pos).all(axis="columns")
+    ]
+    print(targets)
+    targets["Durée"] = targets[["x", "y"]].apply(lambda pos : nm.formulas.duree_attaque(*pos, *base_pos, va=va), axis=1)
+    targets = targets.sort_values("Durée")
+    targets["Horaire"] = targets["Durée"].apply(lambda x: (depart + dt.timedelta(seconds=x)).time())
+    targets["Durée"] = targets["Durée"].apply(lambda x: nm.utils.format_yjhms(nm.utils.seconds_to_yjhms(x), pad=True))
+    targets["Joueur"] = targets["player_name"]
+    targets["Colonie"] = targets["colo_name"]
+    targets["Alli"] = targets["alliance"]
+    targets["TDC"] = targets["tdc"].apply(nm.utils.format_naw_int)
+    targets["Pos"] = targets[["x", "y"]].apply(lambda x: ":".join(str(i) for i in x), axis=1)
+    targets = targets[["Horaire", "Durée", "Joueur", "Colonie", "Alli", "Pos", "TDC"]]
+    copy_data = format_copy_data(targets=targets, player=player, va=va, depart=depart)
+    print(copy_data)
+    return targets, copy_data, gr.Button(visible=True)    
+
+
+def format_copy_data(targets: pd.DataFrame, player: pd.Series, va: int, depart: dt.datetime) -> str:
     base_tdc = player["tdc"]
     base_pos = player[["x", "y"]]
 

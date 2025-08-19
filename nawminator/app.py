@@ -36,6 +36,8 @@ HEADER = """
 """
 
 with gr.Blocks(title="Nawminator", css=css, head=HEADER, fill_width=True) as demo:
+    from nawminator.tabs import settings
+    settings = settings.Settings(demo)
     gr.HTML(HEADER, container=False)
     with gr.Tabs() as tabs:
         with gr.Tab("Combat"):
@@ -52,7 +54,7 @@ with gr.Blocks(title="Nawminator", css=css, head=HEADER, fill_width=True) as dem
 
         with gr.Tab("Synchro"):
             from nawminator.tabs import synchro
-            demo.load(**synchro.synchro_tab(demo))
+            synchro.synchro_tab(settings)
         
 
 
