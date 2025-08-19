@@ -19,7 +19,7 @@ class SynchroTab:
         )
 
     def on_data_load(self, data: pd.DataFrame):
-        print(f"Loading data from {data}")
+        print(f"Loading synchro components with {data}")
         return (
             data,
             gr.Dropdown(

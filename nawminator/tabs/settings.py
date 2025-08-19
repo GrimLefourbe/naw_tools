@@ -36,6 +36,7 @@ class Settings:
             outputs=[self.data_state, self.metadata_state],
             js=load_from_browser_storage
         )
+        self._configure_triggers()
 
     def load(self, saved_data: pd.DataFrame, metadata: dict):
         print(f"Loading data {type(saved_data)} {saved_data}")
