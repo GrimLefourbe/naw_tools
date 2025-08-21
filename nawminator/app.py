@@ -50,7 +50,7 @@ with gr.Blocks(title="Nawminator", css=css, head=HEADER, fill_width=True) as dem
 
         with gr.Tab("Durées"):
             from nawminator.tabs import durees
-            durees.durees_tab()
+            durees.durees_tab(settings)
 
         with gr.Tab("Synchro"):
             from nawminator.tabs import synchro
