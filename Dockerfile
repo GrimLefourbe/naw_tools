@@ -8,7 +8,7 @@ RUN python -m pip install --upgrade pip; \
     python -m pip install -r requirements.txt
 
 
-COPY nawminator nawminator
+COPY src src
 
-ENV PYTHONPATH=/home
-CMD ["python", "nawminator/app.py"]
+ENV PYTHONPATH=/home/src
+CMD ["python", "src/nmsite/app.py"]

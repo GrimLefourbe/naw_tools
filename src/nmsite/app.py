@@ -36,24 +36,24 @@ HEADER = """
 """
 
 with gr.Blocks(title="Nawminator", css=css, head=HEADER, fill_width=True) as demo:
-    from nawminator.tabs import settings
+    from nmsite.tabs import settings
     settings = settings.Settings(demo)
     gr.HTML(HEADER, container=False)
     with gr.Tabs() as tabs:
         with gr.Tab("Combat"):
-            from nawminator.tabs import combat
+            from nmsite.tabs import combat
             combat.combat_tab()
 
         with gr.Tab("Pontes"):
-            from nawminator.tabs import pontes
+            from nmsite.tabs import pontes
             pontes.pontes_tab()
 
         with gr.Tab("Durées"):
-            from nawminator.tabs import durees
+            from nmsite.tabs import durees
             durees.durees_tab(settings)
 
-        with gr.Tab("Synchro"):
-            from nawminator.tabs import synchro
+        with gr.Tab(label="Synchro"):
+            from nmsite.tabs import synchro
             synchro.synchro_tab(settings)
         
 

@@ -4,13 +4,13 @@ default:
     @just --list
 
 requirements:
-    poetry export -f requirements.txt -o requirements.txt --with gradio_app
+    poetry export -f requirements.txt -o requirements.txt --with nmsite
 
 build:
     docker build -t $IMAGE_NAME .
 
 dev_run:
-    poetry run gradio nawminator/app.py
+    poetry run gradio src/nmsite/app.py
 
 run: build
     docker run --rm -it -p 7860:7860 --log-driver local $IMAGE_NAME

@@ -1,10 +1,10 @@
 [tool.poetry]
-name = "naw_tools"
+name = "nawminator"
 version = "0.1.0"
 description = ""
-authors = ["Vivien Robert <vivienrobertbarbe@gmail.com>"]
+authors = ["GrimLefourbe <naw@grimlefourbe.xyz>"]
 packages = [
-    {include = "nawminator"},
+    {include = "nawminator", from = "src"},
 ]
 
 [tool.poetry.dependencies]
@@ -15,9 +15,14 @@ loguru = "^0.6.0"
 regex = "^2024.7.24"
 pydantic = "^2.11.7"
 
-[tool.poetry.group.gradio_app.dependencies]
+[tool.poetry.group.nmsite]
+optional = true
+
+[tool.poetry.group.nmsite.dependencies]
 gradio = "^5.39.0"
 
+[tool.poetry.group.dev]
+optional = true
 
 [tool.poetry.group.dev.dependencies]
 black = "^24.4.2"

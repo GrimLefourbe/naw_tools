@@ -1,10 +1,10 @@
 import gradio as gr
 import pandas as pd
-from pandas.tests.extension.conftest import data_for_sorting
-import nawminator as nm
-from nawminator.tabs.settings import Settings
-
 import typing as t
+import nawminator as nm
+
+from nmsite.tabs.settings import Settings
+
 
 def durees_tab(settings: Settings):
     return DureesTab(settings)

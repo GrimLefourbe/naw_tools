@@ -1,7 +1,7 @@
 import nawminator as nm
-
 import gradio as gr
 import numpy as np
+from nmsite import interface
 
 def combat_tab():
     CombatTab()
@@ -13,15 +13,15 @@ class CombatTab():
                 gr.Markdown(
                     "<div style='text-align:center; font-weight:bold; font-size:18px;'>Attaquant</div>"
                 )
-                self.attacker_levels_input = nm.interface.LevelsInput(atk=False)
-                self.attacker_army_input = nm.interface.ArmyInput()
+                self.attacker_levels_input = interface.LevelsInput(atk=False)
+                self.attacker_army_input = interface.ArmyInput()
 
             with gr.Column(variant="panel", min_width=175, elem_classes=["right"]) as defender_col:
                 gr.Markdown(
                     "<div style='text-align:center; font-weight:bold; font-size:18px;'>Défenseur</div>"
                 )
-                self.defender_levels_input = nm.interface.LevelsInput(atk=False)
-                self.defender_army_input = nm.interface.ArmyInput()
+                self.defender_levels_input = interface.LevelsInput(atk=False)
+                self.defender_army_input = interface.ArmyInput()
 
             with gr.Column(scale=2, min_width=400, elem_classes=["middle"]):
                 gr.Markdown(
@@ -38,7 +38,7 @@ class CombatTab():
                     )
                 with gr.Group(), gr.Row():
                     with gr.Column(scale=1, min_width=10):
-                        nm.interface.WarPartyStats(
+                        interface.WarPartyStats(
                             self.attacker_party_state,
                             show_labels=False,
                         )
@@ -85,7 +85,7 @@ class CombatTab():
                             max_lines=1,
                         )
                     with gr.Column(scale=1, min_width=10):
-                        nm.interface.WarPartyStats(
+                        interface.WarPartyStats(
                             self.defender_party_state,
                             show_labels=False,
                             right_to_left=True,
