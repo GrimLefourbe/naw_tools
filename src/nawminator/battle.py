@@ -57,10 +57,10 @@ class Battle:
             rounds.append(
                 Round(
                     attacker_base_dmg=np.int64(atk[0]),
-                    attacker_bonus_dmg=np.float64(atk[1]),
+                    attacker_bonus_dmg=np.round(np.float64(atk[1])),
                     attacker_losses=atk_loss,
                     defender_base_dmg=np.int64(riposte[0]),
-                    defender_bonus_dmg=np.float64(riposte[1]),
+                    defender_bonus_dmg=np.round(np.float64(riposte[1])),
                     defender_losses=def_loss,
                 )
             )
@@ -72,9 +72,9 @@ class Battle:
 
     def to_rc(self) -> str:
         rapport = f"""Attaquant
-Troupe en attaque : {self.attacker.to_str()}.
+Troupe en attaque : {self.attacker.to_str()}
 Défenseur
-Troupe en défense : {self.defender.to_str()}.
+Troupe en défense : {self.defender.to_str()}
 
 Combat
 """

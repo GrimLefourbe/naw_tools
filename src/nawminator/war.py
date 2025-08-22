@@ -131,7 +131,7 @@ class WarParty:
         return self.army.base_atk if self.atk else self.army.base_def
 
     @property
-    def bonus_dmg(self):
+    def bonus_dmg(self) -> np.float64:
         return np.floor(0.5 + self.base_dmg * self.bonuses.dmg)
 
     @property
@@ -166,9 +166,9 @@ def simulate_rounds(attacker: WarParty, defender: WarParty) -> list[nm.battle.Ro
         rounds.append(
             nm.battle.Round(
                 attacker_base_dmg=current_atk.base_dmg,
-                attacker_bonus_dmg=current_atk.bonus_dmg,
+                attacker_bonus_dmg=np.round(current_atk.bonus_dmg),
                 defender_base_dmg=np.int64(current_def.base_dmg * defender_mult),
-                defender_bonus_dmg=current_def.bonus_dmg * defender_mult,
+                defender_bonus_dmg=np.round(current_def.bonus_dmg * defender_mult),
                 attacker_losses=atk_losses.army,
                 defender_losses=def_losses.army,
             )
