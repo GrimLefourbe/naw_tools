@@ -5,19 +5,8 @@ import hypothesis.strategies as st
 
 import nawminator as nm
 
-army_strategy = st.builds(
-    nm.army.Army,
-    st.lists(st.integers(min_value=0, max_value=nm.army.MAX_UNIT_COUNT), min_size=15, max_size=15),
-)
-round_strategy = st.builds(
-    nm.battle.Round,
-    attacker_base_dmg=st.integers(min_value=0),
-    attacker_bonus_dmg=st.integers(min_value=0),
-    defender_base_dmg=st.integers(min_value=0),
-    defender_bonus_dmg=st.integers(min_value=0),
-    attacker_losses=army_strategy,
-    defender_losses=army_strategy,
-)
+from . import strategies as nm_st
+
 RC_REEL = """Rapport de combat en Loge :
 
 Vous attaquez la colonie Pandi[-220:-63] du joueur flomel avec votre colonie En vacances[47:235] en Loge.
@@ -152,12 +141,22 @@ class TestBattle:
     def test_export_import_rc(self, battle):
         assert battle == nm.battle.Battle.from_rc(battle.to_rc())
 
+    @hp.given(attacker=nm_st.simple_warparty_strategy, defender=nm_st.simple_warparty_strategy)
+    def test_simulation_smoke(self, attacker: nm.war.WarParty, defender: nm.war.WarParty):
+        hp.assume((nm.army.MAX_UNIT_COUNT//64 > attacker.army._units).all())
+        hp.assume((nm.army.MAX_UNIT_COUNT//64 > defender.army._units).all())
+        defender.atk = False
+        battle = nm.war.simulate_battle(attacker=attacker, defender=defender)
+        rc = battle.to_rc()
+        parsed_battle = nm.battle.Battle.from_rc(rc)
+        assert battle == parsed_battle
+
     @pytest.mark.skip("Must implement simulation first to generate coherent rounds")
     @hp.given(
-        attacker=army_strategy,
-        defender=army_strategy,
+        attacker=nm_st.army_strategy,
+        defender=nm_st.army_strategy,
         rounds=st.lists(
-            round_strategy,
+            nm_st.round_strategy,
             min_size=1,
             max_size=5,
         ),
@@ -184,11 +183,11 @@ class TestBattle:
                         nm.battle.Round(192, 182, 35, 33, nm.army.Army(JS=5), nm.army.Army(JS=2)),
                     ],
                 ),
-                RC_SIMU_NM,
+                RC_SIMU_NM.strip(),
             ),
         ],
     )
-    @pytest.mark.skip
+    # @pytest.mark.skip
     def test_generate_rc(self, battle, expected):
         assert battle.to_rc() == expected
 
