@@ -20,14 +20,40 @@ round_strategy = st.builds(
     defender_losses=army_strategy,
 )
 
+def levels_strategy_factory(
+    mandibule=st.integers(min_value=0, max_value=40),
+    carapace=st.integers(min_value=0, max_value=40),
+    hero_lvl=st.integers(min_value=0, max_value=180),
+    hero_type=st.sampled_from(nm.levels.HeroType),
+    train=st.integers(min_value=0, max_value=40),
+    dome=st.integers(min_value=0, max_value=40),
+    loge=st.integers(min_value=0, max_value=40),
+    alliance=st.sampled_from([*nm.levels.AllianceType, None]),
+    special=st.integers(min_value=0, max_value=5),
+):
+    return st.builds(
+        nm.levels.Levels,
+        mandibule=mandibule,
+        carapace=carapace,
+        hero_lvl=hero_lvl,
+        hero_type=hero_type,
+        train=train,
+        dome=dome,
+        loge=loge,
+        alliance=alliance,
+        special=special,
+    )
+
+levels_strategy = levels_strategy_factory()
+
 simple_bonuses_strategy = st.builds(
-    nm.war.Bonuses,
+    nm.battle_party.Bonuses,
     dmg=st.floats(min_value=0.0, max_value=3.5),
     hp=st.floats(min_value=0.0, max_value=3.5),
 )
 
 simple_warparty_strategy = st.builds(
-    nm.war.WarParty,
+    nm.battle_party.WarParty,
     army=army_strategy_factory(max_value=nm.army.MAX_UNIT_COUNT//64),
     bonuses=simple_bonuses_strategy,
     atk=st.just(True),

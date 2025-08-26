@@ -10,17 +10,17 @@ class TestBonuses:
             (
                 nm.battle.Round(800, 760, 700, 665, nm.army.Army(JS=50), nm.army.Army(JS=44)),
                 (
-                    nm.war.Bonuses(dmg=np.float64(0.95), min_dmg=np.float64(0.95), hp=np.float64(0.96), min_hp=np.float64(0.92)),
-                    nm.war.Bonuses(dmg=np.float64(0.95), min_dmg=np.float64(0.95), hp=np.float64(0.965), min_hp=np.float64(0.935)),
+                    nm.battle_party.Bonuses(dmg=np.float64(0.95), min_dmg=np.float64(0.95), hp=np.float64(0.96), min_hp=np.float64(0.92)),
+                    nm.battle_party.Bonuses(dmg=np.float64(0.95), min_dmg=np.float64(0.95), hp=np.float64(0.965), min_hp=np.float64(0.935)),
                 ),
             ),
             (
                 nm.battle.Round(80, 84, 70, 74, nm.army.Army(JS=5), nm.army.Army(JS=4)),
                 (
-                    nm.war.Bonuses(
+                    nm.battle_party.Bonuses(
                         dmg=np.float64(1.055), min_dmg=np.float64(1.045), hp=np.float64(1.57), min_hp=np.float64(1.005)
                     ),
-                    nm.war.Bonuses(
+                    nm.battle_party.Bonuses(
                         np.float64(1.06), min_dmg=np.float64(1.05), hp=np.float64(1.275), min_hp=np.float64(0.865)
                     ),
                 ),
@@ -35,8 +35,8 @@ class TestBonuses:
                     nm.army.Army(E=999990, ME=502, JS=2480000, S=777537, SE=276848),
                 ),
                 (
-                    nm.war.Bonuses(dmg=np.float64(1.14), min_dmg=np.float64(1.14), hp=np.float64(1.0), min_hp=np.float64(1.0)), 
-                    nm.war.Bonuses(dmg=np.float64(1.05), min_dmg=np.float64(1.05), hp=np.float64(1.45), min_hp=np.float64(1.45))
+                    nm.battle_party.Bonuses(dmg=np.float64(1.14), min_dmg=np.float64(1.14), hp=np.float64(1.0), min_hp=np.float64(1.0)), 
+                    nm.battle_party.Bonuses(dmg=np.float64(1.05), min_dmg=np.float64(1.05), hp=np.float64(1.45), min_hp=np.float64(1.45))
                 ),
             ),
             (
@@ -49,14 +49,14 @@ class TestBonuses:
                     defender_losses=nm.army.Army(JS=33),
                 ),
                 (
-                    nm.war.Bonuses(dmg=np.float64(1.05), min_dmg=np.float64(1.05), hp=None),
-                    nm.war.Bonuses(dmg=np.float64(0.89), min_dmg=np.float64(0.89), hp=np.float64(2.15), min_hp=np.float64(2.06)),
+                    nm.battle_party.Bonuses(dmg=np.float64(1.05), min_dmg=np.float64(1.05), hp=None),
+                    nm.battle_party.Bonuses(dmg=np.float64(0.89), min_dmg=np.float64(0.89), hp=np.float64(2.15), min_hp=np.float64(2.06)),
                 ),
             ),
         ],
     )
     def test_compute_bonuses(self, battle_round, expected_bonuses):
-        assert nm.war.Bonuses.compute_bonuses(battle_round) == expected_bonuses
+        assert nm.battle_party.Bonuses.compute_bonuses(battle_round) == expected_bonuses
 
     @pytest.mark.parametrize(
         "rounds,expected",
@@ -69,8 +69,8 @@ class TestBonuses:
                     nm.battle.Round(192, 182, 35, 33, nm.army.Army(JS=5), nm.army.Army(JS=2)),
                 ],
                 (
-                    nm.war.Bonuses(dmg=np.float64(0.95), min_dmg=np.float64(0.95), hp=np.float64(0.96), min_hp=np.float64(0.92)),
-                    nm.war.Bonuses(dmg=np.float64(0.95), min_dmg=np.float64(0.95), hp=np.float64(0.965), min_hp=np.float64(0.935)),
+                    nm.battle_party.Bonuses(dmg=np.float64(0.95), min_dmg=np.float64(0.95), hp=np.float64(0.96), min_hp=np.float64(0.92)),
+                    nm.battle_party.Bonuses(dmg=np.float64(0.95), min_dmg=np.float64(0.95), hp=np.float64(0.965), min_hp=np.float64(0.935)),
                 ),
             ),
             (
@@ -85,22 +85,22 @@ class TestBonuses:
                     )
                 ],
                 (
-                    nm.war.Bonuses(dmg=np.float64(1.14), min_dmg=np.float64(1.14), hp=np.float64(1.0), min_hp=np.float64(1.0)),
-                    nm.war.Bonuses(dmg=np.float64(1.05), min_dmg=np.float64(1.05), hp=np.float64(1.45), min_hp=np.float64(1.45)),
+                    nm.battle_party.Bonuses(dmg=np.float64(1.14), min_dmg=np.float64(1.14), hp=np.float64(1.0), min_hp=np.float64(1.0)),
+                    nm.battle_party.Bonuses(dmg=np.float64(1.05), min_dmg=np.float64(1.05), hp=np.float64(1.45), min_hp=np.float64(1.45)),
                 ),
             ),
         ],
     )
     def test_from_rounds(self, rounds: list[nm.battle.Round], expected):
-        assert nm.war.Bonuses.from_rounds(rounds) == expected
+        assert nm.battle_party.Bonuses.from_rounds(rounds) == expected
 
 
 @pytest.mark.parametrize(
     "attacker,defender,expected",
     [
         (
-            nm.war.WarParty(nm.army.Army(JS=100), bonuses=nm.war.Bonuses(0.95, 0.95), atk=True),
-            nm.war.WarParty(nm.army.Army(JS=100), bonuses=nm.war.Bonuses(0.95, 0.95), atk=False),
+            nm.battle_party.WarParty(nm.army.Army(JS=100), bonuses=nm.battle_party.Bonuses(0.95, 0.95), atk=True),
+            nm.battle_party.WarParty(nm.army.Army(JS=100), bonuses=nm.battle_party.Bonuses(0.95, 0.95), atk=False),
             [
                 nm.battle.Round(800, 760, 700, 665, nm.army.Army(JS=50), nm.army.Army(JS=44)),
                 nm.battle.Round(448, 426, 350, 333, nm.army.Army(JS=28), nm.army.Army(JS=22)),
@@ -109,14 +109,14 @@ class TestBonuses:
             ],
         ),
         (
-            nm.war.WarParty(
+            nm.battle_party.WarParty(
                 nm.army.Army(E=999990, ME=502, JS=2480000, S=777537, SE=925779, JTK=291373, TK=203211, TKE=383906),
-                bonuses=nm.war.Bonuses(1.14, 1.0),
+                bonuses=nm.battle_party.Bonuses(1.14, 1.0),
                 atk=True,
             ),
-            nm.war.WarParty(
+            nm.battle_party.WarParty(
                 nm.army.Army(JS=99989, S=909880, SE=3856893, JTK=31776, TK=114476, TKE=869999),
-                bonuses=nm.war.Bonuses(1.05, 1.45),
+                bonuses=nm.battle_party.Bonuses(1.05, 1.45),
                 atk=False,
             ),
             [
@@ -133,8 +133,8 @@ class TestBonuses:
         ),
     ],
 )
-def test_simulate_rounds(attacker: nm.war.WarParty, defender: nm.war.WarParty, expected):
-    assert nm.war.simulate_rounds(attacker, defender) == expected
+def test_simulate_rounds(attacker: nm.battle_party.WarParty, defender: nm.battle_party.WarParty, expected):
+    assert nm.battle_party.simulate_rounds(attacker, defender) == expected
 
 
 @pytest.mark.skip

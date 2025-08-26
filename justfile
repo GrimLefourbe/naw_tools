@@ -24,6 +24,6 @@ remote_run: build push
 lint:
     poetry run black .
 
-test:
-    poetry run pytest tests -vv
+test *args:
+    poetry run pytest tests -vv {{args}}
 

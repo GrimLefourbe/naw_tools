@@ -1,7 +1,13 @@
+from email.policy import strict
 from nawminator.levels import Levels, AllianceType, HeroType, FightZone
 import pytest
 import numpy as np
+import hypothesis as hp
+import hypothesis.strategies as st
 
+import nawminator as nm
+
+from . import strategies as nm_st
 
 @pytest.mark.parametrize(
     "levels,expected",
@@ -216,3 +222,20 @@ def test_import(s, expected: Levels):
 )
 def test_from_bonuses(hero_enabled, bonus_dmg: np.float64, bonus_hp: np.float64, lieu, alli_type, atk, expected):
     assert Levels.from_bonuses(bonus_dmg, bonus_hp, lieu=lieu, alli_type=alli_type, atk=atk, hero_enabled=hero_enabled) == expected
+
+
+@pytest.mark.property
+@hp.example(levels=Levels(train=1), sep="\n").xfail(reason="Train is not used yet.")
+@hp.example(levels=Levels(hero_type=HeroType.DEFENSE), sep="\n").xfail(reason="Hero is temporarily disabled")
+@hp.given(
+    levels=nm_st.levels_strategy_factory(
+        train=st.just(0), # train is not used yet
+        hero_lvl=st.just(0),
+        hero_type=st.just(HeroType.ATTAQUE) # Hero handling is temporarily disabled
+    ),
+    sep=st.characters(categories=["Zs"])
+)
+def test_import_export(levels: Levels, sep: str):
+    s = levels.to_str(sep)
+    l = Levels.from_str(s)
+    assert levels == l, s

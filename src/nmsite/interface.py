@@ -277,7 +277,7 @@ class WarPartyStats:
             outputs=[self.hp, self.hp_bonus, self.dmg, self.dmg_bonus, self.cnt, self.ponte, self.adj_ponte],
             show_progress="hidden",
         )
-        def update_stats(p: nm.war.WarParty):
+        def update_stats(p: nm.battle_party.WarParty):
             return (
                 f"{p.total_hp:,.0f}".replace(",", " "),
                 f"+{p.bonuses.hp:.0%}",

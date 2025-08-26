@@ -5,7 +5,7 @@ import typing as t
 import nawminator as nm
 
 
-def compute_hp_bonus_range(dmg: np.float64, losses: nm.army.Army):
+def _compute_hp_bonus_range(dmg: np.float64, losses: nm.army.Army):
     ### COMPUTE HP BONUSES
     upper_limit = dmg / (losses.base_hp - 0.5 * nm.army.last_units_hp(losses))
     lower_limit = dmg / (losses.base_hp + 0.49999 * nm.army.last_units_hp(losses))
@@ -49,12 +49,12 @@ class Bonuses:
         for br in rounds[1:]:
             new_atk_bonuses, new_def_bonuses = cls.compute_bonuses(br)
 
-            atk_bonuses = atk_bonuses.combine(new_atk_bonuses)
-            def_bonuses = def_bonuses.combine(new_def_bonuses)
+            atk_bonuses = atk_bonuses._combine(new_atk_bonuses)
+            def_bonuses = def_bonuses._combine(new_def_bonuses)
 
         return atk_bonuses, def_bonuses
 
-    def combine(self, b: "Bonuses") -> "Bonuses":
+    def _combine(self, b: "Bonuses") -> "Bonuses":
         match (self.hp, b.hp):
             case (hp, None) | (None, hp):
                 pass
@@ -93,13 +93,13 @@ class Bonuses:
         if br.defender_base_dmg + br.defender_bonus_dmg > 4 * br.attacker_losses.base_hp:
             atk_hp_bonus_max, atk_hp_bonus_min = None, None
         else:
-            atk_hp_bonus = compute_hp_bonus_range(br.defender_bonus_dmg + br.defender_base_dmg, br.attacker_losses)
+            atk_hp_bonus = _compute_hp_bonus_range(br.defender_bonus_dmg + br.defender_base_dmg, br.attacker_losses)
             atk_hp_bonus_max = np.floor(istep * (atk_hp_bonus[0] - 1)) / np.float64(istep)
             atk_hp_bonus_min = np.ceil(istep * (atk_hp_bonus[1] - 1)) / np.float64(istep)
         if br.attacker_base_dmg + br.attacker_bonus_dmg > 4 * br.defender_losses.base_hp:
             def_hp_bonus_max, def_hp_bonus_min = None, None
         else:
-            def_hp_bonus = compute_hp_bonus_range(br.attacker_base_dmg + br.attacker_bonus_dmg, br.defender_losses)
+            def_hp_bonus = _compute_hp_bonus_range(br.attacker_base_dmg + br.attacker_bonus_dmg, br.defender_losses)
             def_hp_bonus_max = np.floor(istep * (def_hp_bonus[0] - 1)) / np.float64(istep)
             def_hp_bonus_min = np.ceil(istep * (def_hp_bonus[1] - 1)) / np.float64(istep)
 
@@ -180,12 +180,12 @@ def simulate_rounds(attacker: WarParty, defender: WarParty) -> list[nm.battle.Ro
     return rounds
 
 
-def simulate_battle(attacker: WarParty, defender: WarParty) -> nm.battle.Battle:
+def simulate_battle(attacker: WarParty, defender: WarParty) -> nm.battle.BattleReport:
     battle_rounds = simulate_rounds(attacker, defender)
-    return nm.battle.Battle(attacker.army, defender.army, battle_rounds)
+    return nm.battle.BattleReport(attacker.army, defender.army, battle_rounds)
 
 
-def analyze_battle(battle: nm.battle.Battle) -> tuple[WarParty, WarParty]:
+def analyze_battle(battle: nm.battle.BattleReport) -> tuple[WarParty, WarParty]:
     atk_bonuses, def_bonuses = Bonuses.from_rounds(battle.rounds)
 
     return (

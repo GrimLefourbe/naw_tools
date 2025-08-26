@@ -105,7 +105,7 @@ class CombatTab():
             outputs=self.attacker_party_state,
         )
         def attacker_update(army: nm.army.Army, levels: nm.levels.Levels):
-            return nm.war.WarParty(army, nm.war.Bonuses(*levels.bonus_atk), atk=True)
+            return nm.battle_party.WarParty(army, nm.battle_party.Bonuses(*levels.bonus_atk), atk=True)
 
         @gr.on(
             triggers=[
@@ -130,7 +130,7 @@ class CombatTab():
                     bonuses = levels.bonus_loge
                 case _:
                     raise AssertionError
-            return nm.war.WarParty(army, nm.war.Bonuses(*bonuses), atk=False)
+            return nm.battle_party.WarParty(army, nm.battle_party.Bonuses(*bonuses), atk=False)
 
         @gr.on(
             triggers=self.invert_button.click,
@@ -169,9 +169,9 @@ class CombatTab():
             inputs=[self.attacker_party_state, self.defender_party_state, self.lieu_input],
             outputs=self.output,
         )
-        def simulate_fight(atk_party: nm.war.WarParty, def_party: nm.war.WarParty, lieu: nm.levels.FightZone):
-            battle = nm.war.simulate_battle(attacker=atk_party, defender=def_party)
-            return gr.Textbox(value=battle.to_rc(), label=f"Résultat en {lieu}")
+        def simulate_fight(atk_party: nm.battle_party.WarParty, def_party: nm.battle_party.WarParty, lieu: nm.levels.FightZone):
+            battle = nm.battle_party.simulate_battle(attacker=atk_party, defender=def_party)
+            return gr.Textbox(value=battle.to_str(), label=f"Résultat en {lieu}")
 
         @gr.on(
             triggers=self.analyse_button.click,
@@ -196,7 +196,7 @@ class CombatTab():
             show_progress="hidden",
         )
         def analyse_fight(rc: str, lieu: nm.levels.FightZone, atk_alli, def_alli):
-            attacker, defender = nm.war.analyze_battle(nm.battle.Battle.from_rc(rc))
+            attacker, defender = nm.battle_party.analyze_battle(nm.battle.BattleReport.from_str(rc))
             attacker_levels = l = nm.levels.Levels.from_bonuses(
                 attacker.bonuses.dmg, attacker.bonuses.hp, lieu=lieu, alli_type=atk_alli, atk=True
             )
@@ -256,8 +256,8 @@ class CombatTab():
         }
         </style>
         """, container=False, elem_classes=["css-injector"], render=True, visible=True)
-        self.attacker_party_state = gr.State(nm.war.WarParty(nm.army.Army(), nm.war.Bonuses(np.float64(0), np.float64(0)), True))
-        self.defender_party_state = gr.State(nm.war.WarParty(nm.army.Army(), nm.war.Bonuses(np.float64(0), np.float64(0)), False))
+        self.attacker_party_state = gr.State(nm.battle_party.WarParty(nm.army.Army(), nm.battle_party.Bonuses(np.float64(0), np.float64(0)), True))
+        self.defender_party_state = gr.State(nm.battle_party.WarParty(nm.army.Army(), nm.battle_party.Bonuses(np.float64(0), np.float64(0)), False))
         self.configure_layout()
         self.configure_triggers()
 

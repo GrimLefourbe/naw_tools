@@ -4,6 +4,7 @@ import hypothesis as hp
 import hypothesis.strategies as st
 
 import nawminator as nm
+from nawminator.battle import BattleReport
 
 from . import strategies as nm_st
 
@@ -65,7 +66,7 @@ class TestBattle:
         [
             (
                 RC_REEL,
-                nm.battle.Battle(
+                nm.battle.BattleReport(
                     nm.army.Army(JS=100),
                     nm.army.Army(JS=1118),
                     [
@@ -82,7 +83,7 @@ class TestBattle:
             ),
             (
                 RC_SIMU_NAW,
-                nm.battle.Battle(
+                nm.battle.BattleReport(
                     nm.army.Army(JS=100, S=100),
                     nm.army.Army(S=100, T=127),
                     [
@@ -107,7 +108,7 @@ class TestBattle:
             ),
             (
                 RC_SIMU_NM,
-                nm.battle.Battle(
+                nm.battle.BattleReport(
                     nm.army.Army(JS=100),
                     nm.army.Army(JS=100),
                     [
@@ -121,12 +122,12 @@ class TestBattle:
         ],
     )
     def test_parse_rc(self, rc, expected):
-        assert nm.battle.Battle.from_rc(rc) == expected
+        assert nm.battle.BattleReport.from_str(rc) == expected
 
     @pytest.mark.parametrize(
         "battle",
         [
-            nm.battle.Battle(
+            nm.battle.BattleReport(
                 attacker=nm.army.Army(JS=100),
                 defender=nm.army.Army(JS=100),
                 rounds=[
@@ -138,42 +139,14 @@ class TestBattle:
             ),
         ],
     )
-    def test_export_import_rc(self, battle):
-        assert battle == nm.battle.Battle.from_rc(battle.to_rc())
-
-    @hp.given(attacker=nm_st.simple_warparty_strategy, defender=nm_st.simple_warparty_strategy)
-    def test_simulation_smoke(self, attacker: nm.war.WarParty, defender: nm.war.WarParty):
-        hp.assume((nm.army.MAX_UNIT_COUNT//64 > attacker.army._units).all())
-        hp.assume((nm.army.MAX_UNIT_COUNT//64 > defender.army._units).all())
-        defender.atk = False
-        battle = nm.war.simulate_battle(attacker=attacker, defender=defender)
-        rc = battle.to_rc()
-        parsed_battle = nm.battle.Battle.from_rc(rc)
-        assert battle == parsed_battle
-
-    @pytest.mark.skip("Must implement simulation first to generate coherent rounds")
-    @hp.given(
-        attacker=nm_st.army_strategy,
-        defender=nm_st.army_strategy,
-        rounds=st.lists(
-            nm_st.round_strategy,
-            min_size=1,
-            max_size=5,
-        ),
-    )
-    def test_export_import_rc_property(self, attacker: nm.army.Army, defender: nm.army.Army, rounds):
-        battle = nm.battle.Battle(
-            attacker,
-            defender,
-            rounds,
-        )
-        assert battle == nm.battle.Battle.from_rc(battle.to_rc())
+    def test_export_import_rc(self, battle: BattleReport):
+        assert battle == nm.battle.BattleReport.from_str(battle.to_str())
 
     @pytest.mark.parametrize(
         "battle,expected",
         [
             (
-                nm.battle.Battle(
+                nm.battle.BattleReport(
                     attacker=nm.army.Army(JS=100),
                     defender=nm.army.Army(JS=100),
                     rounds=[
@@ -187,15 +160,14 @@ class TestBattle:
             ),
         ],
     )
-    # @pytest.mark.skip
     def test_generate_rc(self, battle, expected):
-        assert battle.to_rc() == expected
+        assert battle.to_str() == expected
 
     @pytest.mark.parametrize(
         "battle,expected",
         [
             (
-                nm.battle.Battle(
+                nm.battle.BattleReport(
                     attacker=nm.army.Army(JS=100),
                     defender=nm.army.Army(JS=100),
                     rounds=[
@@ -209,5 +181,32 @@ class TestBattle:
             ),
         ],
     )
-    def test_get_total_losses(self, battle, expected):
-        assert battle.get_total_losses() == expected
+    def test_get_total_losses(self, battle: BattleReport, expected):
+        assert battle.total_losses() == expected
+
+@pytest.mark.property
+class TestProperties:
+    @hp.given(attacker=nm_st.simple_warparty_strategy, defender=nm_st.simple_warparty_strategy)
+    def test_simulation_export_import(self, attacker: nm.battle_party.WarParty, defender: nm.battle_party.WarParty):
+        hp.assume((nm.army.MAX_UNIT_COUNT//64 > attacker.army._units).all())
+        hp.assume((nm.army.MAX_UNIT_COUNT//64 > defender.army._units).all())
+        defender.atk = False
+        battle = nm.battle_party.simulate_battle(attacker=attacker, defender=defender)
+        rc = battle.to_str()
+        parsed_battle = nm.battle.BattleReport.from_str(rc)
+        assert battle == parsed_battle
+
+    # @hp.reproduce_failure('6.130.4', b'AXicc2RwBEN3RinHtOmHsoEs5jYZ1XOPgoEshkWtedK3lzkyIKAGAxTAGciybj4Tb9TKXXFnenJ6a7SsNcjYCI230+UP4zMAAHK/Ggo=')
+    @hp.given(attacker=nm_st.simple_warparty_strategy, defender=nm_st.simple_warparty_strategy)
+    def test_simulation_one_dead(self, attacker: nm.battle_party.WarParty, defender: nm.battle_party.WarParty):
+        hp.assume((nm.army.MAX_UNIT_COUNT//64 > attacker.army._units).all())
+        hp.assume((nm.army.MAX_UNIT_COUNT//64 > defender.army._units).all())
+        hp.assume(attacker.army.count > 0)
+        hp.assume(defender.army.count > 0)
+        hp.note(attacker.army.to_str())
+        hp.note(defender.army.to_str())
+        defender.atk = False
+        battle = nm.battle_party.simulate_battle(attacker=attacker, defender=defender)
+        hp.note(battle.to_str())
+        left_atk, left_def = battle.left_armies()
+        assert (left_atk.count == 0) or (left_def.count == 0), battle

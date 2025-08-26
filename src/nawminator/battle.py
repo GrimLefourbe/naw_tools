@@ -20,13 +20,13 @@ class Round:
 
 
 @dataclass
-class Battle:
+class BattleReport:
     attacker: Army
     defender: Army
     rounds: list[Round]
 
     @classmethod
-    def from_rc(cls, rc: str):
+    def from_str(cls, rc: str):
         if res := re.search(r"Troupe en attaque : (.*?)\n", rc):
             attacker = Army.from_str(res.group(1))
         else:
@@ -70,7 +70,7 @@ class Battle:
             rounds=rounds,
         )
 
-    def to_rc(self) -> str:
+    def to_str(self) -> str:
         rapport = f"""Attaquant
 Troupe en attaque : {self.attacker.to_str()}
 Défenseur
@@ -92,7 +92,7 @@ Combat
             )
 
         rapport += "\nAprès combat\n"
-        total_atk_losses, total_def_losses = self.get_total_losses()
+        total_atk_losses, total_def_losses = self.total_losses()
         final_atk = self.attacker - total_atk_losses
         final_def = self.defender - total_def_losses
         if final_atk.count != 0:
@@ -106,7 +106,7 @@ Combat
         return id(self)
 
     @functools.cache
-    def get_total_losses(self) -> tuple[Army, Army]:
+    def total_losses(self) -> tuple[Army, Army]:
         total_atk_losses = sum(
             (r.attacker_losses for r in self.rounds),
             start=Army(),
@@ -118,6 +118,6 @@ Combat
         return total_atk_losses, total_def_losses
 
     @functools.cache
-    def get_left_armies(self) -> tuple[Army, Army]:
-        atk_loss, def_loss = self.get_total_losses()
+    def left_armies(self) -> tuple[Army, Army]:
+        atk_loss, def_loss = self.total_losses()
         return self.attacker - atk_loss, self.defender - def_loss
