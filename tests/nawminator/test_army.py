@@ -97,6 +97,8 @@ class TestProperties:
     def test_split_by_hp_property(self, army: Army, dmg: np.float64):
         hp.assume(dmg <= army.base_hp)
         lost, left = army.split_by_hp(dmg)
+        hp.note(lost)
+        hp.note(left)
         assert lost + left == army
 
     @hp.given(nm_st.army_strategy, st.characters(categories=["Zs"]))

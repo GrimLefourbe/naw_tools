@@ -184,21 +184,25 @@ class TestBattle:
     def test_get_total_losses(self, battle: BattleReport, expected):
         assert battle.total_losses() == expected
 
+    @pytest.mark.xfail(reason="TODO")
+    def test_analyze_battle(self):
+        raise NotImplementedError # TODO
+
 @pytest.mark.property
 class TestProperties:
     @hp.given(attacker=nm_st.simple_warparty_strategy, defender=nm_st.simple_warparty_strategy)
-    def test_simulation_export_import(self, attacker: nm.battle_party.WarParty, defender: nm.battle_party.WarParty):
+    def test_simulation_export_import(self, attacker: nm.battle.WarParty, defender: nm.battle.WarParty):
         hp.assume((nm.army.MAX_UNIT_COUNT//64 > attacker.army._units).all())
         hp.assume((nm.army.MAX_UNIT_COUNT//64 > defender.army._units).all())
         defender.atk = False
-        battle = nm.battle_party.simulate_battle(attacker=attacker, defender=defender)
+        battle = nm.battle.BattleReport.simulate(attacker=attacker, defender=defender)
         rc = battle.to_str()
         parsed_battle = nm.battle.BattleReport.from_str(rc)
         assert battle == parsed_battle
 
     # @hp.reproduce_failure('6.130.4', b'AXicc2RwBEN3RinHtOmHsoEs5jYZ1XOPgoEshkWtedK3lzkyIKAGAxTAGciybj4Tb9TKXXFnenJ6a7SsNcjYCI230+UP4zMAAHK/Ggo=')
     @hp.given(attacker=nm_st.simple_warparty_strategy, defender=nm_st.simple_warparty_strategy)
-    def test_simulation_one_dead(self, attacker: nm.battle_party.WarParty, defender: nm.battle_party.WarParty):
+    def test_simulation_one_dead(self, attacker: nm.battle.WarParty, defender: nm.battle.WarParty):
         hp.assume((nm.army.MAX_UNIT_COUNT//64 > attacker.army._units).all())
         hp.assume((nm.army.MAX_UNIT_COUNT//64 > defender.army._units).all())
         hp.assume(attacker.army.count > 0)
@@ -206,7 +210,27 @@ class TestProperties:
         hp.note(attacker.army.to_str())
         hp.note(defender.army.to_str())
         defender.atk = False
-        battle = nm.battle_party.simulate_battle(attacker=attacker, defender=defender)
+        battle = nm.battle.BattleReport.simulate(attacker=attacker, defender=defender)
         hp.note(battle.to_str())
         left_atk, left_def = battle.left_armies()
         assert (left_atk.count == 0) or (left_def.count == 0), battle
+
+    attacker_bonuses_strategy = nm_st.levels_strategy.map(lambda x: nm.battle.Bonuses(*x.bonus_atk))
+    defender_bonuses_strategy = nm_st.levels_strategy.map(lambda x: nm.battle.Bonuses(*x.bonus_dome))
+    
+    @pytest.mark.xfail(reason="Need better handling of uncertainty in computed bonuses")
+    @hp.settings(suppress_health_check=[hp.HealthCheck.filter_too_much])
+    @hp.given(
+        attacker=st.builds(nm.battle.WarParty, army=nm_st.army_strategy, bonuses=attacker_bonuses_strategy, atk=st.just(True)),
+        defender=st.builds(nm.battle.WarParty, army=nm_st.army_strategy, bonuses=defender_bonuses_strategy, atk=st.just(False))
+    )
+    def test_simulate_analyze_large_armies(self, attacker: nm.battle.WarParty, defender: nm.battle.WarParty):
+        # hp.assume((nm.army.MAX_UNIT_COUNT//64 > attacker.army._units).all())
+        # hp.assume((nm.army.MAX_UNIT_COUNT//64 > defender.army._units).all())
+        hp.assume(attacker.army.count > 0 and defender.army.count > 0)
+        hp.note(attacker.army.to_str())
+        hp.note(defender.army.to_str())
+        battle = nm.battle.BattleReport.simulate(attacker=attacker, defender=defender)
+        hp.note(battle.to_str())
+        analyzed_atk, analyzed_def = battle.analyze()
+        assert attacker == analyzed_atk, defender == analyzed_def

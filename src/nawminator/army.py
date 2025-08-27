@@ -140,11 +140,12 @@ class Army:
             if hp_left_to_remove == 0:
                 break
             dmg = min(row_hp, hp_left_to_remove)
-            units_lost = np.floor(0.5 + (dmg / unit_stats[i, 0])).astype(np.int64)  # Avoids round half to even rounding
+            # Avoid using large floats as they lose precision, integer division first then float division on the left over
+            units_fully_lost = np.int64(dmg // unit_stats[i, 0])
+            units_lost = units_fully_lost + (1 if (dmg - units_fully_lost * unit_stats[i, 0]) >= (unit_stats[i, 0] / 2) else 0 )
             lost[i] += units_lost
             left[i] -= units_lost
             hp_left_to_remove -= dmg
-
         return Army(lost), Army(left)
 
     def recruit_time(self, tdp=0, bonus_alli=0):
