@@ -1,2 +1,2 @@
-from . import army, utils, levels
-from . import formulas, battle
+from . import formulas, utils, army, levels
+from . import hunt, battle

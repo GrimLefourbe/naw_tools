@@ -40,22 +40,26 @@ with gr.Blocks(title="Nawminator", css=css, head=HEADER, fill_width=True) as dem
     settings = settings.Settings(demo)
     gr.HTML(HEADER, container=False)
     with gr.Tabs() as tabs:
-        with gr.Tab("Combat"):
+        with gr.Tab("Combat") as combat_tab:
             from nmsite.tabs import combat
             combat.combat_tab()
 
-        with gr.Tab("Pontes"):
+        with gr.Tab(label="Synchro") as synchro_tab:
+            from nmsite.tabs import synchro
+            synchro.synchro_tab(settings)
+
+        with gr.Tab("Pontes") as pontes_tab:
             from nmsite.tabs import pontes
             pontes.pontes_tab()
 
-        with gr.Tab("Durées"):
+        with gr.Tab("Chasse", id="default") as hunt_tab:
+            from nmsite.tabs import hunt
+            hunt.hunt_tab()
+
+        with gr.Tab("Durées") as durees_tab:
             from nmsite.tabs import durees
             durees.durees_tab(settings)
-
-        with gr.Tab(label="Synchro"):
-            from nmsite.tabs import synchro
-            synchro.synchro_tab(settings)
-        
+    tabs.selected = "default"        
 
 
 

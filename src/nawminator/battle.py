@@ -308,7 +308,7 @@ def simulate_rounds(attacker: WarParty, defender: WarParty) -> list[Round]:
     current_def = defender
 
     rounds = []
-    for round_no in range(100):
+    for round_no in range(500):
         round, current_atk, current_def = Round.simulate(current_atk, current_def, round_no==0)
         rounds.append(round)
         if current_atk.army.count == 0 or current_def.army.count == 0:

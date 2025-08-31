@@ -81,64 +81,6 @@ class LevelsInput:
                 self.input_box.render()
                 self.copy_btn = gr.Button("📤︎", scale=1, variant="secondary", size="sm", min_width=20)
 
-    def _configure_triggers(self):
-        @gr.on(
-            triggers=self.input_box.input,
-            inputs=self.input_box,
-            outputs=[*self.input_fields, self.state],
-            show_progress="hidden",
-        )
-        def on_text_change(text_input: str):
-            l = nm.levels.Levels.from_str(text_input)
-            print(f"Updating with {l.alliance}")
-            return (
-                l.mandibule,
-                l.carapace,
-                l.hero_lvl,
-                l.hero_type,
-                l.special,
-                l.dome,
-                l.loge,
-                l.alliance,
-                l,
-            )
-
-        @gr.on(
-            triggers=[inp.change for inp in self.input_fields], # type: ignore
-            inputs=self.input_fields,
-            outputs=[self.state, self.input_box],
-            show_progress="hidden",
-        )
-        def on_input_change(m, c, hl, ht, s, d, l, a):
-            print(hl, ht)
-            args = {}
-            if hl is not None and ht is not None:
-                args = {"hero_lvl": hl, "hero_type": ht}
-            l = nm.levels.Levels(
-                mandibule=m, 
-                carapace=c,
-                **args,
-                train=0, 
-                dome=d, 
-                loge=l, 
-                alliance=a if a != "None" else None, 
-                special=s
-                )
-            return l, l.to_str()
-        
-        self.copy_btn.click(
-            lambda x: x, inputs=self.input_box, outputs=None, show_progress="hidden",
-            js="x => { navigator.clipboard.writeText(x); return []; }" # Gradio expects a list return for outputs
-        )
-        self.paste_btn.click(
-            on_text_change, 
-            inputs=self.input_box,
-            outputs=[*self.input_fields, self.state],
-            show_progress="hidden",
-            js="() => navigator.clipboard.readText().then(t => [t])" # Gradio expects a list return for outputs
-        )
-
-
     def _research_block(self, min_width):
         with gr.Group(), gr.Row(): #Mandi/Cara section
             with gr.Column(min_width=min_width):
@@ -216,6 +158,65 @@ class LevelsInput:
                 gr.Text("Loge", max_lines=0, container=False)
                 self.loge_input = gr.Number(label="Loge", minimum=0, show_label=False, container=False)
         self.input_fields.extend([self.dome_input, self.loge_input])
+
+    def _configure_triggers(self):
+        @gr.on(
+            triggers=self.input_box.input,
+            inputs=self.input_box,
+            outputs=[*self.input_fields, self.state],
+            show_progress="hidden",
+        )
+        def on_text_change(text_input: str):
+            l = nm.levels.Levels.from_str(text_input)
+            print(f"Updating with {l.alliance}")
+            return (
+                l.mandibule,
+                l.carapace,
+                l.hero_lvl,
+                l.hero_type,
+                l.special,
+                l.dome,
+                l.loge,
+                l.alliance,
+                l,
+            )
+
+        @gr.on(
+            triggers=[inp.change for inp in self.input_fields], # type: ignore
+            inputs=self.input_fields,
+            outputs=[self.state, self.input_box],
+            show_progress="hidden",
+        )
+        def on_input_change(m, c, hl, ht, s, d, l, a):
+            print(hl, ht)
+            args = {}
+            if hl is not None and ht is not None:
+                args = {"hero_lvl": hl, "hero_type": ht}
+            l = nm.levels.Levels(
+                mandibule=m, 
+                carapace=c,
+                **args,
+                train=0, 
+                dome=d, 
+                loge=l, 
+                alliance=a if a != "None" else None, 
+                special=s
+                )
+            return l, l.to_str()
+        
+        self.copy_btn.click(
+            lambda x: x, inputs=self.input_box, outputs=None, show_progress="hidden",
+            js="x => { navigator.clipboard.writeText(x); return []; }" # Gradio expects a list return for outputs
+        )
+        self.paste_btn.click(
+            on_text_change, 
+            inputs=self.input_box,
+            outputs=[*self.input_fields, self.state],
+            show_progress="hidden",
+            js="() => navigator.clipboard.readText().then(t => [t])" # Gradio expects a list return for outputs
+        )
+
+
 
 class RCInput:
     pass

@@ -2,6 +2,7 @@ from collections import namedtuple
 import typing as t
 import re
 import logging
+import datetime as dt
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,30 @@ def parse_naw_int(s: str) -> int:
 
 def format_naw_int(i) -> str:
     return f"{i:,}".replace(",", " ")
+
+def timedelta_to_ajhms(td: dt.timedelta, pad: str | bool = False):
+    parts = []
+    if pad is True:
+        padc = ""
+    elif pad == "full":
+        padc = "0"
+    else:
+        padc = pad
+
+    padder = lambda x: "d" if pad is False else f"{padc}{x}d"
+
+    if (t := td.days//365) or pad == "full":
+        parts.append((f"{t:d}")+"A")
+    if (t := td.days%365) or pad == "full":
+        parts.append(f"{t:{padder(3)}}J")
+    if (t := td.seconds//3600) or pad == "full":
+        parts.append(f"{t:{padder(2)}}H")
+    if (t := (td.seconds%3600)//60) or pad == "full":
+        parts.append(f"{t:{padder(2)}}M")
+    if (t := td.seconds%60) or len(parts) == 0 or pad == "full":
+        parts.append(f"{t:{padder(2)}}S")
+    print(parts)
+    return " ".join(parts)
 
 
 NAW_INT_REGEX = r"\d[ \d]*"
