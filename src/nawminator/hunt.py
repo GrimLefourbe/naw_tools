@@ -1,5 +1,8 @@
-import numpy as np
+import typing as t
+from dataclasses import dataclass
 
+
+import numpy as np
 import nawminator as nm
 
 def max_hunt_amount(start: np.int64, target_difficulty: np.int64) -> np.int64:
@@ -34,3 +37,16 @@ danger_thresholds = {
     "quite_danger": 1.4245000,
     "danger": 2.5641005,
 }
+
+@dataclass
+class HuntingReport:
+    start: int
+    hunt: int
+    attacker_before: nm.army.Army
+    attacker_after: nm.army.Army
+
+    @classmethod
+    def from_rc(cls, rc: str):
+        raise NotImplementedError
+
+

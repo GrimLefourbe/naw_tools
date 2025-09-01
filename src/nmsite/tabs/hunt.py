@@ -17,7 +17,7 @@ class HuntTab:
     
     def _set_simulate_layout(self):
         with gr.Row():
-            with gr.Accordion("Mon armée", open=False):
+            with gr.Accordion("Mon armée (NON UTILISEE)", open=False):
                 army_input = nmsite.interface.ArmyInput()
             with gr.Accordion("Mes niveaux", open=False):
                 levels_input = nmsite.interface.LevelsInput()

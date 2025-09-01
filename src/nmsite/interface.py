@@ -51,9 +51,23 @@ class ArmyInput:
 
 
 class LevelsInput:
-    def __init__(self, atk=True, min_width=200):
+    def __init__(self, atk=True, min_width=200, enabled: str | set[str] = "all"):
         self.state = gr.State(nm.levels.Levels())
         self.input_fields: list[FormComponent] = []
+        self.possible_fields = [
+            "mandibule",
+            "carapace",
+            "hero_lvl",
+            "hero_type",
+            "train",
+            "dome",
+            "loge",
+            "alliance",
+            "special",
+        ]
+        self.enabled = {
+            k: k in enabled for k in self.possible_fields
+        }
         self._build_layout(atk, min_width)
         self._configure_triggers()
 
