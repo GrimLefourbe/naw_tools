@@ -1,5 +1,6 @@
 import gradio as gr
 import nawminator as nm
+import datetime as dt
 
 from nmsite import interface
 
@@ -23,8 +24,7 @@ def pontes_tab():
     )
     def compute_ponte_duration(army: nm.army.Army, tdp, bonus_alli):
         durations, total_duration = army.recruit_time(tdp, bonus_alli)
-        return nm.utils.format_yjhms(nm.utils.seconds_to_yjhms(total_duration))
-    
+        return nm.utils.timedelta_to_ajhms(dt.timedelta(seconds=int(total_duration)))    
 
     def compute_tdp(army: nm.army.Army, duration_str: str):
         _, base_duration = army.recruit_time()

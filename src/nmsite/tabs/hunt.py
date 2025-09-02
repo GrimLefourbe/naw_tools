@@ -22,18 +22,18 @@ class HuntTab:
             with gr.Accordion("Mes niveaux", open=False):
                 levels_input = nmsite.interface.LevelsInput()
         with gr.Row():
-            start = gr.Number(minimum=0, label="TDC de départ")
-            hunt = gr.Number(minimum=0, label="TDC chassé")
-            hunting_speed = gr.Number(label="VT", minimum=0, maximum=40)
-
-        with gr.Row():            
-            duration = gr.Text("0S", label="Durée")
-            time_efficiency = gr.Number(label="Efficacité Temporelle")
+            start = gr.Number(minimum=0, label="TDC de départ", min_width=75)
+            hunt = gr.Number(minimum=0, label="TDC chassé", min_width=75)
+            hunting_speed = gr.Number(label="VT", minimum=0, maximum=40, min_width=75)
 
         with gr.Row():
-            diff = gr.Number(0, minimum=0, label="Difficulté")
-            pertes = gr.Number(0, label="Pertes estimées en OS(JS)")
-            equiv_tdp = gr.Number(0, label="Equivalent TDP")
+            with gr.Column(min_width=60):
+                duration = gr.Text("0S", label="Durée")
+                time_efficiency = gr.Number(label="Efficacité Temporelle")
+            with gr.Column(min_width=60):
+                diff = gr.Number(0, minimum=0, label="Difficulté")
+                pertes = gr.Number(0, label="Pertes estimées en OS(JS)", visible=False, interactive=False)
+                equiv_tdp = gr.Number(0, label="Equivalent TDP", visible=False)
 
         @gr.on(
             triggers=[start.input, hunt.input, hunting_speed.input],
@@ -61,7 +61,7 @@ class HuntTab:
             dmg_taken = diff * 0.3596 * 0.1
             js_lost = round(dmg_taken / nm.battle.WarParty(army=nm.army.Army(JS=1), bonuses=nm.battle.Bonuses(*nm.levels.Levels(carapace=cara, special=spe_cbt, alliance=alli_type if alli_type != "None" else None).bonus_atk), atk=True).total_hp)
             # js_lost = round(dmg_taken / (nm.army.unit_stats[2][0] * (1 + 0.05 * cara + spe_cbt*0.02)))
-            return js_lost
+            return gr.Number(js_lost, visible=True)
         
         @gr.on(
             triggers=[pertes.change, duration.change],
@@ -70,12 +70,12 @@ class HuntTab:
             show_progress="hidden",
         )
         def compute_equiv_tdp(js_lost, duration):
-            duration = nm.utils.YJHMS_to_seconds(nm.utils.parse_YJHMS(duration))
+            duration = nm.utils.parse_ajhms(duration).total_seconds()
             if duration == 0 or js_lost == 0:
                 return -1
             js_lost_per_second = js_lost/duration
             equiv_tdp = math.log((1/js_lost_per_second)/nm.army.unit_stats[2][3], 0.95)
-            return equiv_tdp
+            return gr.Number(equiv_tdp, visible=True)
 
     def _set_analyse_layout(self):
         pass        

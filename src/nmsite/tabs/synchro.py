@@ -140,7 +140,7 @@ def calc_synchros(data: pd.DataFrame, va: int, depart: dt.datetime, target_coord
     targets["Durée"] = targets[["x", "y"]].apply(lambda pos : nm.formulas.duree_attaque(*pos, *base_pos, va=va), axis=1)
     targets = targets.sort_values("Durée")
     targets["Horaire"] = targets["Durée"].apply(lambda x: (depart + dt.timedelta(seconds=x)).time())
-    targets["Durée"] = targets["Durée"].apply(lambda x: nm.utils.format_yjhms(nm.utils.seconds_to_yjhms(x), pad=True))
+    targets["Durée"] = targets["Durée"].apply(lambda x: nm.utils.timedelta_to_ajhms(dt.timedelta(seconds=x), pad=True))
     targets["Joueur"] = targets["player_name"]
     targets["Colonie"] = targets["colo_name"]
     targets["Alli"] = targets["alliance"]

@@ -10,6 +10,7 @@ import nawminator as nm
 from nawminator.army import Army
 from nawminator.utils import format_naw_int, NAW_INT_REGEX, parse_naw_int
 
+__all__ = ["Bonuses", "WarParty", "Round", "BattleReport", "simulate_rounds"]
 
 @dataclass
 class Bonuses:

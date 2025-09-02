@@ -1,7 +1,4 @@
 import gradio as gr
-from nawminator.utils import seconds_to_yjhms, format_yjhms
-import nawminator as nm
-import numpy as np
 
 css = """
 /* 1️⃣ Hide the HTML block itself */

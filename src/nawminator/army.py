@@ -4,6 +4,8 @@ import typing as t
 from .utils import parse_naw_int, NAW_INT_REGEX
 import logging
 
+__all__ = ["Army", "unit_stats", "unit_names", "last_units_hp"]
+
 logger = logging.getLogger(__name__)
 
 MAX_UNIT_COUNT = 2**56
@@ -82,8 +84,8 @@ class Army:
         return self._units.__repr__()
 
     @property
-    def count(self) -> np.int64:
-        return self._units.sum()
+    def count(self) -> int:
+        return int(self._units.sum())
 
     @property
     def base_atk(self) -> np.int64:

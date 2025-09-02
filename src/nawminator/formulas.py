@@ -1,6 +1,8 @@
 import math
 import numpy as np
 
+__all__ = ["duree_attaque", "va_ratio", "from_va", "vt_ratio", "hunt_duration", "hunt_params", "hunt_difficulty", "max_hunt_per_hour"]
+
 def duree_attaque(
     x1,
     y1,

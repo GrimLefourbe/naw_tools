@@ -1,5 +1,7 @@
 import gradio as gr
 import pandas as pd
+import datetime as dt
+
 import typing as t
 import nawminator as nm
 
@@ -77,9 +79,9 @@ class DureesTab:
         def _recompute_duration_va(x1, y1, x2, y2, va, duration, last_used):
             print(f"{va=} {duration=}")
             if last_used == "va":
-                return va, nm.utils.format_yjhms(nm.utils.seconds_to_yjhms(nm.formulas.duree_attaque(x1, y1, x2, y2, va)))
+                return va, nm.utils.timedelta_to_ajhms(dt.timedelta(seconds=nm.formulas.duree_attaque(x1, y1, x2, y2, va)))
             elif last_used == "duration":
-                d = nm.utils.YJHMS_to_seconds(nm.utils.parse_YJHMS(duration))
+                d = nm.utils.parse_ajhms(duration).total_seconds()
                 base_d = nm.formulas.duree_attaque(x1, y1, x2, y2)
                 observed_ratio = d/base_d
                 return nm.formulas.from_va(observed_ratio), duration

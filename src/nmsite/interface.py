@@ -1,5 +1,6 @@
 import gradio as gr
 import nawminator as nm
+import datetime as dt
 
 import typing as t
 if t.TYPE_CHECKING: 
@@ -299,6 +300,6 @@ class WarPartyStats:
                 f"{p.total_dmg:,.0f}".replace(",", " "),
                 f"+{p.bonuses.dmg:.0%}",
                 f"{p.army.count:,.0f}".replace(",", " "),
-                f"{nm.utils.format_yjhms(nm.utils.seconds_to_yjhms(p.army.recruit_time()[1]))}",
-                f"{nm.utils.format_yjhms(nm.utils.seconds_to_yjhms(p.army.non_xp_recruit_time()[1]))}",
+                f"{nm.utils.timedelta_to_ajhms(dt.timedelta(seconds=int(p.army.recruit_time()[1])))}",
+                f"{nm.utils.timedelta_to_ajhms(dt.timedelta(seconds=int(p.army.non_xp_recruit_time()[1])))}",
             )
