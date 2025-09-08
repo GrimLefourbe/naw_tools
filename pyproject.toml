@@ -14,12 +14,14 @@ scipy = "^1.8.1"
 loguru = "^0.6.0"
 regex = "^2024.7.24"
 pydantic = "^2.11.7"
+pulp = "^3.2.2"
 
 [tool.poetry.group.nmsite]
 optional = true
 
 [tool.poetry.group.nmsite.dependencies]
 gradio = "^5.39.0"
+pyyaml = "^6.0.2"
 
 [tool.poetry.group.dev]
 optional = true

@@ -5,6 +5,8 @@ import numpy as np
 from enum import Enum, StrEnum
 import typing as t
 
+import pulp as pl
+
 from loguru import logger
 
 __all__ = ["AllianceType", "HeroType", "FightZone", "Levels"]
@@ -14,6 +16,19 @@ class AllianceType(StrEnum):
     GUERRIER = "Guerrier"
     PACIFISTE = "Pacifiste"
     NEUTRE = "Neutre"
+    NONE = "None"
+
+    @property
+    def bonus(self):
+        match self:
+            case AllianceType.GUERRIER:
+                return 0.1, 0.0
+            case AllianceType.NEUTRE:
+                return 0.05, 0.05
+            case AllianceType.PACIFISTE:
+                return 0.0, 0.1
+            case AllianceType.NONE:
+                return 0.0, 0.0
 
 
 class HeroType(StrEnum):
@@ -24,21 +39,21 @@ class HeroType(StrEnum):
 
 class FightZone(StrEnum):
     TDC = "TDC"
-    DOME = "Dôme"
+    DOME = "Dome"
     LOGE = "Loge"
 
-HERO_ENABLED = False
+HERO_ENABLED = True
 
 @dataclass
 class Levels:
     mandibule: int = 0
     carapace: int = 0
     hero_lvl: int = 0
-    hero_type: HeroType = HeroType.ATTAQUE
+    hero_type: t.Optional[HeroType] = None
     train: int = 0
     dome: int = 0
     loge: int = 0
-    alliance: t.Optional[AllianceType] = AllianceType.NEUTRE
+    alliance: AllianceType = AllianceType.NONE
     special: int = 0
 
     def _mandi(self):
@@ -54,15 +69,9 @@ class Levels:
         return 0.1 + 0.05 * self.loge
 
     def _alli(self):
-        match self.alliance:
-            case AllianceType.GUERRIER:
-                return np.array((0.1, 0))
-            case AllianceType.NEUTRE:
-                return np.array((0.05, 0.05))
-            case AllianceType.PACIFISTE:
-                return np.array((0, 0.1))
-            case None:
-                return np.array((0, 0))
+        return np.array((self.alliance.bonus))
+
+
     def _special(self):
         return np.array((self.special * 0.02, self.special * 0.02))
 
@@ -125,9 +134,9 @@ class Levels:
             case "G":
                 args["alliance"] = AllianceType.GUERRIER
             case "R":
-                args["alliance"] = None
+                args["alliance"] = AllianceType.NONE
             case None:
-                pass
+                args["alliance"] = AllianceType.NONE
 
         match match.group(6), match.group(7):
             case "A", level:
@@ -137,7 +146,7 @@ class Levels:
             case "V", level:
                 args["hero_type"] = HeroType.VIE
             case _:
-                args["hero_type"] = HeroType.ATTAQUE
+                args["hero_type"] = None
                 level = 0
         args["hero_lvl"] = int(level)
         return cls(**args)
@@ -146,117 +155,168 @@ class Levels:
         s = []
         s.append(f"M{self.mandibule} C{self.carapace} S{self.special}")
         s.append(f"D{self.dome} L{self.loge}")
-        if HERO_ENABLED:
+        if HERO_ENABLED and self.hero_type is not None:
             s.append(f"H{self.hero_type[:1]}{self.hero_lvl}")
-        s.append(f"A{self.alliance[:1] if self.alliance else "R"}")
+        s.append(f"A{self.alliance[:1] if self.alliance != AllianceType.NONE else "R"}")
         return sep.join(s)
 
     @classmethod
-    def from_bonuses(cls, bonus_dmg, bonus_hp, lieu: FightZone, alli_type: t.Optional[AllianceType] = None, atk=True, step=1/100, hero_enabled=None):
-        args: dict[str, t.Any] = {"alliance": alli_type}
-        if hero_enabled is None:
-            hero_enabled = HERO_ENABLED
+    def from_bonuses(cls, bonus_dmg, bonus_hp, lieu: FightZone, alli_type: AllianceType = AllianceType.NONE, atk=True, hero_enabled=None):
+        step=1/200
+        args: dict[str, t.Any] = {
+            "alliance": alli_type
+        }
+        variable_dmg_bonus = bonus_dmg - alli_type.bonus[0]
+        variable_hp_bonus = bonus_hp - alli_type.bonus[1] if bonus_hp is not None else None
 
-        explained_dmg_bonus = 0
-        unexplained_dmg_bonus = round(bonus_dmg / step)
-
-        ## finding atk bonus
-        mandi = 0
-        if alli_type == AllianceType.GUERRIER:
-            explained_dmg_bonus += 10
-            unexplained_dmg_bonus -= 10
-        elif alli_type == AllianceType.NEUTRE:
-            explained_dmg_bonus += 5
-            unexplained_dmg_bonus -= 5
-
-        if unexplained_dmg_bonus % 5 != 0: # mandi is not enough to explain
-            if hero_enabled:
-                # hero must explain diff
-                args["hero_type"] = HeroType.ATTAQUE if atk else HeroType.DEFENSE
-                args["hero_lvl"] = hero_lvl = 100 + 20 * (unexplained_dmg_bonus % 5)
-                explained_dmg_bonus += hero_lvl / 20
-                unexplained_dmg_bonus -= hero_lvl / 20  ## TODO: check if that makes it subzero
-                # TODO: Enable both hero and specialisation together
+        match atk, lieu:
+            case False, FightZone.DOME:
+                base_lieu, base_step = 0.05, 0.025
+            case False, FightZone.LOGE:
+                base_lieu, base_step = 0.1, 0.05
+            case _:
+                base_lieu, base_step = 0, 0
+        if variable_hp_bonus is not None:
+            variable_hp_bonus -= base_lieu
+        hero_types: list[t.Optional[HeroType]] = [None]
+        if hero_enabled:
+            if bonus_hp is not None:
+                hero_types.append(HeroType.VIE)
+            if atk:
+                hero_types.append(HeroType.ATTAQUE)
             else:
-                # specialisation must explain diff
-                if unexplained_dmg_bonus % 2: # mandi is odd
-                    mandi += 1
-                    unexplained_dmg_bonus -= 5
-                    explained_dmg_bonus += 5
-                args["special"] = special = unexplained_dmg_bonus % 10 / 2
-                unexplained_dmg_bonus -= special * 2
-                explained_dmg_bonus += special * 2
+                hero_types.append(HeroType.DEFENSE)
+        
+        solutions: list[tuple[int, dict[str, pl.LpVariable], HeroType | None]] = []
+        for hero_type in hero_types:
+            possible_vars = {
+                "M": (round(0.05/step), pl.LpVariable("mandibule", lowBound=0, upBound=40, cat="Integer")),
+                "C": (round(0.05/step), pl.LpVariable("carapace", lowBound=0, upBound=40, cat="Integer")),
+                "S": (round(0.02/step), pl.LpVariable("special", lowBound=0, upBound=5, cat="Integer")),
+                "D": (round(base_step/step), pl.LpVariable("dome", lowBound=0, upBound=40, cat="Integer")),
+                "L": (round(base_step/step), pl.LpVariable("loge", lowBound=0, upBound=40, cat="Integer")),
+                "H": (round(0.005/step), pl.LpVariable("hero_lvl", lowBound=0, upBound=18, cat="Integer")),
+            }
 
-        # no hero needed to explain leftover
-        mandi += unexplained_dmg_bonus // 5
-        args ["mandibule"] = mandi
-        if bonus_hp is None:
-            unexplained_hp_bonus = None
-        else:
-            explained_hp_bonus = 0
-            unexplained_hp_bonus = round(bonus_hp / step)
-            if "special" in args:
-                explained_hp_bonus += special * 2
-                unexplained_hp_bonus -= special * 2
+            off_vars = ["M", "S"]
+            def_vars = ["C", "S"]
 
-            if alli_type == AllianceType.NEUTRE:
-                explained_hp_bonus += 5
-                unexplained_hp_bonus -= 5
-            elif alli_type == AllianceType.PACIFISTE:
-                explained_hp_bonus += 10
-                unexplained_hp_bonus -= 10
+            match atk, lieu:
+                case False, FightZone.DOME:
+                    def_vars += ["D"]
+                case False, FightZone.LOGE:
+                    def_vars += ["L"]
+                case _:
+                    pass
+            match hero_type:
+                case HeroType.ATTAQUE | HeroType.DEFENSE:
+                    off_vars += ["H"]
+                case HeroType.VIE:
+                    def_vars += ["H"]
+                case _:
+                    pass
+            off_sum = pl.lpSum(possible_vars[k][0] * possible_vars[k][1] for k in off_vars)
+            def_sum = pl.lpSum(possible_vars[k][0] * possible_vars[k][1] for k in def_vars)
 
-            if atk or lieu == FightZone.TDC:
-                if HERO_ENABLED:
-                    if unexplained_hp_bonus % 5 != 0:
-                        args["hero_type"] = HeroType.VIE
-                        args["hero_lvl"] = hero_lvl = 100 + 20 * (unexplained_hp_bonus % 5)
-                        explained_hp_bonus += hero_lvl / 20
-                        unexplained_hp_bonus -= hero_lvl / 20
+            used_vars = {k: v for k, (_, v) in possible_vars.items() if k in off_vars or k in def_vars}
 
-                cara = unexplained_hp_bonus // 5
+            balancing_weights = {
+                "main_error": 2_000_000,
+                "h_ismid": 10_000,
+                "H=0": 2_000,
+                "S_H": 1_250,
+                "M~C": 1_000,
+                "DL~C": 1_000,
+                "Final": 1,
+            }
+            m = pl.LpProblem("find_levels", pl.LpMinimize)
+            
+            main_error = pl.LpVariable("main_error", lowBound=0, cat="Integer")
+            hmid_penalty = pl.LpVariable("h_ismid", lowBound=0, cat="Integer")
+            h_nonzero_penalty = pl.LpVariable("H=0", lowBound=0, upBound=1, cat="Integer")
+            sh_error = pl.LpVariable("S_H", lowBound=0, cat="Integer")
+            mc_error = pl.LpVariable("M~C", lowBound=0, cat="Integer")
+            dlc_error = pl.LpVariable("DL~C", lowBound=0, cat="Integer")
+            final_error = pl.LpVariable("Final", lowBound=0, cat="Integer")
 
-            elif lieu == FightZone.DOME:
-                explained_hp_bonus += 5
-                unexplained_hp_bonus -= 5
+            errors = [main_error]
+#            errors = [main_error, hextreme_error, h0_error, sh_error, mc_error, dlc_error, final_error]
+            target_bonus_dmg = round(variable_dmg_bonus/step)
+            m += off_sum - target_bonus_dmg <= main_error
+            m += target_bonus_dmg - off_sum <= main_error
 
-                # change step to 0.05
-                explained_hp_bonus *= 2
-                unexplained_hp_bonus *= 2
+            if variable_hp_bonus is not None:
+                target_bonus_hp = round(variable_hp_bonus/step)
+                m += def_sum - target_bonus_hp <= main_error
+                m += target_bonus_hp - def_sum <= main_error
 
-                if unexplained_hp_bonus % 5 != 0:
-                    if HERO_ENABLED:
-                        if hero_enabled:
-                            args["hero_type"] = HeroType.VIE
-                            args["hero_lvl"] = hero_lvl = 150 + 10 * (unexplained_hp_bonus % 5)
-                            explained_hp_bonus += hero_lvl / 10
-                            unexplained_hp_bonus -= hero_lvl / 10  # TODO: check if subzero
+            if {"C", "M"} < used_vars.keys():
+                m += used_vars["M"] - used_vars["C"] <= mc_error
+                m += used_vars["C"] - used_vars["M"] <= mc_error
+                errors += [mc_error]
+                if "D" in used_vars:
+                    m += used_vars["D"] - used_vars["C"] <= dlc_error
+                    m += used_vars["C"] - used_vars["D"] <= dlc_error
+                if "L" in used_vars:
+                    m += used_vars["L"] - used_vars["C"] <= dlc_error
+                    m += used_vars["C"] - used_vars["L"] <= dlc_error
 
-                cara = min(mandi, unexplained_hp_bonus // 10)
-                explained_hp_bonus += cara * 10
-                unexplained_hp_bonus -= cara * 10
+            if {"H"} <= used_vars.keys():
+                h_used   = pl.LpVariable("h_used",   lowBound=0, upBound=1, cat="Binary")
+                h_is18   = pl.LpVariable("h_is18",   lowBound=0, upBound=1, cat="Binary")
+                h_nonext = pl.LpVariable("h_nonext", lowBound=0, upBound=1, cat="Binary")
+                H = used_vars["H"]
+                m += H >= 1 * h_used; m += H <= 18 * h_used
+                m += H >= 18 * h_is18; m += H <= 17 + 1 * h_is18
 
-                args["dome"] = unexplained_hp_bonus // 5
+                m += h_nonext == h_used - h_is18
+                m += h_nonext <= h_used
+                m += h_nonext <= 1 - h_is18
 
-            elif lieu == FightZone.LOGE:
-                explained_hp_bonus += 10
-                unexplained_hp_bonus -= 10
-                
-                if HERO_ENABLED:
-                    if unexplained_hp_bonus % 5 != 0:
-                        args["hero_type"] = HeroType.VIE
-                        args["hero_lvl"] = hero_lvl = 100 + 20 * (unexplained_hp_bonus % 5)
-                        explained_hp_bonus += hero_lvl / 20
-                        unexplained_hp_bonus -= hero_lvl / 20
+                m += hmid_penalty == h_nonext
+                m += h_nonzero_penalty == h_used
 
-                cara = min(mandi, unexplained_hp_bonus // 5)
-                explained_hp_bonus += cara * 5
-                unexplained_hp_bonus -= cara * 5
-                args["loge"] = unexplained_hp_bonus // 5
-            else:
-                raise ValueError(f"Unknown FightZone: {lieu}")
-            args["carapace"] = cara
-        logger.debug(f"Unexplained bonuses left: {unexplained_dmg_bonus}/{unexplained_hp_bonus}")
-        return cls(
-            **args
-        )
+                errors += [hmid_penalty, h_nonzero_penalty]
+            
+            if {"S"} <= used_vars.keys():
+                m += sh_error == used_vars["S"]
+                errors += [sh_error]
+
+            tot_error = pl.lpSum(err*balancing_weights[err.name] for err in errors)
+            m += tot_error
+            m.solve(pl.PULP_CBC_CMD(msg=False))
+            if pl.LpStatus[m.status] not in ("Optimal", "Feasible"):
+                continue
+            err_value = int(tot_error.value())
+            solutions.append((err_value, used_vars, hero_type))
+            print(solutions[-1])
+
+        if len(solutions) == 0:
+            raise ValueError(f"Failed to find levels for {bonus_dmg=}, {bonus_hp=}, {lieu=}, {alli_type=}, {atk=}, {hero_enabled=}")
+
+        solutions = sorted(solutions, key=lambda x: x[0])
+        if solutions[0][0] >= 3000000:
+            raise ValueError(f"Found no solutions with errors less than 3000000 for {bonus_dmg=}, {bonus_hp=}, {lieu=}, {alli_type=}, {atk=}, {hero_enabled=}")
+        
+        main_error, used_vars, hero_type = solutions[0]
+
+        args = {
+            var.name: int(var.value()) for var in used_vars.values()
+        }
+        args["alliance"] = alli_type
+
+        if hero_type is not None:
+            args["hero_type"] = hero_type
+            args["hero_lvl"] = args["hero_lvl"] * 10
+            print(f"Added hero {args["hero_type"]=} {args["hero_lvl"]=}")
+        levels = cls(**args)
+        match atk, lieu:
+            case True, _:
+                assert np.isclose(levels.bonus_atk, (bonus_dmg, bonus_hp)).all(), f"Got {levels.bonus_atk}, expected: ({bonus_dmg}, {bonus_hp})"
+            case False, FightZone.DOME:
+                assert np.isclose(levels.bonus_dome, (bonus_dmg, bonus_hp)).all(), f"Got {levels.bonus_dome}, expected: ({bonus_dmg}, {bonus_hp})"
+            case False, FightZone.LOGE:
+                assert np.isclose(levels.bonus_loge, (bonus_dmg, bonus_hp)).all(), f"Got {levels.bonus_loge}, expected: ({bonus_dmg}, {bonus_hp})"
+            case False, FightZone.TDC:
+                assert np.isclose(levels.bonus_tdc, (bonus_dmg, bonus_hp)).all(), f"Got {levels.bonus_tdc}, expected: ({bonus_dmg}, {bonus_hp})"
+        return cls(**args)

@@ -28,7 +28,7 @@ def levels_strategy_factory(
     train=st.integers(min_value=0, max_value=40),
     dome=st.integers(min_value=0, max_value=40),
     loge=st.integers(min_value=0, max_value=40),
-    alliance=st.sampled_from([*nm.levels.AllianceType, None]),
+    alliance=st.sampled_from(nm.levels.AllianceType),
     special=st.integers(min_value=0, max_value=5),
 ):
     return st.builds(

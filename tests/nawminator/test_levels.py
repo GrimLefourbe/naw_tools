@@ -158,7 +158,7 @@ def test_tdc_bonus(levels: Levels, expected):
         ),
         (
             "M1 C5 D5 AP",
-            Levels(1, 5, 0, HeroType.ATTAQUE, 0, 5, 0, AllianceType.PACIFISTE),
+            Levels(1, 5, 0, None, 0, 5, 0, AllianceType.PACIFISTE),
         ),
         (
             "M1 C5 S2 D5 L20",
@@ -226,7 +226,7 @@ def test_from_bonuses(hero_enabled, bonus_dmg: np.float64, bonus_hp: np.float64,
 
 @pytest.mark.property
 @hp.example(levels=Levels(train=1), sep="\n").xfail(reason="Train is not used yet.")
-@hp.example(levels=Levels(hero_type=HeroType.DEFENSE), sep="\n").xfail(reason="Hero is temporarily disabled")
+@hp.example(levels=Levels(hero_type=HeroType.DEFENSE), sep="\n")
 @hp.given(
     levels=nm_st.levels_strategy_factory(
         train=st.just(0), # train is not used yet
