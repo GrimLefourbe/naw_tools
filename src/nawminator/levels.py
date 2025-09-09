@@ -56,6 +56,10 @@ class Levels:
     alliance: AllianceType = AllianceType.NONE
     special: int = 0
 
+    def __post_init__(self):
+        if isinstance(self.alliance, str):
+            self.alliance = AllianceType(self.alliance)
+
     def _mandi(self):
         return 0.05 * self.mandibule
 
@@ -151,17 +155,20 @@ class Levels:
         args["hero_lvl"] = int(level)
         return cls(**args)
 
-    def to_str(self, sep="\n") -> str:
+    def to_str(self, sep="\n", hero_enabled: bool = True) -> str:
         s = []
         s.append(f"M{self.mandibule} C{self.carapace} S{self.special}")
         s.append(f"D{self.dome} L{self.loge}")
-        if HERO_ENABLED and self.hero_type is not None:
-            s.append(f"H{self.hero_type[:1]}{self.hero_lvl}")
-        s.append(f"A{self.alliance[:1] if self.alliance != AllianceType.NONE else "R"}")
+        alli_string = f"A{self.alliance[:1] if self.alliance != AllianceType.NONE else "R"}"
+        if hero_enabled and self.hero_type is not None:
+            s.append(f"H{self.hero_type[:1]}{self.hero_lvl} {alli_string}")
+        else:
+            s.append(alli_string)
         return sep.join(s)
 
     @classmethod
     def from_bonuses(cls, bonus_dmg, bonus_hp, lieu: FightZone, alli_type: AllianceType = AllianceType.NONE, atk=True, hero_enabled=None):
+        logger.debug(f"Computing bonuses from {bonus_dmg=}, {bonus_hp=} in {lieu=} with {alli_type=}, {atk=}, {hero_enabled=}")
         step=1/200
         args: dict[str, t.Any] = {
             "alliance": alli_type
@@ -199,19 +206,21 @@ class Levels:
             }
 
             off_vars = ["M", "S"]
-            def_vars = ["C", "S"]
+            def_vars = ["S"]
+            if bonus_hp is not None:
+                def_vars += ["C"]
 
-            match atk, lieu:
-                case False, FightZone.DOME:
-                    def_vars += ["D"]
-                case False, FightZone.LOGE:
-                    def_vars += ["L"]
-                case _:
-                    pass
+                match atk, lieu:
+                    case False, FightZone.DOME:
+                        def_vars += ["D"]
+                    case False, FightZone.LOGE:
+                        def_vars += ["L"]
+                    case _:
+                        pass
             match hero_type:
                 case HeroType.ATTAQUE | HeroType.DEFENSE:
                     off_vars += ["H"]
-                case HeroType.VIE:
+                case HeroType.VIE if bonus_hp is not None:
                     def_vars += ["H"]
                 case _:
                     pass
@@ -222,8 +231,8 @@ class Levels:
 
             balancing_weights = {
                 "main_error": 2_000_000,
-                "h_ismid": 10_000,
-                "H=0": 2_000,
+                "h_ismid": 20_000,
+                "H=0": 5_000,
                 "S_H": 1_250,
                 "M~C": 1_000,
                 "DL~C": 1_000,
@@ -240,7 +249,7 @@ class Levels:
             final_error = pl.LpVariable("Final", lowBound=0, cat="Integer")
 
             errors = [main_error]
-#            errors = [main_error, hextreme_error, h0_error, sh_error, mc_error, dlc_error, final_error]
+
             target_bonus_dmg = round(variable_dmg_bonus/step)
             m += off_sum - target_bonus_dmg <= main_error
             m += target_bonus_dmg - off_sum <= main_error
@@ -312,11 +321,23 @@ class Levels:
         levels = cls(**args)
         match atk, lieu:
             case True, _:
-                assert np.isclose(levels.bonus_atk, (bonus_dmg, bonus_hp)).all(), f"Got {levels.bonus_atk}, expected: ({bonus_dmg}, {bonus_hp})"
+                if bonus_hp is None:
+                    assert np.isclose(levels.bonus_atk[0], bonus_dmg), f"Got {levels.bonus_atk[0]}, expected {bonus_dmg}"
+                else:
+                    assert np.isclose(levels.bonus_atk, (bonus_dmg, bonus_hp)).all(), f"Got {levels.bonus_atk}, expected: ({bonus_dmg}, {bonus_hp})"
             case False, FightZone.DOME:
-                assert np.isclose(levels.bonus_dome, (bonus_dmg, bonus_hp)).all(), f"Got {levels.bonus_dome}, expected: ({bonus_dmg}, {bonus_hp})"
+                if bonus_hp is None:
+                    assert np.isclose(levels.bonus_atk[0], bonus_dmg), f"Got {levels.bonus_atk[0]}, expected {bonus_dmg}"
+                else:
+                    assert np.isclose(levels.bonus_dome, (bonus_dmg, bonus_hp)).all(), f"Got {levels.bonus_dome}, expected: ({bonus_dmg}, {bonus_hp})"
             case False, FightZone.LOGE:
-                assert np.isclose(levels.bonus_loge, (bonus_dmg, bonus_hp)).all(), f"Got {levels.bonus_loge}, expected: ({bonus_dmg}, {bonus_hp})"
+                if bonus_hp is None:
+                    assert np.isclose(levels.bonus_atk[0], bonus_dmg), f"Got {levels.bonus_atk[0]}, expected {bonus_dmg}"
+                else:
+                    assert np.isclose(levels.bonus_loge, (bonus_dmg, bonus_hp)).all(), f"Got {levels.bonus_loge}, expected: ({bonus_dmg}, {bonus_hp})"
             case False, FightZone.TDC:
-                assert np.isclose(levels.bonus_tdc, (bonus_dmg, bonus_hp)).all(), f"Got {levels.bonus_tdc}, expected: ({bonus_dmg}, {bonus_hp})"
+                if bonus_hp is None:
+                    assert np.isclose(levels.bonus_atk[0], bonus_dmg), f"Got {levels.bonus_atk[0]}, expected {bonus_dmg}"
+                else:
+                    assert np.isclose(levels.bonus_tdc, (bonus_dmg, bonus_hp)).all(), f"Got {levels.bonus_tdc}, expected: ({bonus_dmg}, {bonus_hp})"
         return cls(**args)

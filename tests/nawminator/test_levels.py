@@ -217,7 +217,25 @@ def test_import(s, expected: Levels):
             AllianceType.NEUTRE,
             False,
             Levels(mandibule=15, carapace=13, hero_lvl=0, dome=0, alliance=AllianceType.NEUTRE, special=0)
-        )
+        ),
+        (
+            True,
+            np.float64(1.14),
+            None,
+            FightZone.TDC,
+            AllianceType.NEUTRE,
+            True,
+            Levels(mandibule=21, hero_type=None, alliance=AllianceType.NEUTRE, special=2)
+        ),
+        # (
+        #     True,
+        #     np.float64(1.21),
+        #     np.float64(1.135),
+        #     FightZone.TDC,
+        #     AllianceType.PACIFISTE,
+        #     False,
+        #     Levels(mandibule=23, carapace=20, hero_lvl=0, hero_type=None, alliance=AllianceType.PACIFISTE, special=3)
+        # ) # hero lvl is not a multiple of 10 so the granularity isn't good enough.
     ],
 )
 def test_from_bonuses(hero_enabled, bonus_dmg: np.float64, bonus_hp: np.float64, lieu, alli_type, atk, expected):
