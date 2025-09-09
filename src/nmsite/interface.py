@@ -1,3 +1,4 @@
+from pickle import NONE
 import gradio as gr
 import nawminator as nm
 import datetime as dt
@@ -52,23 +53,24 @@ class ArmyInput:
 
 
 class LevelsInput:
-    def __init__(self, atk=True, min_width=200, enabled: str | set[str] = "all"):
+    def __init__(self, hero_enabled: bool, atk=True, min_width=200):
         self.state = gr.State(nm.levels.Levels())
         self.input_fields: list[FormComponent] = []
-        self.possible_fields = [
-            "mandibule",
-            "carapace",
-            "hero_lvl",
-            "hero_type",
-            "train",
-            "dome",
-            "loge",
-            "alliance",
-            "special",
-        ]
-        self.enabled = {
-            k: k in enabled for k in self.possible_fields
-        }
+        # self.possible_fields = [
+        #     "mandibule",
+        #     "carapace",
+        #     "hero_lvl",
+        #     "hero_type",
+        #     "train",
+        #     "dome",
+        #     "loge",
+        #     "alliance",
+        #     "special",
+        # ]
+        # self.enabled = {
+        #     k: k in enabled for k in self.possible_fields
+        # }
+        self.hero_enabled = hero_enabled
         self._build_layout(atk, min_width)
         self._configure_triggers()
 
@@ -123,7 +125,7 @@ class LevelsInput:
 
     def _hero_spe_block(self, min_width):
         with gr.Row(): #Hero/Spe section
-            with gr.Group(visible=nm.levels.HERO_ENABLED):
+            with gr.Group(visible=self.hero_enabled):
                 # gr.Text("Hero", max_lines=0, container=False)
                 self.herolvl_input = gr.Number(
                     value=0,
@@ -142,7 +144,7 @@ class LevelsInput:
                 )
                 self.input_fields.append(self.herolvl_input)
                 self.input_fields.append(self.herotype_input)
-            with gr.Group(visible=not nm.levels.HERO_ENABLED, elem_classes=["smgroup"]), gr.Row():
+            with gr.Group(elem_classes=["smgroup"]), gr.Row():
                 gr.Textbox("Spe", max_lines=0, container=False, min_width=45, scale=25)
                 self.spe_input = gr.Number(
                     value=0,
@@ -154,11 +156,10 @@ class LevelsInput:
                 )
                 self.input_fields.append(self.spe_input)
             self.alliance_input = gr.Dropdown(
-                value="None",
+                value=nm.levels.AllianceType.NONE,
                 label="Alliance",
                 choices=[
                     *list(nm.levels.AllianceType),
-                    ("Alliance", "None"),
                 ],
                 container=False,
                 min_width=105,
@@ -214,10 +215,10 @@ class LevelsInput:
                 train=0, 
                 dome=d, 
                 loge=l, 
-                alliance=a if a != "None" else None, 
+                alliance=nm.levels.AllianceType(a), 
                 special=s
                 )
-            return l, l.to_str()
+            return l, l.to_str(hero_enabled=self.hero_enabled)
         
         self.copy_btn.click(
             lambda x: x, inputs=self.input_box, outputs=None, show_progress="hidden",

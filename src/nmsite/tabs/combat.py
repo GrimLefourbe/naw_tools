@@ -1,26 +1,47 @@
 import nawminator as nm
 import gradio as gr
 import numpy as np
-from nmsite import interface
+from nmsite import interface, config
 
-def combat_tab():
-    CombatTab()
+def combat_tab(config: config.Config):
+    CombatTab(config.hero_enabled)
 
 class CombatTab():
+    def __init__(self, hero_enabled: bool):
+        gr.HTML("""
+        <style>
+        /* Desktop order */
+        .left   { order: 1; }
+        .middle { order: 2; }
+        .right  { order: 3; }
+
+        /* When screen < 900px, middle wraps first */
+        @media (max-width: 900px) {
+            .middle { order: 3; }  /* move to last -> wraps first */
+            .right  { order: 2; }
+        }
+        </style>
+        """, container=False, elem_classes=["css-injector"], render=True, visible=True)
+        self.hero_enabled = hero_enabled
+        self.attacker_party_state = gr.State(nm.battle.WarParty(nm.army.Army(), nm.battle.Bonuses(np.float64(0), np.float64(0)), True))
+        self.defender_party_state = gr.State(nm.battle.WarParty(nm.army.Army(), nm.battle.Bonuses(np.float64(0), np.float64(0)), False))
+        self.configure_layout()
+        self.configure_triggers()
+
     def configure_layout(self):
         with gr.Row():
             with gr.Column(variant="panel", min_width=175, elem_classes=["left"]) as attacker_col:
                 gr.Markdown(
                     "<div style='text-align:center; font-weight:bold; font-size:18px;'>Attaquant</div>"
                 )
-                self.attacker_levels_input = interface.LevelsInput(atk=False)
+                self.attacker_levels_input = interface.LevelsInput(self.hero_enabled, atk=False)
                 self.attacker_army_input = interface.ArmyInput()
 
             with gr.Column(variant="panel", min_width=175, elem_classes=["right"]) as defender_col:
                 gr.Markdown(
                     "<div style='text-align:center; font-weight:bold; font-size:18px;'>Défenseur</div>"
                 )
-                self.defender_levels_input = interface.LevelsInput(atk=False)
+                self.defender_levels_input = interface.LevelsInput(self.hero_enabled, atk=False)
                 self.defender_army_input = interface.ArmyInput()
 
             with gr.Column(scale=2, min_width=400, elem_classes=["middle"]):
@@ -105,6 +126,8 @@ class CombatTab():
             outputs=self.attacker_party_state,
         )
         def attacker_update(army: nm.army.Army, levels: nm.levels.Levels):
+            print(levels.alliance)
+            print(type(levels.alliance))
             return nm.battle.WarParty(army, nm.battle.Bonuses(*levels.bonus_atk), atk=True)
 
         @gr.on(
@@ -196,9 +219,13 @@ class CombatTab():
             show_progress="hidden",
         )
         def analyse_fight(rc: str, lieu: nm.levels.FightZone, atk_alli, def_alli):
+            atk_alli = nm.levels.AllianceType(atk_alli)
+            def_alli = nm.levels.AllianceType(def_alli)
+            assert isinstance(atk_alli, nm.levels.AllianceType)
+            assert isinstance(def_alli, nm.levels.AllianceType)
             attacker, defender = nm.battle.BattleReport.from_str(rc).analyze()
             attacker_levels = l = nm.levels.Levels.from_bonuses(
-                attacker.bonuses.dmg, attacker.bonuses.hp, lieu=lieu, alli_type=atk_alli, atk=True
+                attacker.bonuses.dmg, attacker.bonuses.hp, lieu=lieu, alli_type=atk_alli, atk=True, hero_enabled=self.hero_enabled
             )
             if l.hero_lvl is None:
                 raise ValueError("Hero lvl can't be None")
@@ -213,7 +240,7 @@ class CombatTab():
                 l.alliance,
             ]
             defender_levels = l = nm.levels.Levels.from_bonuses(
-                defender.bonuses.dmg, defender.bonuses.hp, lieu=lieu, alli_type=def_alli, atk=False
+                defender.bonuses.dmg, defender.bonuses.hp, lieu=lieu, alli_type=def_alli, atk=False, hero_enabled=self.hero_enabled
             )
             if l.hero_lvl is None:
                 raise ValueError("Hero lvl can't be None")
@@ -241,26 +268,3 @@ class CombatTab():
                 *defender_levels_fields,
             )
 
-    def __init__(self):
-        gr.HTML("""
-        <style>
-        /* Desktop order */
-        .left   { order: 1; }
-        .middle { order: 2; }
-        .right  { order: 3; }
-
-        /* When screen < 900px, middle wraps first */
-        @media (max-width: 900px) {
-            .middle { order: 3; }  /* move to last -> wraps first */
-            .right  { order: 2; }
-        }
-        </style>
-        """, container=False, elem_classes=["css-injector"], render=True, visible=True)
-        self.attacker_party_state = gr.State(nm.battle.WarParty(nm.army.Army(), nm.battle.Bonuses(np.float64(0), np.float64(0)), True))
-        self.defender_party_state = gr.State(nm.battle.WarParty(nm.army.Army(), nm.battle.Bonuses(np.float64(0), np.float64(0)), False))
-        self.configure_layout()
-        self.configure_triggers()
-
-
-
-            # defender_col.render()

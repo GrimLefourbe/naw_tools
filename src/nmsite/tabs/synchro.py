@@ -1,11 +1,12 @@
 import gradio as gr
 import nawminator as nm
+import nmsite
 from nmsite.tabs.settings import ParsingError, Settings, parse_source_code, parse_table
 import pandas as pd
 import datetime as dt
 
 
-def synchro_tab(settings: Settings):
+def synchro_tab(config: nmsite.config.Config, settings: Settings):
     SynchroTab(settings=settings)
 
 class SynchroTab:
