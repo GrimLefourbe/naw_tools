@@ -1285,6 +1285,22 @@ dev = ["pre-commit", "tox"]
 testing = ["coverage", "pytest", "pytest-benchmark"]
 
 [[package]]
+name = "pulp"
+version = "3.2.2"
+description = "PuLP is an LP modeler written in python. PuLP can generate MPS or LP files and call GLPK, COIN CLP/CBC, CPLEX, and GUROBI to solve linear problems."
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "pulp-3.2.2-py3-none-any.whl", hash = "sha256:d3ca5ff11a28b3e7b2508a992d7e51f3533471d89305f0560b5fe3b6cc821043"},
+    {file = "pulp-3.2.2.tar.gz", hash = "sha256:389a6ff1dc34ec4b093f34f7a9fa3553743ff0ea99b2a423e9f0dd16940f63d2"},
+]
+
+[package.extras]
+open-py = ["cylp ; sys_platform != \"win32\"", "highspy", "pyscipopt"]
+public-py = ["coptpy", "gurobipy", "xpress"]
+
+[[package]]
 name = "pydantic"
 version = "2.11.7"
 description = "Data validation using Python type hints"
@@ -2149,4 +2165,4 @@ dev = ["black (>=19.3b0) ; python_version >= \"3.6\"", "pytest (>=4.6.2)"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12.0,<3.13"
-content-hash = "b12210e54d758fcb121608a37044388277e611c76b5147478cca043ea5fa6866"
+content-hash = "8e16f7b22b3a8483026607e734261d73d9aa3774538b33285dac202b633c305b"
