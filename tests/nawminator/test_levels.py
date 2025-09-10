@@ -230,12 +230,12 @@ def test_import(s, expected: Levels):
         (
             False,
             np.float64(0.85),
-            np.float64(0.96),
+            (np.float64(0.94), np.float64(0.96)),
             FightZone.LOGE,
             AllianceType.GUERRIER,
             False,
             Levels(mandibule=15, carapace=15, loge=2, alliance=AllianceType.GUERRIER)
-        )
+        ),
         # (
         #     True,
         #     np.float64(1.21),

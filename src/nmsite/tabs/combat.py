@@ -225,7 +225,12 @@ class CombatTab():
             assert isinstance(def_alli, nm.levels.AllianceType)
             attacker, defender = nm.battle.BattleReport.from_str(rc).analyze()
             attacker_levels = l = nm.levels.Levels.from_bonuses(
-                attacker.bonuses.dmg, attacker.bonuses.hp, lieu=lieu, alli_type=atk_alli, atk=True, hero_enabled=self.hero_enabled
+                bonus_dmg=(attacker.bonuses.min_dmg, attacker.bonuses.max_dmg),
+                bonus_hp=(attacker.bonuses.min_hp, attacker.bonuses.max_hp), 
+                lieu=lieu, 
+                alli_type=atk_alli, 
+                atk=True, 
+                hero_enabled=self.hero_enabled
             )
             if l.hero_lvl is None:
                 raise ValueError("Hero lvl can't be None")
@@ -240,7 +245,12 @@ class CombatTab():
                 l.alliance,
             ]
             defender_levels = l = nm.levels.Levels.from_bonuses(
-                defender.bonuses.dmg, defender.bonuses.hp, lieu=lieu, alli_type=def_alli, atk=False, hero_enabled=self.hero_enabled
+                bonus_dmg=(defender.bonuses.min_dmg, defender.bonuses.max_dmg), 
+                bonus_hp=(defender.bonuses.min_hp, defender.bonuses.max_hp), 
+                lieu=lieu, 
+                alli_type=def_alli, 
+                atk=False, 
+                hero_enabled=self.hero_enabled
             )
             if l.hero_lvl is None:
                 raise ValueError("Hero lvl can't be None")

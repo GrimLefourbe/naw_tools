@@ -75,7 +75,6 @@ class Levels:
     def _alli(self):
         return np.array((self.alliance.bonus))
 
-
     def _special(self):
         return np.array((self.special * 0.02, self.special * 0.02))
 
@@ -119,6 +118,17 @@ class Levels:
         if self.hero_type == HeroType.VIE:
             hp += self.hero_lvl * 0.0005
         return dmg, hp
+
+    def bonus(self, lieu: FightZone, atk: bool):
+        match atk, lieu:
+            case True, _:
+                return self.bonus_atk
+            case False, FightZone.DOME:
+                return self.bonus_dome
+            case False, FightZone.LOGE:
+                return self.bonus_loge
+            case False, FightZone.TDC:
+                return self.bonus_tdc
 
     @classmethod
     def from_str(cls, s: str):
@@ -167,15 +177,32 @@ class Levels:
         return sep.join(s)
 
     @classmethod
-    def from_bonuses(cls, bonus_dmg, bonus_hp, lieu: FightZone, alli_type: AllianceType = AllianceType.NONE, atk=True, hero_enabled=None):
+    def from_bonuses(
+        cls, 
+        bonus_dmg: float | tuple[float, float], 
+        bonus_hp: None | float | tuple[float | None, float | None], 
+        lieu: FightZone, 
+        alli_type: AllianceType = AllianceType.NONE, 
+        atk=True, 
+        hero_enabled=None,
+        opt: t.Literal["max"] | t.Literal["min"] = "max"
+    ):
         logger.debug(f"Computing bonuses from {bonus_dmg=}, {bonus_hp=} in {lieu=} with {alli_type=}, {atk=}, {hero_enabled=}")
         step=1/200
+        to_step = lambda x: round(x/step)
         args: dict[str, t.Any] = {
             "alliance": alli_type
         }
-        variable_dmg_bonus = bonus_dmg - alli_type.bonus[0]
-        variable_hp_bonus = bonus_hp - alli_type.bonus[1] if bonus_hp is not None else None
 
+        if not isinstance(bonus_dmg, tuple):
+            bonus_dmg = bonus_dmg, bonus_dmg
+        if not isinstance(bonus_hp, tuple):
+            bonus_hp = bonus_hp, bonus_hp
+
+        HP_ENABLED = bonus_hp[0] is not None and bonus_hp[1] is not None
+
+        dmg_base, hp_base = alli_type.bonus
+ 
         match atk, lieu:
             case False, FightZone.DOME:
                 base_lieu, base_step = 0.05, 0.025
@@ -183,8 +210,8 @@ class Levels:
                 base_lieu, base_step = 0.1, 0.05
             case _:
                 base_lieu, base_step = 0, 0
-        if variable_hp_bonus is not None:
-            variable_hp_bonus -= base_lieu
+        hp_base += base_lieu
+ 
         hero_types: list[t.Optional[HeroType]] = [None]
         if hero_enabled:
             if bonus_hp is not None:
@@ -193,21 +220,21 @@ class Levels:
                 hero_types.append(HeroType.ATTAQUE)
             else:
                 hero_types.append(HeroType.DEFENSE)
-        
+                
         solutions: list[tuple[int, dict[str, pl.LpVariable], HeroType | None]] = []
         for hero_type in hero_types:
             possible_vars = {
-                "M": (round(0.05/step), pl.LpVariable("mandibule", lowBound=0, upBound=40, cat="Integer")),
-                "C": (round(0.05/step), pl.LpVariable("carapace", lowBound=0, upBound=40, cat="Integer")),
-                "S": (round(0.02/step), pl.LpVariable("special", lowBound=0, upBound=5, cat="Integer")),
-                "D": (round(base_step/step), pl.LpVariable("dome", lowBound=0, upBound=40, cat="Integer")),
-                "L": (round(base_step/step), pl.LpVariable("loge", lowBound=0, upBound=40, cat="Integer")),
-                "H": (round(0.005/step), pl.LpVariable("hero_lvl", lowBound=0, upBound=18, cat="Integer")),
+                "M": (to_step(0.05), pl.LpVariable("mandibule", lowBound=0, upBound=40, cat="Integer")),
+                "C": (to_step(0.05), pl.LpVariable("carapace", lowBound=0, upBound=40, cat="Integer")),
+                "S": (to_step(0.02), pl.LpVariable("special", lowBound=0, upBound=5, cat="Integer")),
+                "D": (to_step(base_step), pl.LpVariable("dome", lowBound=0, upBound=40, cat="Integer")),
+                "L": (to_step(base_step), pl.LpVariable("loge", lowBound=0, upBound=40, cat="Integer")),
+                "H": (to_step(0.005), pl.LpVariable("hero_lvl", lowBound=0, upBound=18, cat="Integer")),
             }
 
             off_vars = ["M", "S"]
             def_vars = ["S"]
-            if bonus_hp is not None:
+            if HP_ENABLED:
                 def_vars += ["C"]
 
                 match atk, lieu:
@@ -230,7 +257,8 @@ class Levels:
             used_vars = {k: v for k, (_, v) in possible_vars.items() if k in off_vars or k in def_vars}
 
             balancing_weights = {
-                "main_error": 1_000_000,
+                "main_error_atk": 1_000_000,
+                "main_error_def": 1_000_000,
                 "h_ismid": 20_000,
                 "H=0": 5_000,
                 "S_H": 1_250,
@@ -240,7 +268,8 @@ class Levels:
             }
             m = pl.LpProblem("find_levels", pl.LpMinimize)
             
-            main_error = pl.LpVariable("main_error", lowBound=0, cat="Integer")
+            main_error_atk = pl.LpVariable("main_error_atk", lowBound=0, cat="Integer")
+            main_error_def = pl.LpVariable("main_error_def", lowBound=0, cat="Integer")
             hmid_penalty = pl.LpVariable("h_ismid", lowBound=0, cat="Integer")
             h_nonzero_penalty = pl.LpVariable("H=0", lowBound=0, upBound=1, cat="Integer")
             sh_error = pl.LpVariable("S_H", lowBound=0, cat="Integer")
@@ -248,16 +277,34 @@ class Levels:
             dlc_error = pl.LpVariable("DL~C", lowBound=0, cat="Integer")
             final_error = pl.LpVariable("Final", lowBound=0, cat="Integer")
 
-            errors = [main_error]
+            errors = []
 
-            target_bonus_dmg = round(variable_dmg_bonus/step)
-            m += off_sum - target_bonus_dmg <= main_error
-            m += target_bonus_dmg - off_sum <= main_error
+            m += to_step(dmg_base) + off_sum >= to_step(bonus_dmg[0])
+            m += to_step(dmg_base) + off_sum <= to_step(bonus_dmg[1])
+            if HP_ENABLED:
+                m += to_step(hp_base) + def_sum >= to_step(bonus_hp[0])
+                m += to_step(hp_base) + def_sum <= to_step(bonus_hp[1])
+            if opt == "max":
+                m += to_step(dmg_base) + off_sum + main_error_atk == to_step(bonus_dmg[1])
+                errors += [main_error_atk]
+                if HP_ENABLED:
+                    m += to_step(hp_base) + def_sum + main_error_def == to_step(bonus_hp[1])
+                    errors += [main_error_def]
+            elif opt == "min":
+                m += to_step(dmg_base) + off_sum == to_step(bonus_dmg[0]) + main_error_atk
+                errors += [main_error_atk]
+                if HP_ENABLED:
+                    m += to_step(hp_base) + def_sum == to_step(bonus_hp[0]) + main_error_def 
+                    errors += [main_error_def]
+                
+            # target_bonus_dmg = base
+            # m += off_sum - target_bonus_dmg <= main_error
+            # m += target_bonus_dmg - off_sum <= main_error
 
-            if variable_hp_bonus is not None:
-                target_bonus_hp = round(variable_hp_bonus/step)
-                m += def_sum - target_bonus_hp <= main_error
-                m += target_bonus_hp - def_sum <= main_error
+            # if variable_hp_bonus is not None:
+            #     target_bonus_hp = round(variable_hp_bonus/step)
+            #     m += def_sum - target_bonus_hp <= main_error
+            #     m += target_bonus_hp - def_sum <= main_error
 
             if {"C", "M"} < used_vars.keys():
                 m += used_vars["M"] - used_vars["C"] <= mc_error
@@ -304,10 +351,10 @@ class Levels:
             raise ValueError(f"Failed to find levels for {bonus_dmg=}, {bonus_hp=}, {lieu=}, {alli_type=}, {atk=}, {hero_enabled=}")
 
         solutions = sorted(solutions, key=lambda x: x[0])
-        if solutions[0][0] >= 3000000:
-            raise ValueError(f"Found no solutions with errors less than 3000000 for {bonus_dmg=}, {bonus_hp=}, {lieu=}, {alli_type=}, {atk=}, {hero_enabled=}")
+        # if solutions[0][0] >= 3000000000:
+        #     raise ValueError(f"Found no solutions with errors less than 3000000 for {bonus_dmg=}, {bonus_hp=}, {lieu=}, {alli_type=}, {atk=}, {hero_enabled=}")
         
-        main_error, used_vars, hero_type = solutions[0]
+        error_value, used_vars, hero_type = solutions[0]
 
         args = {
             var.name: int(var.value()) for var in used_vars.values()
@@ -329,8 +376,12 @@ class Levels:
             case False, FightZone.TDC:
                 guessed_bonuses = levels.bonus_tdc
 
-        if bonus_hp is None:
-            assert np.isclose(guessed_bonuses[0], bonus_dmg, atol=step*(solutions[0][0]//balancing_weights["main_error"])).all(), f"Got {guessed_bonuses[0]} expected {bonus_dmg}"
+        guessed_bonuses = levels.bonus(lieu, atk)
+        epsilon = 1e-7
+        if HP_ENABLED:
+            assert (bonus_dmg[0] - epsilon <= guessed_bonuses[0] <= bonus_dmg[1] + epsilon) and \
+                (bonus_hp[0] - epsilon <= guessed_bonuses[1] <= bonus_hp[1] + epsilon), f"Got {guessed_bonuses} expected to be within {bonus_dmg} for dmg and {bonus_hp} for hp."
         else:
-            assert np.isclose(guessed_bonuses, (bonus_dmg, bonus_hp), atol=step*(solutions[0][0]//balancing_weights["main_error"])).all(), f"Got {guessed_bonuses} expected {bonus_dmg, bonus_hp}"
+            assert bonus_dmg[0] - epsilon <= guessed_bonuses[0] <= bonus_dmg[1] + epsilon, f"Got {guessed_bonuses[0]} expected to be within {bonus_dmg}"
+
         return cls(**args)
