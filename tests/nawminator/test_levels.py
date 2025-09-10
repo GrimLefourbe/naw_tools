@@ -227,6 +227,15 @@ def test_import(s, expected: Levels):
             True,
             Levels(mandibule=21, hero_type=None, alliance=AllianceType.NEUTRE, special=2)
         ),
+        (
+            False,
+            np.float64(0.85),
+            np.float64(0.96),
+            FightZone.LOGE,
+            AllianceType.GUERRIER,
+            False,
+            Levels(mandibule=15, carapace=15, loge=2, alliance=AllianceType.GUERRIER)
+        )
         # (
         #     True,
         #     np.float64(1.21),

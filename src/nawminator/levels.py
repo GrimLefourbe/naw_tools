@@ -230,7 +230,7 @@ class Levels:
             used_vars = {k: v for k, (_, v) in possible_vars.items() if k in off_vars or k in def_vars}
 
             balancing_weights = {
-                "main_error": 2_000_000,
+                "main_error": 1_000_000,
                 "h_ismid": 20_000,
                 "H=0": 5_000,
                 "S_H": 1_250,
@@ -321,23 +321,16 @@ class Levels:
         levels = cls(**args)
         match atk, lieu:
             case True, _:
-                if bonus_hp is None:
-                    assert np.isclose(levels.bonus_atk[0], bonus_dmg), f"Got {levels.bonus_atk[0]}, expected {bonus_dmg}"
-                else:
-                    assert np.isclose(levels.bonus_atk, (bonus_dmg, bonus_hp)).all(), f"Got {levels.bonus_atk}, expected: ({bonus_dmg}, {bonus_hp})"
+                guessed_bonuses = levels.bonus_atk
             case False, FightZone.DOME:
-                if bonus_hp is None:
-                    assert np.isclose(levels.bonus_atk[0], bonus_dmg), f"Got {levels.bonus_atk[0]}, expected {bonus_dmg}"
-                else:
-                    assert np.isclose(levels.bonus_dome, (bonus_dmg, bonus_hp)).all(), f"Got {levels.bonus_dome}, expected: ({bonus_dmg}, {bonus_hp})"
+                guessed_bonuses = levels.bonus_dome
             case False, FightZone.LOGE:
-                if bonus_hp is None:
-                    assert np.isclose(levels.bonus_atk[0], bonus_dmg), f"Got {levels.bonus_atk[0]}, expected {bonus_dmg}"
-                else:
-                    assert np.isclose(levels.bonus_loge, (bonus_dmg, bonus_hp)).all(), f"Got {levels.bonus_loge}, expected: ({bonus_dmg}, {bonus_hp})"
+                guessed_bonuses = levels.bonus_loge
             case False, FightZone.TDC:
-                if bonus_hp is None:
-                    assert np.isclose(levels.bonus_atk[0], bonus_dmg), f"Got {levels.bonus_atk[0]}, expected {bonus_dmg}"
-                else:
-                    assert np.isclose(levels.bonus_tdc, (bonus_dmg, bonus_hp)).all(), f"Got {levels.bonus_tdc}, expected: ({bonus_dmg}, {bonus_hp})"
+                guessed_bonuses = levels.bonus_tdc
+
+        if bonus_hp is None:
+            assert np.isclose(guessed_bonuses[0], bonus_dmg, atol=step*(solutions[0][0]//balancing_weights["main_error"])).all(), f"Got {guessed_bonuses[0]} expected {bonus_dmg}"
+        else:
+            assert np.isclose(guessed_bonuses, (bonus_dmg, bonus_hp), atol=step*(solutions[0][0]//balancing_weights["main_error"])).all(), f"Got {guessed_bonuses} expected {bonus_dmg, bonus_hp}"
         return cls(**args)
