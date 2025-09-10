@@ -19,7 +19,8 @@ push: build
     docker push $IMAGE_NAME
 
 remote_run: build push
-    ssh $SSH_USERNAME@$SSH_HOST "cd grim-infra/nawminator && docker pull $IMAGE_NAME && docker compose up -d"
+    ssh $SSH_USERNAME@$SSH_HOST "cd grim-infra/nawminator/s1 && docker pull $IMAGE_NAME && docker compose up -d"
+    ssh $SSH_USERNAME@$SSH_HOST "cd grim-infra/nawminator/s2 && docker pull $IMAGE_NAME && docker compose up -d"
 
 lint:
     poetry run black .
