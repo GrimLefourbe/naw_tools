@@ -27,9 +27,9 @@ class Bonuses:
         min_hp: t.Optional[np.float64] = None,
     ):
         self.max_dmg = dmg
-        self.min_dmg = dmg if min_dmg is None or np.isclose(min_dmg, dmg) else min_dmg
+        self.min_dmg = dmg if min_dmg is None else min_dmg
         self.max_hp = hp
-        self.min_hp = hp if min_hp is None or hp is None or np.isclose(min_hp, hp) else min_hp
+        self.min_hp = hp if min_hp is None or hp is None else min_hp
 
     @property
     def hp(self):
@@ -75,32 +75,27 @@ class Bonuses:
         return atk_bonuses, def_bonuses
 
     @classmethod
-    def _from_round(cls, br: "nm.battle.Round", step=5e-3) -> tuple["Bonuses", "Bonuses"]:
-        istep = np.float64(1) / step
-
+    def _from_round(cls, br: "nm.battle.Round") -> tuple["Bonuses", "Bonuses"]:
+        eps = 1e-7
         ### COMPUTE DMG BONUSES
-        atk_dmg_bonus_max = np.floor(istep * (br.attacker_bonus_dmg + 0.4999) / br.attacker_base_dmg) / np.float64(
-            istep
-        )
-        atk_dmg_bonus_min = np.ceil(istep * (br.attacker_bonus_dmg - 0.5) / br.attacker_base_dmg) / np.float64(istep)
-        def_dmg_bonus_max = np.floor(istep * (br.defender_bonus_dmg + 0.4999) / br.defender_base_dmg) / np.float64(
-            istep
-        )
-        def_dmg_bonus_min = np.ceil(istep * (br.defender_bonus_dmg - 0.5) / br.defender_base_dmg) / np.float64(istep)
+        atk_dmg_bonus_max = (br.attacker_bonus_dmg + 0.5 - eps) / br.attacker_base_dmg
+        atk_dmg_bonus_min = (br.attacker_bonus_dmg - 0.5) / br.attacker_base_dmg
+        def_dmg_bonus_max = (br.defender_bonus_dmg + 0.5 - eps) / br.defender_base_dmg
+        def_dmg_bonus_min = (br.defender_bonus_dmg - 0.5) / br.defender_base_dmg
+
+        assert atk_dmg_bonus_max >= atk_dmg_bonus_min
+        assert def_dmg_bonus_max >= def_dmg_bonus_min
 
         ### COMPUTE HP BONUSES
         if br.defender_base_dmg + br.defender_bonus_dmg > 4 * br.attacker_losses.base_hp:
             atk_hp_bonus_max, atk_hp_bonus_min = None, None
         else:
-            atk_hp_bonus = _compute_hp_bonus_range(br.defender_bonus_dmg + br.defender_base_dmg, br.attacker_losses)
-            atk_hp_bonus_max = np.floor(istep * (atk_hp_bonus[0] - 1)) / np.float64(istep)
-            atk_hp_bonus_min = np.ceil(istep * (atk_hp_bonus[1] - 1)) / np.float64(istep)
+            atk_hp_bonus_max, atk_hp_bonus_min = _compute_hp_bonus_range(br.defender_bonus_dmg + br.defender_base_dmg, br.attacker_losses)
+
         if br.attacker_base_dmg + br.attacker_bonus_dmg > 4 * br.defender_losses.base_hp:
             def_hp_bonus_max, def_hp_bonus_min = None, None
         else:
-            def_hp_bonus = _compute_hp_bonus_range(br.attacker_base_dmg + br.attacker_bonus_dmg, br.defender_losses)
-            def_hp_bonus_max = np.floor(istep * (def_hp_bonus[0] - 1)) / np.float64(istep)
-            def_hp_bonus_min = np.ceil(istep * (def_hp_bonus[1] - 1)) / np.float64(istep)
+            def_hp_bonus_max, def_hp_bonus_min = _compute_hp_bonus_range(br.attacker_base_dmg + br.attacker_bonus_dmg, br.defender_losses)
 
         def_bonuses = Bonuses(
             dmg=def_dmg_bonus_max, hp=def_hp_bonus_max, min_dmg=def_dmg_bonus_min, min_hp=def_hp_bonus_min
@@ -182,7 +177,7 @@ def _compute_hp_bonus_range(dmg: np.float64, losses: nm.army.Army):
     upper_limit = dmg / (losses.base_hp - 0.5 * nm.army.last_units_hp(losses))
     lower_limit = dmg / (losses.base_hp + 0.49999 * nm.army.last_units_hp(losses))
 
-    return upper_limit, lower_limit
+    return upper_limit - 1, lower_limit - 1
 
 
 

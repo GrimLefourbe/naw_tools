@@ -188,7 +188,7 @@ class Levels:
         opt: t.Literal["max"] | t.Literal["min"] = "max"
     ):
         logger.debug(f"Computing bonuses from {bonus_dmg=}, {bonus_hp=} in {lieu=} with {alli_type=}, {atk=}, {hero_enabled=}")
-        step=1/200
+        step=1/20000
         to_step = lambda x: round(x/step)
         args: dict[str, t.Any] = {
             "alliance": alli_type
@@ -229,7 +229,7 @@ class Levels:
                 "S": (to_step(0.02), pl.LpVariable("special", lowBound=0, upBound=5, cat="Integer")),
                 "D": (to_step(base_step), pl.LpVariable("dome", lowBound=0, upBound=40, cat="Integer")),
                 "L": (to_step(base_step), pl.LpVariable("loge", lowBound=0, upBound=40, cat="Integer")),
-                "H": (to_step(0.005), pl.LpVariable("hero_lvl", lowBound=0, upBound=18, cat="Integer")),
+                "H": (to_step(0.0005), pl.LpVariable("hero_lvl", lowBound=0, upBound=180, cat="Integer")),
             }
 
             off_vars = ["M", "S"]
@@ -322,8 +322,8 @@ class Levels:
                 h_is18   = pl.LpVariable("h_is18",   lowBound=0, upBound=1, cat="Binary")
                 h_nonext = pl.LpVariable("h_nonext", lowBound=0, upBound=1, cat="Binary")
                 H = used_vars["H"]
-                m += H >= 1 * h_used; m += H <= 18 * h_used
-                m += H >= 18 * h_is18; m += H <= 17 + 1 * h_is18
+                m += H >= 1 * h_used; m += H <= 180 * h_used
+                m += H >= 180 * h_is18; m += H <= 179 + 1 * h_is18
 
                 m += h_nonext == h_used - h_is18
                 m += h_nonext <= h_used
@@ -363,7 +363,7 @@ class Levels:
 
         if hero_type is not None:
             args["hero_type"] = hero_type
-            args["hero_lvl"] = args["hero_lvl"] * 10
+            args["hero_lvl"] = args["hero_lvl"]
             print(f"Added hero {args["hero_type"]=} {args["hero_lvl"]=}")
         levels = cls(**args)
         match atk, lieu:
@@ -379,8 +379,7 @@ class Levels:
         guessed_bonuses = levels.bonus(lieu, atk)
         epsilon = 1e-7
         if HP_ENABLED:
-            assert (bonus_dmg[0] - epsilon <= guessed_bonuses[0] <= bonus_dmg[1] + epsilon) and \
-                (bonus_hp[0] - epsilon <= guessed_bonuses[1] <= bonus_hp[1] + epsilon), f"Got {guessed_bonuses} expected to be within {bonus_dmg} for dmg and {bonus_hp} for hp."
+            assert (bonus_dmg[0] - epsilon <= guessed_bonuses[0] <= bonus_dmg[1] + epsilon) and (bonus_hp[0] - epsilon <= guessed_bonuses[1] <= bonus_hp[1] + epsilon), f"Got {guessed_bonuses} expected to be within {bonus_dmg} for dmg and {bonus_hp} for hp."
         else:
             assert bonus_dmg[0] - epsilon <= guessed_bonuses[0] <= bonus_dmg[1] + epsilon, f"Got {guessed_bonuses[0]} expected to be within {bonus_dmg}"
 
