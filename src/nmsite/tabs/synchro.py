@@ -1,7 +1,8 @@
 import gradio as gr
 import nawminator as nm
 import nmsite
-from nmsite.tabs.settings import ParsingError, Settings, parse_source_code, parse_table
+from nmsite.tabs.settings import Settings, parse_source_code, parse_table
+from nawminator.parsing import ParsingError
 import pandas as pd
 import datetime as dt
 
