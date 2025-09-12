@@ -101,6 +101,6 @@ def parse_table(input_data: str) -> pd.DataFrame:
         data["tdc"] = data["tdc"].apply(nm.utils.parse_naw_int)
     except Exception as e:
         raise ParsingError from e
-    return data
+    return data[["coord", "tdc", "colo_name", "player_name", "alliance"]]
 
 

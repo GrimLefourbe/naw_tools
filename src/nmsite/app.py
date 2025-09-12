@@ -2,7 +2,7 @@ import gradio as gr
 import os
 from nmsite.config import configs
 
-config = configs[os.getenv("NMSITE_CONFIG", "S2")]
+config = configs[os.getenv("NMSITE_CONFIG", "DEV")]
 
 css = """
 /* Hide the HTML block itself */

@@ -17,4 +17,9 @@ configs = {
         subtitle="S2",
         hero_enabled=False,
     ),
+    "DEV": Config(
+        title="Nawminator",
+        subtitle="DEV",
+        hero_enabled=False
+    )
 }
