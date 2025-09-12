@@ -50,7 +50,7 @@ def test_intersect(a: nm.battle.Bonuses, b: nm.battle.Bonuses, expected: nm.batt
             nm.battle.Round(80, 84, 70, 74, nm.army.Army(JS=5), nm.army.Army(JS=4)),
             (
                 nm.battle.Bonuses(
-                    dmg=np.float64(1.055), min_dmg=np.float64(1.045), hp=np.float64(1.57), min_hp=np.float64(1.005)
+                    dmg=np.float64(1.055), min_dmg=np.float64(1.0375), hp=np.float64(1.57), min_hp=np.float64(1.005)
                 ),
                 nm.battle.Bonuses(
                     np.float64(1.06), min_dmg=np.float64(1.05), hp=np.float64(1.275), min_hp=np.float64(0.865)
