@@ -14,17 +14,17 @@ __all__ = ["Bonuses", "WarParty", "Round", "BattleReport", "simulate_rounds"]
 
 @dataclass
 class Bonuses:
-    max_dmg: np.float64
-    max_hp: t.Optional[np.float64]
-    min_dmg: np.float64
-    min_hp: t.Optional[np.float64]
+    max_dmg: float
+    max_hp: t.Optional[float]
+    min_dmg: float
+    min_hp: t.Optional[float]
 
     def __init__(
         self,
-        dmg: np.float64,
-        hp: t.Optional[np.float64],
-        min_dmg: t.Optional[np.float64] = None,
-        min_hp: t.Optional[np.float64] = None,
+        dmg: float,
+        hp: t.Optional[float],
+        min_dmg: t.Optional[float] = None,
+        min_hp: t.Optional[float] = None,
     ):
         self.max_dmg = dmg
         self.min_dmg = dmg if min_dmg is None else min_dmg
@@ -39,7 +39,7 @@ class Bonuses:
     def dmg(self):
         return self.max_dmg
 
-    def _combine(self, b: "Bonuses") -> "Bonuses":
+    def intersect(self, b: "Bonuses") -> "Bonuses":
         match (self.hp, b.hp):
             case (hp, None) | (None, hp):
                 pass
@@ -69,19 +69,19 @@ class Bonuses:
         for round in rounds[1:]:
             new_atk_bonuses, new_def_bonuses = cls._from_round(round)
 
-            atk_bonuses = atk_bonuses._combine(new_atk_bonuses)
-            def_bonuses = def_bonuses._combine(new_def_bonuses)
+            atk_bonuses = atk_bonuses.intersect(new_atk_bonuses)
+            def_bonuses = def_bonuses.intersect(new_def_bonuses)
 
         return atk_bonuses, def_bonuses
 
     @classmethod
     def _from_round(cls, br: "nm.battle.Round") -> tuple["Bonuses", "Bonuses"]:
-        eps = 1e-7
+        EPS = 1e-7
         ### COMPUTE DMG BONUSES
-        atk_dmg_bonus_max = (br.attacker_bonus_dmg + 0.5 - eps) / br.attacker_base_dmg
-        atk_dmg_bonus_min = (br.attacker_bonus_dmg - 0.5) / br.attacker_base_dmg
-        def_dmg_bonus_max = (br.defender_bonus_dmg + 0.5 - eps) / br.defender_base_dmg
-        def_dmg_bonus_min = (br.defender_bonus_dmg - 0.5) / br.defender_base_dmg
+        atk_dmg_bonus_max = (br.attacker_bonus_dmg + 0.5 - EPS) / br.attacker_base_dmg
+        atk_dmg_bonus_min = (br.attacker_bonus_dmg - 1 + EPS) / br.attacker_base_dmg
+        def_dmg_bonus_max = (br.defender_bonus_dmg + 0.5 - EPS) / br.defender_base_dmg
+        def_dmg_bonus_min = (br.defender_bonus_dmg - 1 + EPS) / br.defender_base_dmg
 
         assert atk_dmg_bonus_max >= atk_dmg_bonus_min
         assert def_dmg_bonus_max >= def_dmg_bonus_min
@@ -178,8 +178,6 @@ def _compute_hp_bonus_range(dmg: np.float64, losses: nm.army.Army):
     lower_limit = dmg / (losses.base_hp + 0.49999 * nm.army.last_units_hp(losses))
 
     return upper_limit - 1, lower_limit - 1
-
-
 
 
 @dataclass

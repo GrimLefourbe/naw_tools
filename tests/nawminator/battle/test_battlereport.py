@@ -1,12 +1,12 @@
-import numpy as np
 import pytest
-import hypothesis as hp
-import hypothesis.strategies as st
-
 import nawminator as nm
-from nawminator.battle import BattleReport
 
-from . import strategies as nm_st
+import numpy as np
+import hypothesis as hp
+from hypothesis import strategies as st
+
+from .. import strategies as nm_st
+
 
 RC_REEL = """Rapport de combat en Loge :
 
@@ -59,74 +59,91 @@ Après combat
 Troupe restante à l'attaquant (avant xp): 22 Jeunes soldates
 """
 
+@pytest.mark.parametrize(
+    "rc,expected",
+    [
+        (
+            RC_REEL,
+            nm.battle.BattleReport(
+                nm.army.Army(JS=100),
+                nm.army.Army(JS=1118),
+                [
+                    nm.battle.Round(
+                        attacker_base_dmg=np.int64(800),
+                        attacker_bonus_dmg=np.float64(840),
+                        defender_base_dmg=np.int64(7826),
+                        defender_bonus_dmg=np.float64(6965),
+                        attacker_losses=nm.army.Army(JS=100),
+                        defender_losses=nm.army.Army(JS=33),
+                    )
+                ],
+            ),
+        ),
+        (
+            RC_SIMU_NAW,
+            nm.battle.BattleReport(
+                nm.army.Army(JS=100, S=100),
+                nm.army.Army(S=100, T=127),
+                [
+                    nm.battle.Round(
+                        attacker_base_dmg=np.int64(1900),
+                        attacker_bonus_dmg=np.float64(0),
+                        defender_base_dmg=np.int64(2270),
+                        defender_bonus_dmg=np.float64(0),
+                        attacker_losses=nm.army.Army(JS=100, S=34),
+                        defender_losses=nm.army.Army(S=95),
+                    ),
+                    nm.battle.Round(
+                        attacker_base_dmg=np.int64(726),
+                        attacker_bonus_dmg=np.float64(0),
+                        defender_base_dmg=np.int64(1320),
+                        defender_bonus_dmg=np.float64(0),
+                        attacker_losses=nm.army.Army(S=66),
+                        defender_losses=nm.army.Army(S=5, T=52),
+                    ),
+                ],
+            ),
+        ),
+        (
+            RC_SIMU_NM,
+            nm.battle.BattleReport(
+                nm.army.Army(JS=100),
+                nm.army.Army(JS=100),
+                [
+                    nm.battle.Round(800, 760, 700, 665, nm.army.Army(JS=50), nm.army.Army(JS=44)),
+                    nm.battle.Round(448, 426, 350, 333, nm.army.Army(JS=28), nm.army.Army(JS=22)),
+                    nm.battle.Round(272, 258, 154, 146, nm.army.Army(JS=17), nm.army.Army(JS=10)),
+                    nm.battle.Round(192, 182, 35, 33, nm.army.Army(JS=5), nm.army.Army(JS=2)),
+                ],
+            ),
+        ),
+    ],
+)
+def test_parse_rc(rc, expected):
+    assert nm.battle.BattleReport.from_str(rc) == expected
 
-class TestBattle:
-    @pytest.mark.parametrize(
-        "rc,expected",
-        [
-            (
-                RC_REEL,
-                nm.battle.BattleReport(
-                    nm.army.Army(JS=100),
-                    nm.army.Army(JS=1118),
-                    [
-                        nm.battle.Round(
-                            attacker_base_dmg=np.int64(800),
-                            attacker_bonus_dmg=np.float64(840),
-                            defender_base_dmg=np.int64(7826),
-                            defender_bonus_dmg=np.float64(6965),
-                            attacker_losses=nm.army.Army(JS=100),
-                            defender_losses=nm.army.Army(JS=33),
-                        )
-                    ],
-                ),
-            ),
-            (
-                RC_SIMU_NAW,
-                nm.battle.BattleReport(
-                    nm.army.Army(JS=100, S=100),
-                    nm.army.Army(S=100, T=127),
-                    [
-                        nm.battle.Round(
-                            attacker_base_dmg=np.int64(1900),
-                            attacker_bonus_dmg=np.float64(0),
-                            defender_base_dmg=np.int64(2270),
-                            defender_bonus_dmg=np.float64(0),
-                            attacker_losses=nm.army.Army(JS=100, S=34),
-                            defender_losses=nm.army.Army(S=95),
-                        ),
-                        nm.battle.Round(
-                            attacker_base_dmg=np.int64(726),
-                            attacker_bonus_dmg=np.float64(0),
-                            defender_base_dmg=np.int64(1320),
-                            defender_bonus_dmg=np.float64(0),
-                            attacker_losses=nm.army.Army(S=66),
-                            defender_losses=nm.army.Army(S=5, T=52),
-                        ),
-                    ],
-                ),
-            ),
-            (
-                RC_SIMU_NM,
-                nm.battle.BattleReport(
-                    nm.army.Army(JS=100),
-                    nm.army.Army(JS=100),
-                    [
-                        nm.battle.Round(800, 760, 700, 665, nm.army.Army(JS=50), nm.army.Army(JS=44)),
-                        nm.battle.Round(448, 426, 350, 333, nm.army.Army(JS=28), nm.army.Army(JS=22)),
-                        nm.battle.Round(272, 258, 154, 146, nm.army.Army(JS=17), nm.army.Army(JS=10)),
-                        nm.battle.Round(192, 182, 35, 33, nm.army.Army(JS=5), nm.army.Army(JS=2)),
-                    ],
-                ),
-            ),
-        ],
-    )
-    def test_parse_rc(self, rc, expected):
-        assert nm.battle.BattleReport.from_str(rc) == expected
+@pytest.mark.parametrize(
+    "battle",
+    [
+        nm.battle.BattleReport(
+            attacker=nm.army.Army(JS=100),
+            defender=nm.army.Army(JS=100),
+            rounds=[
+                nm.battle.Round(800, 760, 700, 665, nm.army.Army(JS=50), nm.army.Army(JS=44)),
+                nm.battle.Round(448, 426, 350, 333, nm.army.Army(JS=28), nm.army.Army(JS=22)),
+                nm.battle.Round(272, 258, 154, 146, nm.army.Army(JS=17), nm.army.Army(JS=10)),
+                nm.battle.Round(192, 182, 35, 33, nm.army.Army(JS=5), nm.army.Army(JS=2)),
+            ],
+        ),
+    ],
+)
+def test_export_import_rc(battle: nm.battle.BattleReport):
+    assert battle == nm.battle.BattleReport.from_str(battle.to_str())
 
-    @pytest.mark.parametrize(
-        "battle",
-        [
+@pytest.mark.parametrize(
+    "battle,expected",
+    [
+        (
             nm.battle.BattleReport(
                 attacker=nm.army.Army(JS=100),
                 defender=nm.army.Army(JS=100),
@@ -137,56 +154,38 @@ class TestBattle:
                     nm.battle.Round(192, 182, 35, 33, nm.army.Army(JS=5), nm.army.Army(JS=2)),
                 ],
             ),
-        ],
-    )
-    def test_export_import_rc(self, battle: BattleReport):
-        assert battle == nm.battle.BattleReport.from_str(battle.to_str())
+            RC_SIMU_NM.strip(),
+        ),
+    ],
+)
+def test_to_str(battle, expected):
+    assert battle.to_str() == expected
 
-    @pytest.mark.parametrize(
-        "battle,expected",
-        [
-            (
-                nm.battle.BattleReport(
-                    attacker=nm.army.Army(JS=100),
-                    defender=nm.army.Army(JS=100),
-                    rounds=[
-                        nm.battle.Round(800, 760, 700, 665, nm.army.Army(JS=50), nm.army.Army(JS=44)),
-                        nm.battle.Round(448, 426, 350, 333, nm.army.Army(JS=28), nm.army.Army(JS=22)),
-                        nm.battle.Round(272, 258, 154, 146, nm.army.Army(JS=17), nm.army.Army(JS=10)),
-                        nm.battle.Round(192, 182, 35, 33, nm.army.Army(JS=5), nm.army.Army(JS=2)),
-                    ],
-                ),
-                RC_SIMU_NM.strip(),
+@pytest.mark.parametrize(
+    "battle,expected",
+    [
+        (
+            nm.battle.BattleReport(
+                attacker=nm.army.Army(JS=100),
+                defender=nm.army.Army(JS=100),
+                rounds=[
+                    nm.battle.Round(800, 760, 700, 665, nm.army.Army(JS=50), nm.army.Army(JS=44)),
+                    nm.battle.Round(448, 426, 350, 333, nm.army.Army(JS=28), nm.army.Army(JS=22)),
+                    nm.battle.Round(272, 258, 154, 146, nm.army.Army(JS=17), nm.army.Army(JS=10)),
+                    nm.battle.Round(192, 182, 35, 33, nm.army.Army(JS=5), nm.army.Army(JS=2)),
+                ],
             ),
-        ],
-    )
-    def test_generate_rc(self, battle, expected):
-        assert battle.to_str() == expected
+            (nm.army.Army(JS=78), nm.army.Army(JS=100)),
+        ),
+    ],
+)
+def test_get_total_losses(battle: nm.battle.BattleReport, expected):
+    assert battle.total_losses() == expected
 
-    @pytest.mark.parametrize(
-        "battle,expected",
-        [
-            (
-                nm.battle.BattleReport(
-                    attacker=nm.army.Army(JS=100),
-                    defender=nm.army.Army(JS=100),
-                    rounds=[
-                        nm.battle.Round(800, 760, 700, 665, nm.army.Army(JS=50), nm.army.Army(JS=44)),
-                        nm.battle.Round(448, 426, 350, 333, nm.army.Army(JS=28), nm.army.Army(JS=22)),
-                        nm.battle.Round(272, 258, 154, 146, nm.army.Army(JS=17), nm.army.Army(JS=10)),
-                        nm.battle.Round(192, 182, 35, 33, nm.army.Army(JS=5), nm.army.Army(JS=2)),
-                    ],
-                ),
-                (nm.army.Army(JS=78), nm.army.Army(JS=100)),
-            ),
-        ],
-    )
-    def test_get_total_losses(self, battle: BattleReport, expected):
-        assert battle.total_losses() == expected
+@pytest.mark.xfail(reason="TODO")
+def test_analyze_battle(self):
+    raise NotImplementedError # TODO
 
-    @pytest.mark.xfail(reason="TODO")
-    def test_analyze_battle(self):
-        raise NotImplementedError # TODO
 
 @pytest.mark.property
 class TestProperties:

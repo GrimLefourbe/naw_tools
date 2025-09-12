@@ -42,8 +42,6 @@ class FightZone(StrEnum):
     DOME = "Dome"
     LOGE = "Loge"
 
-HERO_ENABLED = True
-
 @dataclass
 class Levels:
     mandibule: int = 0

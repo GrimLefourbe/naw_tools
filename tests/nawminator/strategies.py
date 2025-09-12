@@ -52,10 +52,6 @@ simple_bonuses_strategy = st.builds(
     hp=st.floats(min_value=0.0, max_value=3.5),
 )
 
-levels_based_bonuses_strategy = levels_strategy.map(
-    lambda x: nm.battle.Bonuses(*x.bonus_atk),
-)
-
 simple_warparty_strategy = st.builds(
     nm.battle.WarParty,
     army=army_strategy_factory(max_value=nm.army.MAX_UNIT_COUNT//64),

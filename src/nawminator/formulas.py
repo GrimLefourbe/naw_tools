@@ -1,7 +1,9 @@
 import math
 import numpy as np
 
-__all__ = ["duree_attaque", "va_ratio", "from_va", "vt_ratio", "hunt_duration", "hunt_params", "hunt_difficulty", "max_hunt_per_hour"]
+__all__ = ["duree_attaque", "va_ratio", "from_va", "vt_ratio", "hunt_duration", "hunt_params", "hunt_difficulty", "max_hunt_per_hour", "naw_round"]
+
+EPS = 1e-7
 
 def duree_attaque(
     x1,
@@ -12,7 +14,7 @@ def duree_attaque(
 ):
     d = ((x1 - x2)**2 + (y1 - y2)**2)**0.5
 
-    return round(0.4999 + 3000 * (1 + 100*(1-math.exp(-round(d)/1415)))*va_ratio(va))
+    return naw_round(0.5 + 3000 * (1 + 100*(1-math.exp(-round(d)/1415)))*va_ratio(va))
 
 def va_ratio(va: int):
     return 1/(1+va/10)
@@ -58,3 +60,7 @@ def max_hunt_per_hour(
     vt: int,
 ) -> np.int64:
     return np.ceil(3600 * 2/vt_ratio(vt))
+
+def naw_round(n: float | int) -> int:
+    return round(n + EPS)
+
