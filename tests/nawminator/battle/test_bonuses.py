@@ -86,7 +86,14 @@ def test_intersect(a: nm.battle.Bonuses, b: nm.battle.Bonuses, expected: nm.batt
             ),
         ),
         (
-            nm.battle.Round(8000,7752, 14335545, 15912455, nm.army.Army(JL=145), nm.army.Army(JS=1000)),
+            nm.battle.Round(
+                attacker_base_dmg=np.int64(8000),
+                attacker_bonus_dmg=np.float64(7752),
+                defender_base_dmg=np.int64(14335545),
+                defender_bonus_dmg=np.float64(15912455),
+                defender_losses=nm.army.Army(JL=145),
+                attacker_losses=nm.army.Army(JS=1000)
+            ),
             (
                 nm.battle.Bonuses(dmg=0.9690625, min_dmg=0.9689375, hp=None, min_hp=None),
                 nm.battle.Bonuses(dmg=1.11, min_dmg=1.11, hp=1.725259, min_hp=1.706529)
@@ -171,3 +178,27 @@ def test_from_rounds(rounds: list[nm.battle.Round], expected: tuple[nm.battle.Bo
     else:
         assert obs_def.max_hp == exp_def.max_hp and obs_def.min_hp == exp_def.min_hp
     # assert nm.battle.Bonuses.from_rounds(rounds) == expected
+
+@pytest.mark.parametrize(
+    "attacker,defender,rounds",
+    [
+        pytest.param(
+            nm.army.Army(JS=156175, S=60599, SE=12637, G=1, T=9968, TE=9270, JL=49192, L=17423, LE=3062),
+            nm.army.Army(E=29322, JS=250119, S=1214, SE=190),
+            [
+                nm.battle.Round(
+                    6278645, 
+                    5713567,
+                    185360, 
+                    159410, 
+                    nm.army.Army(E=29322, JS=250119, S=1214, SE=190), 
+                    nm.army.Army(JS=12243)
+                ),
+            ],
+            marks=pytest.mark.xfail,
+        )
+    ]
+)
+def test_from_rounds_coherent(attacker: nm.army.Army, defender: nm.army.Army, rounds: list[nm.battle.Round]):
+    br = nm.battle.BattleReport(attacker=attacker, defender=defender, rounds=rounds)
+    assert nm.battle.simulate_rounds(*br.analyze()) == rounds

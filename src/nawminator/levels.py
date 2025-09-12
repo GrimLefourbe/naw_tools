@@ -2,7 +2,7 @@ import re
 from dataclasses import dataclass
 
 import numpy as np
-from enum import Enum, StrEnum
+from enum import StrEnum
 import typing as t
 
 import pulp as pl
@@ -187,6 +187,7 @@ class Levels:
     ):
         logger.debug(f"Computing bonuses from {bonus_dmg=}, {bonus_hp=} in {lieu=} with {alli_type=}, {atk=}, {hero_enabled=}")
         step=1/20000
+        step = 0.0005
         to_step = lambda x: round(x/step)
         args: dict[str, t.Any] = {
             "alliance": alli_type
@@ -225,8 +226,8 @@ class Levels:
                 "M": (to_step(0.05), pl.LpVariable("mandibule", lowBound=0, upBound=40, cat="Integer")),
                 "C": (to_step(0.05), pl.LpVariable("carapace", lowBound=0, upBound=40, cat="Integer")),
                 "S": (to_step(0.02), pl.LpVariable("special", lowBound=0, upBound=5, cat="Integer")),
-                "D": (to_step(base_step), pl.LpVariable("dome", lowBound=0, upBound=40, cat="Integer")),
-                "L": (to_step(base_step), pl.LpVariable("loge", lowBound=0, upBound=40, cat="Integer")),
+                "D": (to_step(0.025), pl.LpVariable("dome", lowBound=0, upBound=40, cat="Integer")),
+                "L": (to_step(0.05), pl.LpVariable("loge", lowBound=0, upBound=40, cat="Integer")),
                 "H": (to_step(0.0005), pl.LpVariable("hero_lvl", lowBound=0, upBound=180, cat="Integer")),
             }
 
@@ -364,21 +365,12 @@ class Levels:
             args["hero_lvl"] = args["hero_lvl"]
             print(f"Added hero {args["hero_type"]=} {args["hero_lvl"]=}")
         levels = cls(**args)
-        match atk, lieu:
-            case True, _:
-                guessed_bonuses = levels.bonus_atk
-            case False, FightZone.DOME:
-                guessed_bonuses = levels.bonus_dome
-            case False, FightZone.LOGE:
-                guessed_bonuses = levels.bonus_loge
-            case False, FightZone.TDC:
-                guessed_bonuses = levels.bonus_tdc
 
         guessed_bonuses = levels.bonus(lieu, atk)
-        epsilon = 1e-7
+        EPS = 1e-7
         if HP_ENABLED:
-            assert (bonus_dmg[0] - epsilon <= guessed_bonuses[0] <= bonus_dmg[1] + epsilon) and (bonus_hp[0] - epsilon <= guessed_bonuses[1] <= bonus_hp[1] + epsilon), f"Got {guessed_bonuses} expected to be within {bonus_dmg} for dmg and {bonus_hp} for hp."
+            assert (bonus_dmg[0] - EPS <= guessed_bonuses[0] <= bonus_dmg[1] + EPS) and (bonus_hp[0] - EPS <= guessed_bonuses[1] <= bonus_hp[1] + EPS), f"Got {guessed_bonuses} expected to be within {bonus_dmg} for dmg and {bonus_hp} for hp."
         else:
-            assert bonus_dmg[0] - epsilon <= guessed_bonuses[0] <= bonus_dmg[1] + epsilon, f"Got {guessed_bonuses[0]} expected to be within {bonus_dmg}"
+            assert bonus_dmg[0] - EPS <= guessed_bonuses[0] <= bonus_dmg[1] + EPS, f"Got {guessed_bonuses[0]} expected to be within {bonus_dmg}"
 
-        return cls(**args)
+        return levels

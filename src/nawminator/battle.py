@@ -124,22 +124,22 @@ class WarParty:
         return self.army.base_atk if self.atk else self.army.base_def
 
     @property
-    def bonus_dmg(self) -> np.float64:
-        return np.floor(0.5 + self.base_dmg * self.bonuses.dmg)
+    def bonus_dmg(self) -> float:
+        return nm.formulas.naw_round(self.base_dmg * self.bonuses.dmg)
 
     @property
-    def total_dmg(self) -> np.float64:
-        return np.floor(0.5 + self.base_dmg + self.bonus_dmg)
+    def total_dmg(self) -> float:
+        return nm.formulas.naw_round(self.base_dmg + self.bonus_dmg)
 
     @property
-    def total_hp(self) -> np.float64:
-        return np.float64(np.nan) if self.bonuses.hp is None else np.floor(0.5 + self.army.base_hp * (1 + self.bonuses.hp))
+    def total_hp(self) -> float:
+        return float("nan") if self.bonuses.hp is None else nm.formulas.naw_round(self.army.base_hp * (1 + self.bonuses.hp))
 
-    def after_dmg(self, dmg: np.float64) -> tuple["WarParty", "WarParty"]:
+    def after_dmg(self, dmg: float) -> tuple["WarParty", "WarParty"]:
         if self.bonuses.hp is None:
             raise ValueError("Can't compute after damage without knowing hp bonus")
         base_hp_lost = dmg / (1 + self.bonuses.hp)
-        lost, kept = self.army.split_by_hp(base_hp_lost)
+        lost, kept = self.army.split_by_hp(np.float64(base_hp_lost))
 
         return WarParty(lost, self.bonuses, self.atk), WarParty(kept, self.bonuses, self.atk)
 
@@ -164,7 +164,7 @@ class Round:
         round = cls(
             attacker_base_dmg=attacker.base_dmg,
             attacker_bonus_dmg=np.round(attacker.bonus_dmg),
-            defender_base_dmg=np.int64(defender.base_dmg * defender_mult),
+            defender_base_dmg=np.int64(np.round(defender.base_dmg * defender_mult)),
             defender_bonus_dmg=np.round(defender.bonus_dmg * defender_mult),
             attacker_losses=atk_losses.army,
             defender_losses=def_losses.army,
@@ -173,9 +173,10 @@ class Round:
 
 
 def _compute_hp_bonus_range(dmg: np.float64, losses: nm.army.Army):
+    EPS = 1e-7
     ### COMPUTE HP BONUSES
     upper_limit = dmg / (losses.base_hp - 0.5 * nm.army.last_units_hp(losses))
-    lower_limit = dmg / (losses.base_hp + 0.49999 * nm.army.last_units_hp(losses))
+    lower_limit = dmg / (losses.base_hp + (0.5 - EPS) * nm.army.last_units_hp(losses))
 
     return upper_limit - 1, lower_limit - 1
 
@@ -285,7 +286,8 @@ Combat
     
     def analyze(self) -> tuple[WarParty, WarParty]:
         atk_bonuses, def_bonuses = Bonuses.from_rounds(self.rounds)
-
+        if self.rounds[0].defender_losses == self.defender:
+            def_bonuses = Bonuses(dmg=def_bonuses.max_dmg, min_dmg=def_bonuses.min_dmg, hp=None)
         return (
             WarParty(self.attacker, bonuses=atk_bonuses, atk=True),
             WarParty(self.defender, bonuses=def_bonuses, atk=False),

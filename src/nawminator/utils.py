@@ -51,7 +51,6 @@ def timedelta_to_ajhms(td: dt.timedelta, pad: str | bool = False):
         parts.append(f"{t:{padder(2)}}M")
     if (t := td.seconds % 60) or len(parts) == 0 or pad == "full":
         parts.append(f"{t:{padder(2)}}S")
-    print(parts)
     return " ".join(parts)
 
 

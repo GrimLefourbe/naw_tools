@@ -71,36 +71,8 @@ source_code_pat = re.compile(
 )
 
 
-def parse_source_code(input_data: str) -> pd.DataFrame:
-    try:
-        data = source_code_pat.findall(input_data)
-    except Exception as e:
-        raise ParsingError from e
-    if len(data) == 0:
-        raise ParsingError("No valid lines found")
-    df = pd.DataFrame(
-        data=data,
-        columns=["coord", "tdc", "colo_name", "profile_link", "player_name", "alliance", "status"]
-    )
-    df = df.apply(lambda x: x.str.strip())
-    df["tdc"] = df["tdc"].apply(nm.utils.parse_naw_int)
-    df["colo_name"] = df["colo_name"].apply(html.unescape)
-    return df[["coord", "tdc", "colo_name", "player_name", "alliance"]]
+def parse_source_code(s: str) -> pd.DataFrame:
+    return nm.parsing.parse_joueurs_sourcecode(s)[["coord", "tdc", "colo_name", "player_name", "alliance"]]
 
-def parse_table(input_data: str) -> pd.DataFrame:
-    try:
-        lines = [i.group(0) for i in copy_paste_cpat.finditer(input_data)]
-        if len(lines) == 0:
-            raise ParsingError("Found no matching line in input_data")
-        data = pd.read_table(
-            io.StringIO("\n".join(lines)),
-            names=["distance", "duration", "coord", "tdc", "colo_name", "player_name", "alliance", "status"],
-            usecols=["coord", "tdc", "colo_name", "player_name", "alliance"],
-        )
-        data = data.apply(lambda x: x.str.strip())
-        data["tdc"] = data["tdc"].apply(nm.utils.parse_naw_int)
-    except Exception as e:
-        raise ParsingError from e
-    return data[["coord", "tdc", "colo_name", "player_name", "alliance"]]
-
-
+def parse_table(s: str) -> pd.DataFrame:
+    return nm.parsing.parse_joueurs_text(s)[["coord", "tdc", "colo_name", "player_name", "alliance"]]

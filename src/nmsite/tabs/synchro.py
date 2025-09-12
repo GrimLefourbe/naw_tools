@@ -105,13 +105,13 @@ class SynchroTab:
             js="x => { console.log(x); navigator.clipboard.writeText(x); return []; }"
         )
 
-def parse_data(input_data: str) -> pd.DataFrame:
+def parse_data(s: str) -> pd.DataFrame:
     print("Parsing input data")
     exceptions = []
     for parser in [parse_table, parse_source_code]:
         print(f"With {parser.__name__}")
         try:
-            data = parser(input_data=input_data)
+            data = parser(s=s)
         except ParsingError as e:
             exceptions.append(e)
             continue
