@@ -187,7 +187,6 @@ class Levels:
     ):
         logger.debug(f"Computing bonuses from {bonus_dmg=}, {bonus_hp=} in {lieu=} with {alli_type=}, {atk=}, {hero_enabled=}")
         step=1/20000
-        step = 0.0005
         to_step = lambda x: round(x/step)
         args: dict[str, t.Any] = {
             "alliance": alli_type
@@ -365,6 +364,7 @@ class Levels:
             args["hero_lvl"] = args["hero_lvl"]
             print(f"Added hero {args["hero_type"]=} {args["hero_lvl"]=}")
         levels = cls(**args)
+        print(levels)
 
         guessed_bonuses = levels.bonus(lieu, atk)
         EPS = 1e-7
