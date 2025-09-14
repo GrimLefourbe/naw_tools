@@ -64,15 +64,8 @@ class Bonuses:
     def from_rounds(cls, rounds: "list[nm.battle.Round] | nm.battle.Round") -> tuple["Bonuses", "Bonuses"]:
         if isinstance(rounds, nm.battle.Round):
             rounds = [rounds]
-
-        atk_bonuses, def_bonuses = cls._from_round(rounds[0])
-        for round in rounds[1:]:
-            new_atk_bonuses, new_def_bonuses = cls._from_round(round)
-
-            atk_bonuses = atk_bonuses.intersect(new_atk_bonuses)
-            def_bonuses = def_bonuses.intersect(new_def_bonuses)
-
-        return atk_bonuses, def_bonuses
+        atk_bonuses, def_bonuses = zip(*map(cls._from_round, rounds))
+        return functools.reduce(lambda x,y: x.intersect(y), atk_bonuses), functools.reduce(lambda x,y: x.intersect(y), def_bonuses)
 
     @classmethod
     def _from_round(cls, br: "nm.battle.Round") -> tuple["Bonuses", "Bonuses"]:
@@ -87,12 +80,12 @@ class Bonuses:
         assert def_dmg_bonus_max >= def_dmg_bonus_min
 
         ### COMPUTE HP BONUSES
-        if br.defender_base_dmg + br.defender_bonus_dmg > 4 * br.attacker_losses.base_hp:
+        if br.attacker_losses.base_atk >= br.attacker_base_dmg: # all units were killed, damage was overkill
             atk_hp_bonus_max, atk_hp_bonus_min = None, None
         else:
             atk_hp_bonus_max, atk_hp_bonus_min = _compute_hp_bonus_range(br.defender_bonus_dmg + br.defender_base_dmg, br.attacker_losses)
 
-        if br.attacker_base_dmg + br.attacker_bonus_dmg > 4 * br.defender_losses.base_hp:
+        if br.defender_losses.base_def >= br.defender_base_dmg: # all units were killed, damage was overkill
             def_hp_bonus_max, def_hp_bonus_min = None, None
         else:
             def_hp_bonus_max, def_hp_bonus_min = _compute_hp_bonus_range(br.attacker_base_dmg + br.attacker_bonus_dmg, br.defender_losses)
@@ -103,7 +96,7 @@ class Bonuses:
         atk_bonuses = Bonuses(
             dmg=atk_dmg_bonus_max, hp=atk_hp_bonus_max, min_dmg=atk_dmg_bonus_min, min_hp=atk_hp_bonus_min
         )
-
+        
         return atk_bonuses, def_bonuses
 
 @dataclass
