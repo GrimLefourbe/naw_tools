@@ -22,10 +22,6 @@ save_to_browser_storage = f"""(data, metadata) => {{
     return [data,metadata]; 
 }}"""
 
-copy_paste_pat = r"^([\d,]+)\s+\w+\s+(\[[-\d]+:[-\d]+\])\s+([\d,]+)\s+?([^\t]*)\s+?([^\t]+)\s+([^\s]*)\s+(?:Libre|Vassal de [^\t]+|En vacances)$"
-copy_paste_cpat = re.compile(copy_paste_pat, flags=re.MULTILINE)
-
-
 class Settings:
     def __init__(self, demo: gr.Blocks):
         self.data_state  = gr.DataFrame(pd.DataFrame(columns=["player_name", "colo_name", "alliance", "x", "y", "tdc"]), visible=False)
@@ -49,26 +45,6 @@ class Settings:
             inputs=[self.data_state, self.metadata_state],
             js=save_to_browser_storage,
         )
-
-
-class ParsingError(Exception):
-    pass
-
-
-source_code_pat = re.compile(
-    r"""
-    <tr[^>]*>[\t \r\n]*
-    <td>[0-9,]+</td>[\t \r\n]*
-    <td[^>]*>[^<]*</td>[\t \r\n]*
-    <td>(\[[0-9:-]+\])</td>[\t \r\n]*
-    <td>([0-9,]+)</td>[\t \r\n]+
-    <td><a[^>]*>([^<]+)</a></td>[\t \r\n]*
-    <td><a[^>]+href="profil-([0-9]+)">\ <b>([^<]+)</b></a></td>[\t \r\n]*
-    <td><a[^>]*>\ <b>([^<]*)</b></a></td>[\t \r\n]*
-    <td>(?:Vassal\ de\ <a\ href='profil-)?([^<>]+)(?:'>\ <b>[^<]+</b>)?</td>[\t \r\n]*
-    </tr>
-    """, flags=re.X
-)
 
 
 def parse_source_code(s: str) -> pd.DataFrame:
