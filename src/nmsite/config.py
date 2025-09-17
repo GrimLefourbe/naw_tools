@@ -5,6 +5,7 @@ class Config:
     title: str
     subtitle: str
     hero_enabled: bool
+    tabs: str | list[str] = "default"
 
 configs = {
     "S1": Config(
@@ -20,6 +21,7 @@ configs = {
     "DEV": Config(
         title="Nawminator",
         subtitle="DEV",
-        hero_enabled=False
+        hero_enabled=False,
+        tabs="all",
     )
 }

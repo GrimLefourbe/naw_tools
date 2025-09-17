@@ -1,8 +1,7 @@
 import gradio as gr
 import nawminator as nm
 import nmsite
-from nmsite.tabs.settings import Settings, parse_source_code, parse_table
-from nawminator.parsing import ParsingError
+from nmsite.tabs.settings import Settings
 import pandas as pd
 import datetime as dt
 
@@ -14,11 +13,6 @@ class SynchroTab:
     def __init__(self, settings: Settings):
         self.set_layout(settings)
         self.configure_triggers(settings)
-        settings.post_load.then(
-            self.on_data_load,
-            inputs=settings.data_state,
-            outputs=[self.result_df, self.player_select, self.target_alliance, self.loaded_accordion]
-        )
 
     def on_data_load(self, data: pd.DataFrame):
         print(f"Loading synchro components with {data}")
@@ -34,22 +28,21 @@ class SynchroTab:
         )
 
     def set_layout(self, settings: Settings):
-        self.data_input = gr.Textbox(
-            label="Copiez les données depuis la page joueur ici.", 
-            info="" \
-            "1. Allez sur la page Joueurs, mettez le tdc minimum à 1 et le tdc maximum à un très grand nombre (ajoutez plein de 0) puis appuyez sur filtrer.\n" \
-            "2.a Option A Code Source:\n" \
-            "2.a.1 Utilisez ctrl + U ou ajoutez view-source: devant l'URL pour afficher le code source puis copiez le dans la boite.\n\n"
-            "2.b Option B C/C: \n"
-            "2.b.1 Mettez le nom de l'alliance que vous cherchez dans la barre de recherche.\n" \
-            "2.b.2 Copiez le tableau ou la page complète (ctrl-A)  et copiez-collez la dans la boite.\n" \
-            "2.b.3 Répétez pour les alliances que vous souhaitez voir et collez à la suite du c/c précédent (vérifiez bien que vous n'avez pas collé sur la même ligne que le précédent).\n" \
-            "3. Vérifiez dans l'onglet Données Chargées qu'il y a bien ceux que vous cherchez."
-        )
-        self.data_input_btn = gr.Button("Charger les données")
         with gr.Accordion(label="0 joueurs chargés", open=False) as self.loaded_accordion:
+            self.data_input = gr.Textbox(
+                label="Copiez les données depuis la page joueur ici.", 
+                info="" \
+                "1. Allez sur la page Joueurs, mettez le tdc minimum à 1 et le tdc maximum à un très grand nombre (ajoutez plein de 0) puis appuyez sur filtrer.\n" \
+                "2.a Option A Code Source:\n" \
+                "2.a.1 Utilisez ctrl + U ou ajoutez view-source: devant l'URL pour afficher le code source puis copiez le dans la boite.\n\n"
+                "2.b Option B C/C: \n"
+                "2.b.1 Mettez le nom de l'alliance que vous cherchez dans la barre de recherche.\n" \
+                "2.b.2 Copiez le tableau ou la page complète (ctrl-A)  et copiez-collez la dans la boite.\n" \
+                "2.b.3 Répétez pour les alliances que vous souhaitez voir et collez à la suite du c/c précédent (vérifiez bien que vous n'avez pas collé sur la même ligne que le précédent).\n" \
+                "3. Vérifiez dans l'onglet Données Chargées qu'il y a bien ceux que vous cherchez."
+            )
+            self.data_input_btn = gr.Button("Charger les données")
             self.result_df = gr.DataFrame(inputs=settings.data_state, label="Joueurs")
-            self.memory_btn = gr.Button("Charger dernières données utilisées")
         with gr.Row():
             self.player_select = gr.Dropdown(label="Joueur à synchro")
             self.target_alliance = gr.Dropdown(label="Alliances Cibles", multiselect=True)
@@ -71,20 +64,16 @@ class SynchroTab:
 
     def configure_triggers(self, settings: Settings):
         self.data_input_btn.click(
-            parse_data,
+            nmsite.tabs.settings.parse_data,
             inputs=self.data_input, 
             outputs=settings.data_state,
         )
 
-        
-        @gr.on(
-            self.memory_btn.click,
-            inputs=self.result_df,
-            outputs=self.result_df,
+        settings.post_load.then(
+            self.on_data_load,
+            inputs=settings.data_state,
+            outputs=[self.result_df, self.player_select, self.target_alliance, self.loaded_accordion]
         )
-        def load_state(state: pd.DataFrame):
-            return state
-
 
         settings.data_state.change(
             self.on_data_load,
@@ -92,10 +81,9 @@ class SynchroTab:
             outputs=[self.result_df, self.player_select, self.target_alliance, self.loaded_accordion]
         )
 
-
         self.synchro_button.click(
             fn=calc_synchros,
-            inputs=[self.result_df, self.va_input, self.time_input, self.player_select, self.target_alliance],
+            inputs=[settings.data_state, self.va_input, self.time_input, self.player_select, self.target_alliance],
             outputs=[self.synchro_outputs, self.synchro_copy, self.synchro_copy_btn]
         )
         
@@ -106,27 +94,6 @@ class SynchroTab:
             js="x => { console.log(x); navigator.clipboard.writeText(x); return []; }"
         )
 
-def parse_data(s: str) -> pd.DataFrame:
-    print("Parsing input data")
-    exceptions = []
-    for parser in [parse_table, parse_source_code]:
-        print(f"With {parser.__name__}")
-        try:
-            data = parser(s=s)
-        except ParsingError as e:
-            exceptions.append(e)
-            continue
-        print(f"No error with parser {parser.__name__}")
-        break
-    else:
-        raise ExceptionGroup("No parsing worked for the input data", exceptions)
-
-    print(data.shape)
-    print(data.columns)
-    data[["x", "y"]] = data["coord"].str.strip("[] ").str.split(":", expand=True).astype(int)
-    del data["coord"]
-    data.attrs["parsing_date"] = dt.datetime.now()
-    return data[["player_name", "colo_name", "alliance", "x", "y", "tdc"]].sort_values("alliance")
 
 def calc_synchros(data: pd.DataFrame, va: int, depart: dt.datetime, target_coords: str, target_allis: list[str]):
     base_pos = [int(i) for i in target_coords.split(":")]

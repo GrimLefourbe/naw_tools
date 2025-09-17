@@ -1,0 +1,1 @@
+from . import settings, combat, durees, hunt, pontes, synchro

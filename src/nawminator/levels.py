@@ -7,7 +7,8 @@ import typing as t
 
 import pulp as pl
 
-from loguru import logger
+import logging
+logger = logging.getLogger(__name__)
 
 __all__ = ["AllianceType", "HeroType", "FightZone", "Levels"]
 
@@ -294,15 +295,6 @@ class Levels:
                 if HP_ENABLED:
                     m += to_step(hp_base) + def_sum == to_step(bonus_hp[0]) + main_error_def 
                     errors += [main_error_def]
-                
-            # target_bonus_dmg = base
-            # m += off_sum - target_bonus_dmg <= main_error
-            # m += target_bonus_dmg - off_sum <= main_error
-
-            # if variable_hp_bonus is not None:
-            #     target_bonus_hp = round(variable_hp_bonus/step)
-            #     m += def_sum - target_bonus_hp <= main_error
-            #     m += target_bonus_hp - def_sum <= main_error
 
             if {"C", "M"} < used_vars.keys():
                 m += used_vars["M"] - used_vars["C"] <= mc_error

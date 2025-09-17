@@ -1,1 +1,1 @@
-from . import config, interface
+from . import config, interface, tabs
