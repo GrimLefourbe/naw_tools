@@ -17,9 +17,9 @@ joueurs_copy_paste_pat = re.compile(
     (\[[-\d]+:[-\d]+\])\s+
     ([\d,]+)\s+
     (.*?)\s+
+    ([\S ]+)\s+
     (\S+)\s+
-    (\S+)\s+
-    (Libre|Vassal\ de\ \S+|En\ vacances)
+    (Libre|Vassal\ de\ [\S ]+|En\ vacances)
     $
     """, flags=re.X | re.M
 )
@@ -34,7 +34,7 @@ joueurs_source_code_pat = re.compile(
     <td><a[^>]*>([^<]+)</a></td>[\t \r\n]*
     <td><a[^>]+href="profil-([0-9]+)">\ <b>([^<]+)</b></a></td>[\t \r\n]*
     <td><a[^>]*>\ <b>([^<]*)</b></a></td>[\t \r\n]*
-    <td>(?:Vassal\ de\ <a\ href='profil-)?([^<>]+)(?:'>\ <b>[^<]+</b>)?</td>[\t \r\n]*
+    <td>(?:Vassal\ de\ <a\ href='profil-[0-9]+'>\ <b>)?([^<>]+)(?:</b></a>)?</td>[\t \r\n]*
     </tr>
     """, flags=re.X
 )
