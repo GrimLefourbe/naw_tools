@@ -21,6 +21,22 @@ css = """
 .smgroup {
     gap: 0.25rem;
     min-width: 0 !important;
+}
+
+#mode-selector { display: flex !important; flex-direction: column !important; height: 100% !important; }
+#mode-selector > div { flex: 1; display: flex; flex-direction: column; }
+#mode-selector > div > button { flex: 1; }
+
+/* TODO: tab-specific CSS (above and below) should live alongside each tab file,
+   not here. Consider a pattern where each tab exposes a CSS constant that app.py
+   assembles into the final gr.Blocks(css=...) string. */
+.result-field input,
+.result-field textarea {
+    border-left: 3px solid var(--color-accent) !important;
+    background: transparent !important;
+    color: var(--body-text-color) !important;
+    opacity: 1 !important;
+    cursor: default !important;
 }"""
 
 HEADER = f"""

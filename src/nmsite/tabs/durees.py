@@ -7,7 +7,7 @@ import nawminator as nm
 from nmsite.tabs.settings import Settings
 
 
-_TARGETS = ["Durée", "VA", "Arrivée", "Départ"]
+_TARGETS = ["VA", "Arrivée", "Départ"]
 
 
 def _parse_time(s: str) -> dt.time | None:
@@ -31,43 +31,52 @@ def _times_to_secs(start: str, arrival: str) -> float | None:
     return secs + 86400 if secs < 0 else secs
 
 
+_TARGET_INTERACTIVITY: dict[str, tuple[bool, bool, bool, bool]] = {
+    # (va, duration, start_time, arrival_time)
+    "VA":      (False, True,  True,  True),
+    "Arrivée": (True,  False, True,  False),
+    "Départ":  (True,  False, False, True),
+}
+
+
+def _apply_time_defaults(target, start, arrival):
+    if target == "Arrivée" and not (start and start.strip()):
+        start = "00:00:00"
+    elif target == "Départ" and not (arrival and arrival.strip()):
+        arrival = "00:00:00"
+    return start, arrival
+
+
 def _compute(target, x1, y1, x2, y2, va, duration, start, arrival):
-    try:
-        if target == "VA":
-            secs = _times_to_secs(start, arrival)
-            if secs is None:
-                secs = nm.utils.parse_ajhms(duration).total_seconds()
-            base_d = nm.formulas.duree_attaque(x1, y1, x2, y2)
-            return nm.formulas.from_va(secs / base_d), duration, start, arrival
-
-        elif target == "Durée":
-            secs = _times_to_secs(start, arrival)
-            if secs is not None:
-                new_d = nm.utils.timedelta_to_ajhms(dt.timedelta(seconds=secs))
-            else:
-                new_d = nm.utils.timedelta_to_ajhms(dt.timedelta(seconds=nm.formulas.duree_attaque(x1, y1, x2, y2, va)))
-            return va, new_d, start, arrival
-
-        elif target == "Arrivée":
-            t = _parse_time(start)
-            if t is None:
-                return va, duration, start, arrival
+    if target == "VA":
+        secs = _times_to_secs(start, arrival)
+        if secs is None:
             secs = nm.utils.parse_ajhms(duration).total_seconds()
-            base = dt.datetime(2000, 1, 1, t.hour, t.minute, t.second)
-            new_arrival = (base + dt.timedelta(seconds=secs)).time()
-            return va, duration, start, new_arrival.strftime("%H:%M:%S")
+        base_d = nm.formulas.duree_attaque(x1, y1, x2, y2)
+        new_va = nm.formulas.from_va(secs / base_d)
+        new_duration = nm.utils.timedelta_to_ajhms(dt.timedelta(seconds=secs))
+        return new_va, new_duration, start, arrival
 
-        elif target == "Départ":
-            t = _parse_time(arrival)
-            if t is None:
-                return va, duration, start, arrival
-            secs = nm.utils.parse_ajhms(duration).total_seconds()
-            base = dt.datetime(2000, 1, 1, t.hour, t.minute, t.second)
-            new_start = (base - dt.timedelta(seconds=secs)).time()
-            return va, duration, new_start.strftime("%H:%M:%S"), arrival
+    elif target == "Arrivée":
+        t = _parse_time(start)
+        if t is None:
+            return va, duration, start, arrival
+        secs = nm.formulas.duree_attaque(x1, y1, x2, y2, va)
+        new_duration = nm.utils.timedelta_to_ajhms(dt.timedelta(seconds=secs))
+        base = dt.datetime(2000, 1, 1, t.hour, t.minute, t.second)
+        new_arrival = (base + dt.timedelta(seconds=secs)).time()
+        return va, new_duration, start, new_arrival.strftime("%H:%M:%S")
 
-    except Exception:
-        pass
+    elif target == "Départ":
+        t = _parse_time(arrival)
+        if t is None:
+            return va, duration, start, arrival
+        secs = nm.formulas.duree_attaque(x1, y1, x2, y2, va)
+        new_duration = nm.utils.timedelta_to_ajhms(dt.timedelta(seconds=secs))
+        base = dt.datetime(2000, 1, 1, t.hour, t.minute, t.second)
+        new_start = (base - dt.timedelta(seconds=secs)).time()
+        return va, new_duration, new_start.strftime("%H:%M:%S"), arrival
+
     return va, duration, start, arrival
 
 
@@ -80,19 +89,25 @@ class DureesTab:
         self._configure_triggers(settings)
 
     def _set_layout(self, settings: Settings):
-        with gr.Row():
+        self._target_state = gr.State("Arrivée")
+        args: dict[str, t.Any] = {"container": False}
+        with gr.Row(equal_height=True):
             with gr.Column(min_width=100), gr.Group():
                 gr.Markdown(
                     "<div style='text-align:center; font-weight:bold; font-size:18px;'>Source</div>"
                 )
                 self._src_player_select = gr.Dropdown(container=False, visible=False)
-                args: dict[str, t.Any] = {"container": False}
                 with gr.Row():
                     gr.Text("x", min_width=30, **args)
                     self._from_x = gr.Number(value=0, scale=0, min_width=70, **args)
                 with gr.Row():
                     gr.Text("y", min_width=30, **args)
                     self._from_y = gr.Number(value=0, scale=0, min_width=70, **args)
+
+            with gr.Column(scale=0, min_width=90), gr.Group(elem_id="mode-selector"):
+                self._btn_va = gr.Button("VA", variant="secondary", size="sm")
+                self._btn_arrivee = gr.Button("Arrivée", variant="primary", size="sm")
+                self._btn_depart = gr.Button("Départ", variant="secondary", size="sm")
 
             with gr.Column(min_width=100), gr.Group():
                 gr.Markdown(
@@ -106,26 +121,16 @@ class DureesTab:
                     gr.Text("y", min_width=30, **args)
                     self._to_y = gr.Number(value=0, scale=0, min_width=70, **args)
 
-        with gr.Row(equal_height=True):
-            gr.HTML("<div style='display:flex; align-items:center; padding:8px 4px; white-space:nowrap;'>Calculer →</div>")
-            self._target = gr.Dropdown(
-                choices=_TARGETS,
-                value="Durée",
-                container=False,
-                min_width=150,
-                scale=0,
-            )
-
         with gr.Row():
             with gr.Column(min_width=200):
                 self._va = gr.Number(value=0, label="Vitesse d'Attaque")
             with gr.Column(min_width=200):
-                self._duration = gr.Text("0s", label="Durée")
+                self._duration = gr.Text("0s", label="Durée", interactive=False, elem_classes=["result-field"])
         with gr.Row():
             with gr.Column(min_width=200):
-                self._start_time = gr.Textbox(value="", label="Heure de départ", placeholder="HH:MM:SS")
+                self._start_time = gr.Textbox(value="00:00:00", label="Heure de départ", placeholder="HH:MM:SS")
             with gr.Column(min_width=200):
-                self._arrival_time = gr.Textbox(value="", label="Heure d'arrivée", placeholder="HH:MM:SS")
+                self._arrival_time = gr.Textbox(value="", label="Heure d'arrivée", placeholder="HH:MM:SS", interactive=False, elem_classes=["result-field"])
 
     def _configure_triggers(self, settings: Settings):
         @settings.data_state.change(
@@ -140,7 +145,7 @@ class DureesTab:
             ]
             return gr.Dropdown(visible=True, choices=sorted(player_names)), gr.Dropdown(visible=True, choices=sorted(player_names))
 
-        all_inputs = [self._target, self._from_x, self._from_y, self._to_x, self._to_y, self._va, self._duration, self._start_time, self._arrival_time]
+        all_inputs = [self._target_state, self._from_x, self._from_y, self._to_x, self._to_y, self._va, self._duration, self._start_time, self._arrival_time]
         all_outputs = [self._va, self._duration, self._start_time, self._arrival_time]
 
         self._src_player_select.input(
@@ -167,13 +172,43 @@ class DureesTab:
             show_progress="hidden", show_api=False,
         )
 
+        buttons = [self._btn_va, self._btn_arrivee, self._btn_depart]
+        value_fields = [self._va, self._duration, self._start_time, self._arrival_time]
+        all_btn_outputs = [self._target_state] + buttons + value_fields
+
+        for btn, target in zip(buttons, _TARGETS):
+            def make_handler(t):
+                def handler():
+                    interactivity = _TARGET_INTERACTIVITY[t]
+                    return (
+                        (t,)
+                        + tuple(gr.Button(variant="primary" if tt == t else "secondary") for tt in _TARGETS)
+                        + tuple(gr.update(interactive=i, elem_classes=[] if i else ["result-field"]) for i in interactivity)
+                    )
+                return handler
+
+            btn.click(
+                fn=make_handler(target),
+                outputs=all_btn_outputs,
+                show_progress="hidden",
+            ).then(
+                fn=_apply_time_defaults,
+                inputs=[self._target_state, self._start_time, self._arrival_time],
+                outputs=[self._start_time, self._arrival_time],
+                show_progress="hidden",
+            ).then(
+                fn=_compute,
+                inputs=all_inputs,
+                outputs=all_outputs,
+                show_progress="hidden", show_api=False,
+            )
+
         gr.on(
             triggers=[
-                self._target.change,
                 self._from_x.change, self._from_y.change,
                 self._to_x.change, self._to_y.change,
-                self._va.change, self._duration.change,
-                self._start_time.change, self._arrival_time.change,
+                self._va.input, self._duration.input,
+                self._start_time.input, self._arrival_time.input,
             ],
             fn=_compute,
             inputs=all_inputs,
