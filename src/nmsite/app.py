@@ -37,7 +37,10 @@ css = """
     color: var(--body-text-color) !important;
     opacity: 1 !important;
     cursor: default !important;
-}"""
+}
+
+.army-check { align-self: stretch !important; display: flex !important; align-items: center !important; justify-content: center !important; }
+.army-check input[type="checkbox"] { width: 1.75rem !important; height: 1.75rem !important; cursor: pointer; accent-color: var(--color-accent); }"""
 
 HEADER = f"""
 <div id="app-header" style="
@@ -69,7 +72,7 @@ with gr.Blocks(title=f"{config.title} - {config.subtitle}", css=css, head=HEADER
         synchro.synchro_tab(config, settings)
         tabs["synchro"] = synchro_tab
 
-    with gr.Tab("Pontes", render=False) as pontes_tab:
+    with gr.Tab("Armées", render=False) as pontes_tab:
         from nmsite.tabs import pontes
         pontes.pontes_tab()
         tabs["pontes"] = pontes_tab
