@@ -75,6 +75,10 @@ def _compute(mode, army: nm.army.Army, tdp, alli, duration):
     return tdp, alli, duration
 
 
+def _compute_total(mode, lst: ArmyList, tdp, alli, duration):
+    return _compute(mode, lst.total, tdp, alli, duration)
+
+
 def pontes_tab():
     return PontesTab()
 
@@ -124,7 +128,7 @@ class PontesTab:
             with gr.Row(visible=(i < 2)) as row:  # ArmyList default: 2 armies
                 cb = gr.Checkbox(
                     value=False,
-                    label="", show_label=False, container=False,
+                    show_label=False, container=False,
                     scale=0, min_width=44,
                     elem_classes=["army-check"],
                 )
@@ -136,7 +140,7 @@ class PontesTab:
                     with gr.Accordion("Unités", open=False):
                         with gr.Group():
                             unit_row_boxes = []
-                            for _, (_, short_name, _) in enumerate(nm.army.unit_names):
+                            for _, short_name, _ in nm.army.unit_names:
                                 with gr.Row():
                                     gr.Text(short_name, max_lines=1, show_label=False,
                                             interactive=False, container=False, min_width=100)
@@ -173,9 +177,9 @@ class PontesTab:
 
         self._tdp_mode_state = gr.State("Durée")
         with gr.Row(equal_height=True):
-            with gr.Column(scale=0, min_width=90), gr.Group(elem_id="mode-selector"):
-                self._btn_duree = gr.Button("Durée", variant="primary", size="sm")
-                self._btn_tdp_mode = gr.Button("TDP", variant="secondary", size="sm")
+            with gr.Column(scale=0, min_width=90), gr.Group():
+                self._btn_duree = gr.Button("Durée", variant="primary", size="sm", elem_classes=["mode-btn"])
+                self._btn_tdp_mode = gr.Button("TDP", variant="secondary", size="sm", elem_classes=["mode-btn"])
             with gr.Column():
                 self._tdp = gr.Number(value=0, label="TDP", precision=0)
             with gr.Column():
@@ -231,7 +235,7 @@ class PontesTab:
                 on_paste,
                 inputs=[self._paste_boxes[i], self._list_state],
                 outputs=[self._list_state] + self._unit_boxes[i],
-                show_progress="hidden", show_api=False,
+                show_progress="hidden",
             )
 
             unit_boxes_i = self._unit_boxes[i]
@@ -248,60 +252,63 @@ class PontesTab:
                 fn=on_unit_input,
                 inputs=[*unit_boxes_i, self._list_state],
                 outputs=[self._list_state, paste_i],
-                show_progress="hidden", show_api=False,
+                show_progress="hidden",
             )
 
-        def _on_list_change(lst: ArmyList):
+        tdp_fields = [self._tdp, self._alli, self._duration]
+        list_change_outputs = (
+            [self._total_display, self._add_btn, self._repartir_label, *self._repartir_btns]
+            + tdp_fields
+        )
+
+        def _on_list_change(lst: ArmyList, mode, tdp, alli, duration):
             m = sum(lst.checks)
-            max_n = N_MAX - len(lst.armies) + m
+            n_armies = len(lst.armies)
+            max_n = N_MAX - n_armies + m
+            total = lst.total
+            tdp_out, alli_out, dur_out = _compute(mode, total, tdp, alli, duration)
             return (
-                lst.total.to_str_compact(sep=", ") if lst.total.count > 0 else "",
-                gr.update(interactive=len(lst.armies) < N_MAX),
+                total.to_str_compact(sep=", ") if total.count > 0 else "",
+                gr.update(interactive=n_armies < N_MAX),
                 gr.update(value=f"Répartir {m} en"),
                 *[gr.update(interactive=(n <= max_n)) for n in range(1, N_MAX + 1)],
+                tdp_out, alli_out, dur_out,
             )
 
         self._list_state.change(
             _on_list_change,
-            inputs=self._list_state,
-            outputs=[self._total_display, self._add_btn, self._repartir_label, *self._repartir_btns],
-            show_progress="hidden", show_api=False,
+            inputs=[self._list_state, self._tdp_mode_state, self._tdp, self._alli, self._duration],
+            outputs=list_change_outputs,
+            show_progress="hidden",
         )
 
-        tdp_fields = [self._tdp, self._alli, self._duration]
         all_btn_outputs = [self._tdp_mode_state, self._btn_duree, self._btn_tdp_mode] + tdp_fields
 
-        for btn, mode in zip([self._btn_duree, self._btn_tdp_mode], _TDP_MODES):
-            def make_handler(m):
-                def handler():
-                    interactivity = _TDP_MODE_INTERACTIVITY[m]
-                    return (
-                        (m,)
-                        + tuple(gr.Button(variant="primary" if mm == m else "secondary") for mm in _TDP_MODES)
-                        + tuple(gr.update(interactive=iv, elem_classes=[] if iv else ["result-field"]) for iv in interactivity)
-                    )
-                return handler
+        def make_mode_handler(mode):
+            interactivity = _TDP_MODE_INTERACTIVITY[mode]
+            payload = (
+                (mode,)
+                + tuple(gr.update(variant="primary" if mm == mode else "secondary") for mm in _TDP_MODES)
+                + tuple(gr.update(interactive=iv, elem_classes=[] if iv else ["result-field"]) for iv in interactivity)
+            )
+            return lambda: payload
 
+        for btn, mode in zip([self._btn_duree, self._btn_tdp_mode], _TDP_MODES):
             btn.click(
-                fn=make_handler(mode),
+                fn=make_mode_handler(mode),
                 outputs=all_btn_outputs,
                 show_progress="hidden",
             ).then(
-                fn=lambda mode, lst, tdp, alli, dur: _compute(mode, lst.total, tdp, alli, dur),
+                fn=_compute_total,
                 inputs=[self._tdp_mode_state, self._list_state, self._tdp, self._alli, self._duration],
                 outputs=tdp_fields,
-                show_progress="hidden", show_api=False,
+                show_progress="hidden",
             )
 
         gr.on(
-            triggers=[
-                self._list_state.change,
-                self._tdp.input,
-                self._alli.input,
-                self._duration.input,
-            ],
-            fn=lambda mode, lst, tdp, alli, dur: _compute(mode, lst.total, tdp, alli, dur),
+            triggers=[self._tdp.input, self._alli.input, self._duration.input],
+            fn=_compute_total,
             inputs=[self._tdp_mode_state, self._list_state, self._tdp, self._alli, self._duration],
             outputs=tdp_fields,
-            show_progress="hidden", show_api=False,
+            show_progress="hidden",
         )

@@ -23,9 +23,9 @@ css = """
     min-width: 0 !important;
 }
 
-#mode-selector { display: flex !important; flex-direction: column !important; height: 100% !important; }
-#mode-selector > div { flex: 1; display: flex; flex-direction: column; }
-#mode-selector > div > button { flex: 1; }
+.gr-group:has(.mode-btn) { display: flex !important; flex-direction: column !important; height: 100% !important; }
+.gr-group:has(.mode-btn) > * { flex: 1; display: flex; }
+.mode-btn { flex: 1 !important; }
 
 /* TODO: tab-specific CSS (above and below) should live alongside each tab file,
    not here. Consider a pattern where each tab exposes a CSS constant that app.py
@@ -39,7 +39,8 @@ css = """
     cursor: default !important;
 }
 
-.army-check { align-self: stretch !important; display: flex !important; align-items: center !important; justify-content: center !important; }
+.army-check { align-self: stretch !important; display: flex !important; align-items: center !important; justify-content: center !important; padding: 0 !important; flex: 0 0 44px !important; min-width: 0 !important; border: none !important; background: none !important; box-shadow: none !important; }
+.army-check span { display: none !important; }
 .army-check input[type="checkbox"] { width: 1.75rem !important; height: 1.75rem !important; cursor: pointer; accent-color: var(--color-accent); }"""
 
 HEADER = f"""
@@ -57,7 +58,7 @@ HEADER = f"""
 ">🚀 {config.title} - {config.subtitle} 🚀</div>
 """
 
-with gr.Blocks(title=f"{config.title} - {config.subtitle}", css=css, head=HEADER, fill_width=True) as demo:
+with gr.Blocks(title=f"{config.title} - {config.subtitle}", fill_width=True) as demo:
     with gr.Tab("Réglages", render=False) as settings_tab:
         settings = nmsite.tabs.settings.settings_tab(config, demo)
     gr.HTML(HEADER, container=False)
@@ -87,19 +88,18 @@ with gr.Blocks(title=f"{config.title} - {config.subtitle}", css=css, head=HEADER
         durees.durees_tab(settings)
         tabs["durees"] = durees_tab
 
-    with gr.Tabs() as t:
-        match config.tabs:
-            case "default":
-                tab_order = ["combat", "pontes", "synchro", "durees", "settings"]
-            case "all":
-                tab_order = list(tabs.keys())
-            case [*elems] if set(elems) <= tabs.keys():
-                tab_order = elems
+    match config.tabs:
+        case "default":
+            tab_order = ["combat", "pontes", "synchro", "durees", "settings"]
+        case "all":
+            tab_order = list(tabs.keys())
+        case [*elems] if set(elems) <= tabs.keys():
+            tab_order = elems
+    with gr.Tabs(selected="default") as t:
         for tab in tab_order:
             tabs[tab].render()
-    t.selected = "default"        
 
 
 
 if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0")
+    demo.launch(server_name="0.0.0.0", css=css, head=HEADER, footer_links=["gradio", "settings"])

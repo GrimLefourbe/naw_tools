@@ -24,10 +24,9 @@ def _times_to_secs(start: str, arrival: str) -> float | None:
     t_arrival = _parse_time(arrival)
     if t_start is None or t_arrival is None:
         return None
-    base = dt.datetime(2000, 1, 1)
-    dt_s = base.replace(hour=t_start.hour, minute=t_start.minute, second=t_start.second)
-    dt_a = base.replace(hour=t_arrival.hour, minute=t_arrival.minute, second=t_arrival.second)
-    secs = (dt_a - dt_s).total_seconds()
+    secs_start = t_start.hour * 3600 + t_start.minute * 60 + t_start.second
+    secs_arrival = t_arrival.hour * 3600 + t_arrival.minute * 60 + t_arrival.second
+    secs = secs_arrival - secs_start
     return secs + 86400 if secs < 0 else secs
 
 
@@ -47,6 +46,11 @@ def _apply_time_defaults(target, start, arrival):
     return start, arrival
 
 
+def _shift_time(t: dt.time, secs: float) -> str:
+    base = dt.datetime(2000, 1, 1, t.hour, t.minute, t.second)
+    return (base + dt.timedelta(seconds=secs)).time().strftime("%H:%M:%S")
+
+
 def _compute(target, x1, y1, x2, y2, va, duration, start, arrival):
     if target == "VA":
         secs = _times_to_secs(start, arrival)
@@ -57,26 +61,16 @@ def _compute(target, x1, y1, x2, y2, va, duration, start, arrival):
         new_duration = nm.utils.timedelta_to_ajhms(dt.timedelta(seconds=secs))
         return new_va, new_duration, start, arrival
 
-    elif target == "Arrivée":
-        t = _parse_time(start)
-        if t is None:
-            return va, duration, start, arrival
-        secs = nm.formulas.duree_attaque(x1, y1, x2, y2, va)
-        new_duration = nm.utils.timedelta_to_ajhms(dt.timedelta(seconds=secs))
-        base = dt.datetime(2000, 1, 1, t.hour, t.minute, t.second)
-        new_arrival = (base + dt.timedelta(seconds=secs)).time()
-        return va, new_duration, start, new_arrival.strftime("%H:%M:%S")
-
-    elif target == "Départ":
-        t = _parse_time(arrival)
-        if t is None:
-            return va, duration, start, arrival
-        secs = nm.formulas.duree_attaque(x1, y1, x2, y2, va)
-        new_duration = nm.utils.timedelta_to_ajhms(dt.timedelta(seconds=secs))
-        base = dt.datetime(2000, 1, 1, t.hour, t.minute, t.second)
-        new_start = (base - dt.timedelta(seconds=secs)).time()
-        return va, new_duration, new_start.strftime("%H:%M:%S"), arrival
-
+    anchor_str = start if target == "Arrivée" else arrival
+    parsed = _parse_time(anchor_str)
+    if parsed is None:
+        return va, duration, start, arrival
+    secs = nm.formulas.duree_attaque(x1, y1, x2, y2, va)
+    new_duration = nm.utils.timedelta_to_ajhms(dt.timedelta(seconds=secs))
+    if target == "Arrivée":
+        return va, new_duration, start, _shift_time(parsed, secs)
+    if target == "Départ":
+        return va, new_duration, _shift_time(parsed, -secs), arrival
     return va, duration, start, arrival
 
 
@@ -104,10 +98,10 @@ class DureesTab:
                     gr.Text("y", min_width=30, **args)
                     self._from_y = gr.Number(value=0, scale=0, min_width=70, **args)
 
-            with gr.Column(scale=0, min_width=90), gr.Group(elem_id="mode-selector"):
-                self._btn_va = gr.Button("VA", variant="secondary", size="sm")
-                self._btn_arrivee = gr.Button("Arrivée", variant="primary", size="sm")
-                self._btn_depart = gr.Button("Départ", variant="secondary", size="sm")
+            with gr.Column(scale=0, min_width=90), gr.Group():
+                self._btn_va = gr.Button("VA", variant="secondary", size="sm", elem_classes=["mode-btn"])
+                self._btn_arrivee = gr.Button("Arrivée", variant="primary", size="sm", elem_classes=["mode-btn"])
+                self._btn_depart = gr.Button("Départ", variant="secondary", size="sm", elem_classes=["mode-btn"])
 
             with gr.Column(min_width=100), gr.Group():
                 gr.Markdown(
@@ -139,17 +133,18 @@ class DureesTab:
             show_progress="hidden",
         )
         def get_colo_names(data: pd.DataFrame):
-            player_names = [
-                (f"{player}: {colo}[{x}:{y}]", ":".join(map(str, [x, y])))
+            player_names = sorted(
+                (f"{player}: {colo}[{x}:{y}]", f"{x}:{y}")
                 for player, colo, x, y in data[["player_name", "colo_name", "x", "y"]].itertuples(index=False)
-            ]
-            return gr.Dropdown(visible=True, choices=sorted(player_names)), gr.Dropdown(visible=True, choices=sorted(player_names))
+            )
+            update = gr.update(visible=True, choices=player_names)
+            return update, update
 
         all_inputs = [self._target_state, self._from_x, self._from_y, self._to_x, self._to_y, self._va, self._duration, self._start_time, self._arrival_time]
         all_outputs = [self._va, self._duration, self._start_time, self._arrival_time]
 
         self._src_player_select.input(
-            lambda x: (0, 0) if x is None else list(map(int, x.split(":"))),
+            lambda x: (0, 0) if x is None else tuple(int(v) for v in x.split(":")),
             inputs=self._src_player_select,
             outputs=[self._from_x, self._from_y],
             show_progress="hidden",
@@ -157,11 +152,11 @@ class DureesTab:
             fn=_compute,
             inputs=all_inputs,
             outputs=all_outputs,
-            show_progress="hidden", show_api=False,
+            show_progress="hidden",
         )
 
         self._tgt_player_select.input(
-            lambda x: (0, 0) if x is None else list(map(int, x.split(":"))),
+            lambda x: (0, 0) if x is None else tuple(int(v) for v in x.split(":")),
             inputs=self._tgt_player_select,
             outputs=[self._to_x, self._to_y],
             show_progress="hidden",
@@ -169,24 +164,23 @@ class DureesTab:
             fn=_compute,
             inputs=all_inputs,
             outputs=all_outputs,
-            show_progress="hidden", show_api=False,
+            show_progress="hidden",
         )
 
         buttons = [self._btn_va, self._btn_arrivee, self._btn_depart]
         value_fields = [self._va, self._duration, self._start_time, self._arrival_time]
         all_btn_outputs = [self._target_state] + buttons + value_fields
 
-        for btn, target in zip(buttons, _TARGETS):
-            def make_handler(t):
-                def handler():
-                    interactivity = _TARGET_INTERACTIVITY[t]
-                    return (
-                        (t,)
-                        + tuple(gr.Button(variant="primary" if tt == t else "secondary") for tt in _TARGETS)
-                        + tuple(gr.update(interactive=i, elem_classes=[] if i else ["result-field"]) for i in interactivity)
-                    )
-                return handler
+        def make_handler(target):
+            interactivity = _TARGET_INTERACTIVITY[target]
+            payload = (
+                (target,)
+                + tuple(gr.update(variant="primary" if tt == target else "secondary") for tt in _TARGETS)
+                + tuple(gr.update(interactive=i, elem_classes=[] if i else ["result-field"]) for i in interactivity)
+            )
+            return lambda: payload
 
+        for btn, target in zip(buttons, _TARGETS):
             btn.click(
                 fn=make_handler(target),
                 outputs=all_btn_outputs,
@@ -200,18 +194,18 @@ class DureesTab:
                 fn=_compute,
                 inputs=all_inputs,
                 outputs=all_outputs,
-                show_progress="hidden", show_api=False,
+                show_progress="hidden",
             )
 
         gr.on(
             triggers=[
-                self._from_x.change, self._from_y.change,
-                self._to_x.change, self._to_y.change,
+                self._from_x.input, self._from_y.input,
+                self._to_x.input, self._to_y.input,
                 self._va.input, self._duration.input,
                 self._start_time.input, self._arrival_time.input,
             ],
             fn=_compute,
             inputs=all_inputs,
             outputs=all_outputs,
-            show_progress="hidden", show_api=False,
+            show_progress="hidden",
         )

@@ -59,7 +59,7 @@ class SynchroTab:
         self.synchro_outputs = gr.DataFrame(
             pd.DataFrame(columns=["Horaire", "Durée", "Joueur", "Colonie", "Alli", "TDC"]),
             label="Heures de passage",
-            show_copy_button=False,
+            buttons=[],
         )
 
     def configure_triggers(self, settings: Settings):
