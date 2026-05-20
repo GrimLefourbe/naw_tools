@@ -23,9 +23,9 @@ css = """
     min-width: 0 !important;
 }
 
-.gr-group:has(.mode-btn) { display: flex !important; flex-direction: column !important; height: 100% !important; }
-.gr-group:has(.mode-btn) > * { flex: 1; display: flex; }
-.mode-btn { flex: 1 !important; }
+
+.seg-wrapper { flex: 1 !important; display: flex !important; flex-direction: column !important; min-height: 0; }
+
 
 /* TODO: tab-specific CSS (above and below) should live alongside each tab file,
    not here. Consider a pattern where each tab exposes a CSS constant that app.py

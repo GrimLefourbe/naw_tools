@@ -4,6 +4,7 @@ import datetime as dt
 import math
 
 from nmsite.army_list import ArmyList
+from nmsite.interface import SegmentedControl, interactivity_updates
 
 
 N_MAX = 8
@@ -177,9 +178,12 @@ class PontesTab:
 
         self._tdp_mode_state = gr.State("Durée")
         with gr.Row(equal_height=True):
-            with gr.Column(scale=0, min_width=90), gr.Group():
-                self._btn_duree = gr.Button("Durée", variant="primary", size="sm", elem_classes=["mode-btn"])
-                self._btn_tdp_mode = gr.Button("TDP", variant="secondary", size="sm", elem_classes=["mode-btn"])
+            with gr.Column(scale=0, min_width=90):
+                self._tdp_sel = SegmentedControl(
+                    choices=_TDP_MODES,
+                    value="Durée",
+                    elem_id="pontes_tdp_mode",
+                )
             with gr.Column():
                 self._tdp = gr.Number(value=0, label="TDP", precision=0)
             with gr.Column():
@@ -282,28 +286,17 @@ class PontesTab:
             show_progress="hidden",
         )
 
-        all_btn_outputs = [self._tdp_mode_state, self._btn_duree, self._btn_tdp_mode] + tdp_fields
-
-        def make_mode_handler(mode):
-            interactivity = _TDP_MODE_INTERACTIVITY[mode]
-            payload = (
-                (mode,)
-                + tuple(gr.update(variant="primary" if mm == mode else "secondary") for mm in _TDP_MODES)
-                + tuple(gr.update(interactive=iv, elem_classes=[] if iv else ["result-field"]) for iv in interactivity)
-            )
-            return lambda: payload
-
-        for btn, mode in zip([self._btn_duree, self._btn_tdp_mode], _TDP_MODES):
-            btn.click(
-                fn=make_mode_handler(mode),
-                outputs=all_btn_outputs,
-                show_progress="hidden",
-            ).then(
-                fn=_compute_total,
-                inputs=[self._tdp_mode_state, self._list_state, self._tdp, self._alli, self._duration],
-                outputs=tdp_fields,
-                show_progress="hidden",
-            )
+        self._tdp_sel.input(
+            fn=lambda mode: interactivity_updates(mode, _TDP_MODE_INTERACTIVITY),
+            inputs=[self._tdp_sel],
+            outputs=[self._tdp_mode_state] + tdp_fields,
+            show_progress="hidden",
+        ).then(
+            fn=_compute_total,
+            inputs=[self._tdp_mode_state, self._list_state, self._tdp, self._alli, self._duration],
+            outputs=tdp_fields,
+            show_progress="hidden",
+        )
 
         gr.on(
             triggers=[self._tdp.input, self._alli.input, self._duration.input],

@@ -1,4 +1,5 @@
 from pickle import NONE
+import json
 import gradio as gr
 import nawminator as nm
 import datetime as dt
@@ -11,8 +12,6 @@ if t.TYPE_CHECKING:
 
 class ArmyInput:
     def __init__(self):
-        import numpy as np
-
         army_state = gr.State(nm.army.Army())
         input_box = gr.Textbox(placeholder="Coller Armée", scale=0, show_label=False, container=False)
         unit_boxes = []
@@ -276,6 +275,524 @@ class LevelsInput:
             js="() => navigator.clipboard.readText().then(t => [t])" # Gradio expects a list return for outputs
         )
 
+
+
+def _merge_elem_classes(kwargs: dict, cls: str) -> None:
+    existing = kwargs.pop("elem_classes", [])
+    if isinstance(existing, str):
+        existing = [existing]
+    kwargs["elem_classes"] = list(existing) + [cls]
+
+
+def interactivity_updates(value: str, interactivity_map: dict) -> tuple:
+    """Build gr.update outputs for a segmented-control mode/target change.
+
+    Returns (value, *gr.update(interactive=..., elem_classes=...)) matching the
+    interactivity booleans in interactivity_map[value].
+    """
+    return (value,) + tuple(
+        gr.update(interactive=iv, elem_classes=[] if iv else ["result-field"])
+        for iv in interactivity_map[value]
+    )
+
+
+class SegmentedControl(gr.HTML):
+    """Stacked button selector with instant client-side visual feedback.
+
+    Subclasses gr.HTML using Gradio 6's interactive HTML API. Clicking a button
+    updates the selection immediately (no server roundtrip for the visual), then
+    fires ``trigger('input')`` so the Python ``.input()`` handler runs.
+    ``watch()`` re-syncs the highlight if the server updates the value as output.
+
+    Args:
+        choices: Ordered list of option labels shown as stacked buttons.
+        value: Initially selected label; must be one of ``choices``.
+        **kwargs: Forwarded to ``gr.HTML`` (e.g. ``elem_id``, ``visible``).
+
+    Wiring:
+        sel = SegmentedControl(["A", "B", "C"], value="B", elem_id="my_sel")
+        sel.input(fn, inputs=[sel], outputs=[...])
+
+    The component's value (accessible as an input) is the selected label string.
+    """
+
+    _CSS = """
+        .seg-control {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            height: 100%;
+            border: 1px solid var(--border-color-primary, rgba(0,0,0,0.15));
+            border-radius: var(--radius-lg, 8px);
+            overflow: hidden;
+        }
+        .seg-btn {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            min-height: 36px;
+            padding: 8px 12px;
+            cursor: pointer;
+            border: none;
+            background: var(--background-fill-primary, white);
+            color: var(--body-text-color);
+            font-size: .9rem;
+            font-weight: 600;
+            text-align: center;
+            transition: background .1s, color .1s;
+            outline: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .seg-btn + .seg-btn {
+            border-top: 1px solid var(--border-color-primary, rgba(0,0,0,0.1));
+        }
+        .seg-btn:hover:not(.selected) {
+            background: color-mix(in srgb, var(--color-accent) 10%, var(--background-fill-primary, white));
+        }
+        .seg-btn.selected {
+            background: var(--color-accent);
+            color: var(--color-accent-text, white);
+        }
+    """
+
+    _JS = """
+        function updateSelection(val) {
+            element.querySelectorAll('.seg-btn').forEach(btn => {
+                btn.classList.toggle('selected', btn.dataset.value === String(val));
+            });
+        }
+        updateSelection(props.value);
+        watch(() => props.value, updateSelection);
+        element.addEventListener('click', e => {
+            const btn = e.target.closest('.seg-btn');
+            if (!btn) return;
+            updateSelection(btn.dataset.value);
+            props.value = btn.dataset.value;
+            trigger('input');
+        });
+    """
+
+    def __init__(self, choices: list[str], value: str, **kwargs):
+        buttons_html = "".join(
+            f'<button class="seg-btn" data-value="{c}">{c}</button>'
+            for c in choices
+        )
+        _merge_elem_classes(kwargs, "seg-wrapper")
+        kwargs.setdefault('container', False)
+        kwargs.setdefault('padding', False)
+        kwargs.setdefault('apply_default_css', False)
+        kwargs.setdefault('show_label', False)
+        super().__init__(
+            value=value,
+            html_template=f'<div class="seg-control">{buttons_html}</div>',
+            css_template=self._CSS,
+            js_on_load=self._JS,
+            **kwargs,
+        )
+
+
+class ArmyInputHTML(gr.HTML):
+    """HTML-based interactive army input using Gradio 6's interactive HTML API.
+
+    props.value is a JSON string:
+        {"units": [...15 ints...], "raw": "...", "recap": "...", "error": null, "panel": "none"}
+
+    panel: "none" | "string" | "units" | "import"
+    """
+
+    _UNIT_SHORTS = [short for _, short, _ in nm.army.unit_names]
+
+    # TODO: ArmyInputHTML doesn't pack flush inside gr.Group like native Gradio components.
+    # Root cause: css_template is auto-scoped (Svelte hash on every selector), so rules with
+    # ancestor selectors like `.gr-group .ai-widget` never match the group wrapper outside this
+    # component. Gradio's own group rule strips border/radius from the direct child (.ai-wrapper),
+    # but the visible border lives on the inner .ai-widget. Moving the border to .ai-wrapper
+    # doesn't work because gr.HTML with container=False applies its own border:none to the outer
+    # wrapper. Global CSS in app.py can reach .gr-group but requires !important fights that are
+    # brittle. The intended solution is probably a proper Svelte-based custom component rather
+    # than the css_template approach — investigate if/when we need true group integration.
+
+    _CSS = """
+.ai-wrapper { position: relative; overflow: visible; padding: 0 !important; margin: 0 !important; }
+.ai-widget {
+    border: 1px solid var(--border-color-primary);
+    border-radius: var(--radius-lg, 8px);
+    padding: 8px 10px;
+    background: var(--background-fill-primary);
+}
+/* --- label present: header is its own row, recap below --- */
+.ai-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+.ai-label { font-size: .85rem; font-weight: 600; color: var(--body-text-color-subdued); flex: 1; }
+.ai-btns { display: flex; gap: 4px; }
+
+/* --- no label: widget is a single flex row (buttons inline with recap) --- */
+.ai-widget.no-label { display: flex; align-items: center; gap: 8px; }
+.ai-widget.no-label .ai-header { margin-bottom: 0; flex-shrink: 0; }
+.ai-widget.no-label .ai-recap { flex: 1; order: 1; }
+/* btns-right (no label): recap visually before buttons */
+.ai-widget.no-label.btns-right .ai-recap { order: -1; }
+
+/* --- popover anchoring: btns-right → right edge, otherwise left edge --- */
+.ai-widget.btns-right .ai-string-panel,
+.ai-widget.btns-right .ai-units-popover { right: 0; left: auto; }
+
+.ai-btn {
+    padding: 2px 7px;
+    border: 1px solid var(--border-color-primary);
+    border-radius: var(--radius-sm, 4px);
+    background: var(--background-fill-secondary);
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1.5;
+    transition: background .1s;
+    color: var(--body-text-color);
+}
+.ai-btn:hover:not(.active) {
+    background: color-mix(in srgb, var(--color-accent) 15%, var(--background-fill-secondary));
+}
+.ai-btn.active { background: var(--color-accent); }
+.ai-recap {
+    font-size: .85rem;
+    color: var(--body-text-color);
+    min-height: 1.2em;
+    word-break: break-word;
+}
+.ai-recap-empty { color: var(--body-text-color-subdued); font-style: italic; }
+.ai-string-panel, .ai-units-popover {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: auto;
+    z-index: 200;
+    background: var(--background-fill-primary);
+    border: 1px solid var(--border-color-primary);
+    border-radius: var(--radius-lg, 8px);
+    padding: 10px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.18);
+    max-height: 320px;
+    overflow-y: auto;
+}
+.ai-string-panel { min-width: 280px; }
+.ai-units-popover { min-width: 150px; }
+.ai-textarea {
+    width: 100%;
+    min-height: 60px;
+    padding: 6px;
+    border: 1px solid var(--border-color-primary);
+    border-radius: var(--radius-sm, 4px);
+    background: var(--background-fill-secondary);
+    color: var(--body-text-color);
+    font-size: .85rem;
+    resize: vertical;
+    box-sizing: border-box;
+    font-family: monospace;
+}
+.ai-textarea:focus { outline: 2px solid var(--color-accent); outline-offset: -1px; }
+.ai-error {
+    color: var(--error-text-color, #dc2626);
+    font-size: .8rem;
+    margin-top: 4px;
+}
+.ai-confirm {
+    margin-top: 6px;
+    padding: 4px 12px;
+    border: 1px solid var(--border-color-primary);
+    border-radius: var(--radius-sm, 4px);
+    background: var(--background-fill-secondary);
+    cursor: pointer;
+    font-size: .85rem;
+    color: var(--body-text-color);
+}
+.ai-confirm:hover {
+    background: color-mix(in srgb, var(--color-accent) 10%, var(--background-fill-secondary));
+}
+.ai-units-grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 3px 8px;
+    align-items: center;
+}
+.ai-unit-label {
+    font-size: .8rem;
+    font-weight: 600;
+    color: var(--body-text-color);
+    text-align: right;
+    user-select: none;
+}
+.ai-unit-input {
+    width: 90px;
+    padding: 2px 5px;
+    border: 1px solid var(--border-color-primary);
+    border-radius: var(--radius-sm, 4px);
+    background: var(--background-fill-secondary);
+    color: var(--body-text-color);
+    font-size: .8rem;
+    text-align: right;
+}
+.ai-unit-input:focus { outline: 2px solid var(--color-accent); outline-offset: -1px; }
+"""
+
+    _JS = """
+const widget = element.querySelector('.ai-widget');
+const unitShorts = JSON.parse(widget.dataset.unitShorts);
+
+const grid = element.querySelector('.ai-units-grid');
+unitShorts.forEach((short, i) => {
+    const lbl = document.createElement('span');
+    lbl.className = 'ai-unit-label';
+    lbl.textContent = short;
+    const inp = document.createElement('input');
+    inp.type = 'number';
+    inp.className = 'ai-unit-input';
+    inp.dataset.idx = String(i);
+    inp.min = '0';
+    inp.step = '1';
+    inp.value = '0';
+    grid.appendChild(lbl);
+    grid.appendChild(inp);
+});
+
+function getState() {
+    try { return JSON.parse(props.value); }
+    catch(e) { return {units: Array(unitShorts.length).fill(0), raw: '', recap: '', error: null, panel: 'none'}; }
+}
+
+const recapEl = element.querySelector('.ai-recap');
+const stringPanel = element.querySelector('.ai-string-panel');
+const unitsPopover = element.querySelector('.ai-units-popover');
+const textarea = element.querySelector('.ai-textarea');
+const errorDiv = element.querySelector('.ai-error');
+const unitInputs = Array.from(grid.querySelectorAll('.ai-unit-input'));
+const btns = Array.from(element.querySelectorAll('.ai-btn'));
+
+function render(state) {
+    if (state.recap) {
+        recapEl.textContent = state.recap;
+        recapEl.classList.remove('ai-recap-empty');
+    } else {
+        recapEl.textContent = 'Armée vide';
+        recapEl.classList.add('ai-recap-empty');
+    }
+
+    unitInputs.forEach((inp, i) => {
+        if (document.activeElement !== inp) inp.value = (state.units || [])[i] ?? 0;
+    });
+
+    const showStr = state.panel === 'string';
+    stringPanel.style.display = showStr ? '' : 'none';
+    if (showStr && document.activeElement !== textarea) textarea.value = state.raw || '';
+
+    if (state.error) { errorDiv.textContent = state.error; errorDiv.style.display = ''; }
+    else errorDiv.style.display = 'none';
+
+    unitsPopover.style.display = state.panel === 'units' ? '' : 'none';
+
+    btns.forEach(btn => {
+        const a = btn.dataset.action;
+        btn.classList.toggle('active',
+            (a === 'string' && state.panel === 'string') ||
+            (a === 'units' && state.panel === 'units'));
+    });
+}
+
+render(getState());
+watch(() => props.value, newVal => { try { render(JSON.parse(newVal)); } catch(e) {} });
+
+async function processAndRender(state) {
+    const newState = await server.process_army(state);
+    render(newState);
+    props.value = JSON.stringify(newState);
+    trigger('input');
+}
+
+element.addEventListener('click', e => {
+    const btn = e.target.closest('.ai-btn');
+    if (!btn) return;
+    const state = getState();
+    const action = btn.dataset.action;
+    if (action === 'string') {
+        // Toggle panel client-side only — no server call needed
+        state.panel = state.panel === 'string' ? 'none' : 'string';
+        props.value = JSON.stringify(state);
+        render(state);
+        if (state.panel === 'string') setTimeout(() => textarea.focus(), 0);
+    } else if (action === 'units') {
+        state.panel = state.panel === 'units' ? 'none' : 'units';
+        props.value = JSON.stringify(state);
+        render(state);
+    } else if (action === 'import') {
+        state.panel = 'import';
+        processAndRender(state);
+    }
+});
+
+element.querySelector('.ai-confirm').addEventListener('click', () => {
+    const state = getState();
+    state.raw = textarea.value;
+    state.panel = 'string';
+    processAndRender(state);
+});
+
+textarea.addEventListener('paste', e => {
+    const pasted = (e.clipboardData || window.clipboardData).getData('text');
+    const state = getState();
+    state.raw = pasted;
+    state.panel = 'string';
+    setTimeout(() => processAndRender(state), 0);
+});
+
+grid.addEventListener('input', e => {
+    const inp = e.target.closest('.ai-unit-input');
+    if (!inp) return;
+    const state = getState();
+    const idx = parseInt(inp.dataset.idx, 10);
+    state.units[idx] = Math.max(0, parseInt(inp.value, 10) || 0);
+    state.panel = 'units';
+    processAndRender(state);
+});
+
+// Close any open popover on outside click (client-side only)
+document.addEventListener('click', e => {
+    if (!element.isConnected || element.contains(e.target)) return;
+    const state = getState();
+    if (state.panel === 'units' || state.panel === 'string') {
+        state.panel = 'none';
+        props.value = JSON.stringify(state);
+        render(state);
+    }
+});
+"""
+
+    def __init__(
+        self,
+        label: str | None = None,
+        value: nm.army.Army | None = None,
+        recap_format: t.Literal["compact", "full"] = "compact",
+        show_import: bool = True,
+        btn_align: t.Literal["left", "right"] = "right",
+        **kwargs,
+    ):
+        army = value or nm.army.Army()
+
+        def _fmt(a: nm.army.Army) -> str:
+            return (a.to_str_compact(sep=", ") if recap_format == "compact" else a.to_str()) if a.count > 0 else ""
+
+        recap = _fmt(army)
+
+        initial_state = json.dumps({
+            "units": army._units.tolist(),
+            "raw": recap,
+            "recap": recap,
+            "error": None,
+            "panel": "none",
+        })
+
+        # Closes over recap_format; must be defined before super().__init__().
+        def process_army(state: dict) -> dict:
+            panel = state.get("panel", "none")
+            current = nm.army.Army([int(x) for x in state.get("units", [0] * 15)])
+            result_army = current
+            try:
+                if panel == "string":
+                    result_army = nm.army.Army.from_str(state.get("raw", ""))
+                    state["units"] = result_army._units.tolist()
+                    state["error"] = None
+                    state["panel"] = "none"
+                elif panel == "units":
+                    state["error"] = None
+                elif panel == "import":
+                    result_army = nm.army.Army()
+                    state["units"] = result_army._units.tolist()
+                    state["raw"] = ""
+                    state["error"] = None
+                    state["panel"] = "none"
+            except ValueError as e:
+                result_army = current
+                state["error"] = str(e)
+            state["recap"] = _fmt(result_army)
+            return state
+
+        unit_shorts_json = json.dumps(self._UNIT_SHORTS)
+        import_btn = (
+            "<button class='ai-btn' data-action='import' title='Importer'>\U0001f4e5</button>"
+            if show_import else ""
+        )
+        btns_html = (
+            f"<div class='ai-btns'>"
+            f"<button class='ai-btn' data-action='string' title='Coller armée'>\U0001f4cb</button>"
+            f"<button class='ai-btn' data-action='units' title='Saisir unités'>✏️</button>"
+            f"{import_btn}"
+            f"</div>"
+        )
+        # DOM order determines button side for the label case:
+        # btn_align="right" → [label, buttons]; "left" → [buttons, label]
+        label_html = f"<span class='ai-label'>{label}</span>" if label else ""
+        if btn_align == "left":
+            header_content = btns_html + label_html
+        else:
+            header_content = label_html + btns_html
+
+        widget_classes = ["ai-widget"]
+        if btn_align == "right":
+            widget_classes.append("btns-right")
+        if not label:
+            widget_classes.append("no-label")
+        widget_cls = " ".join(widget_classes)
+
+        html_template = (
+            f"<div class='{widget_cls}' data-unit-shorts='{unit_shorts_json}'>"
+            f"<div class='ai-header'>{header_content}</div>"
+            f"<div class='ai-recap'></div>"
+            f"<div class='ai-string-panel' style='display:none'>"
+            f"<textarea class='ai-textarea' placeholder='Coller armée ici…'></textarea>"
+            f"<div class='ai-error' style='display:none'></div>"
+            f"<button class='ai-confirm'>Valider</button>"
+            f"</div>"
+            f"<div class='ai-units-popover' style='display:none'>"
+            f"<div class='ai-units-grid'></div>"
+            f"</div>"
+            f"</div>"
+        )
+
+        _merge_elem_classes(kwargs, "ai-wrapper")
+        kwargs.setdefault("container", False)
+        kwargs.setdefault("show_label", False)
+        kwargs.setdefault("apply_default_css", False)
+        kwargs.setdefault("padding", False)
+
+        super().__init__(
+            value=initial_state,
+            html_template=html_template,
+            css_template=self._CSS,
+            js_on_load=self._JS,
+            server_functions=[process_army],
+            **kwargs,
+        )
+
+        self.state = gr.State(army)
+
+        # trigger('input') fires this after processAndRender() to propagate the Army
+        # to self.state for external consumers.
+        @gr.on(
+            triggers=[self.input],
+            inputs=[self],
+            outputs=[self.state],
+            show_progress="hidden",
+        )
+        def _(state_json: str):
+            state = json.loads(state_json)
+            units = state.get("units", [0] * 15)
+            try:
+                return nm.army.Army([int(x) for x in units])
+            except (ValueError, OverflowError):
+                return nm.army.Army()
 
 
 class RCInput:

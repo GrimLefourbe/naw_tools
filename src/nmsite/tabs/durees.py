@@ -5,6 +5,7 @@ import typing as t
 import nawminator as nm
 
 from nmsite.tabs.settings import Settings
+from nmsite.interface import SegmentedControl, interactivity_updates
 
 
 _TARGETS = ["VA", "Arrivée", "Départ"]
@@ -98,10 +99,12 @@ class DureesTab:
                     gr.Text("y", min_width=30, **args)
                     self._from_y = gr.Number(value=0, scale=0, min_width=70, **args)
 
-            with gr.Column(scale=0, min_width=90), gr.Group():
-                self._btn_va = gr.Button("VA", variant="secondary", size="sm", elem_classes=["mode-btn"])
-                self._btn_arrivee = gr.Button("Arrivée", variant="primary", size="sm", elem_classes=["mode-btn"])
-                self._btn_depart = gr.Button("Départ", variant="secondary", size="sm", elem_classes=["mode-btn"])
+            with gr.Column(scale=0, min_width=90):
+                self._target_sel = SegmentedControl(
+                    choices=_TARGETS,
+                    value="Arrivée",
+                    elem_id="durees_target",
+                )
 
             with gr.Column(min_width=100), gr.Group():
                 gr.Markdown(
@@ -167,35 +170,24 @@ class DureesTab:
             show_progress="hidden",
         )
 
-        buttons = [self._btn_va, self._btn_arrivee, self._btn_depart]
         value_fields = [self._va, self._duration, self._start_time, self._arrival_time]
-        all_btn_outputs = [self._target_state] + buttons + value_fields
 
-        def make_handler(target):
-            interactivity = _TARGET_INTERACTIVITY[target]
-            payload = (
-                (target,)
-                + tuple(gr.update(variant="primary" if tt == target else "secondary") for tt in _TARGETS)
-                + tuple(gr.update(interactive=i, elem_classes=[] if i else ["result-field"]) for i in interactivity)
-            )
-            return lambda: payload
-
-        for btn, target in zip(buttons, _TARGETS):
-            btn.click(
-                fn=make_handler(target),
-                outputs=all_btn_outputs,
-                show_progress="hidden",
-            ).then(
-                fn=_apply_time_defaults,
-                inputs=[self._target_state, self._start_time, self._arrival_time],
-                outputs=[self._start_time, self._arrival_time],
-                show_progress="hidden",
-            ).then(
-                fn=_compute,
-                inputs=all_inputs,
-                outputs=all_outputs,
-                show_progress="hidden",
-            )
+        self._target_sel.input(
+            fn=lambda target: interactivity_updates(target, _TARGET_INTERACTIVITY),
+            inputs=[self._target_sel],
+            outputs=[self._target_state] + value_fields,
+            show_progress="hidden",
+        ).then(
+            fn=_apply_time_defaults,
+            inputs=[self._target_state, self._start_time, self._arrival_time],
+            outputs=[self._start_time, self._arrival_time],
+            show_progress="hidden",
+        ).then(
+            fn=_compute,
+            inputs=all_inputs,
+            outputs=all_outputs,
+            show_progress="hidden",
+        )
 
         gr.on(
             triggers=[
