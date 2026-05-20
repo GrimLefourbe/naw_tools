@@ -1,6 +1,7 @@
 from pickle import NONE
 import json
 import gradio as gr
+from gradio.context import get_blocks_context
 import nawminator as nm
 import datetime as dt
 
@@ -780,19 +781,22 @@ document.addEventListener('click', e => {
 
         # trigger('input') fires this after processAndRender() to propagate the Army
         # to self.state for external consumers.
-        @gr.on(
-            triggers=[self.input],
-            inputs=[self],
-            outputs=[self.state],
-            show_progress="hidden",
-        )
-        def _(state_json: str):
-            state = json.loads(state_json)
-            units = state.get("units", [0] * 15)
-            try:
-                return nm.army.Army([int(x) for x in units])
-            except (ValueError, OverflowError):
-                return nm.army.Army()
+        # Guard: Gradio's postprocess_data reconstructs output components by calling
+        # __init__ again outside the Blocks context; skip event registration then.
+        if get_blocks_context() is not None:
+            @gr.on(
+                triggers=[self.input],
+                inputs=[self],
+                outputs=[self.state],
+                show_progress="hidden",
+            )
+            def _(state_json: str):
+                state = json.loads(state_json)
+                units = state.get("units", [0] * 15)
+                try:
+                    return nm.army.Army([int(x) for x in units])
+                except (ValueError, OverflowError):
+                    return nm.army.Army()
 
 
 class RCInput:

@@ -2,9 +2,10 @@ import gradio as gr
 import nawminator as nm
 import datetime as dt
 import math
+import json
 
 from nmsite.army_list import ArmyList
-from nmsite.interface import SegmentedControl, interactivity_updates
+from nmsite.interface import ArmyInputHTML, SegmentedControl, interactivity_updates
 
 
 N_MAX = 8
@@ -80,6 +81,17 @@ def _compute_total(mode, lst: ArmyList, tdp, alli, duration):
     return _compute(mode, lst.total, tdp, alli, duration)
 
 
+def _army_to_html_value(army: nm.army.Army) -> str:
+    recap = army.to_str_compact(sep=", ") if army.count > 0 else ""
+    return json.dumps({
+        "units": army._units.tolist(),
+        "raw": recap,
+        "recap": recap,
+        "error": None,
+        "panel": "none",
+    })
+
+
 def pontes_tab():
     return PontesTab()
 
@@ -90,10 +102,10 @@ class PontesTab:
         self._configure_triggers()
 
     def _row_outputs(self) -> list:
-        """Flat list: [container, checkbox, paste, *unit_boxes] * N_MAX."""
+        """Flat list: [container, checkbox, army_input] * N_MAX."""
         out = []
         for i in range(N_MAX):
-            out += [self._row_containers[i], self._checkboxes[i], self._paste_boxes[i]] + self._unit_boxes[i]
+            out += [self._row_containers[i], self._checkboxes[i], self._army_inputs[i]]
         return out
 
     def _row_updates(self, al: ArmyList) -> list:
@@ -102,60 +114,21 @@ class PontesTab:
         for i in range(N_MAX):
             if i < len(al.armies):
                 army = al.armies[i]
-                compact = army.to_str_compact(sep=", ") if army.count > 0 else ""
                 updates += [
                     gr.update(visible=True),
                     gr.update(value=al.checks[i]),
-                    gr.update(value=compact),
-                ] + [gr.update(value=int(army._units[j])) for j in range(15)]
+                    gr.update(value=_army_to_html_value(army)),
+                ]
             else:
                 updates += [
                     gr.update(visible=False),
                     gr.update(value=False),
-                    gr.update(value=""),
-                ] + [gr.update(value=0) for _ in range(15)]
+                    gr.update(value=_army_to_html_value(nm.army.Army())),
+                ]
         return updates
 
     def _set_layout(self):
         self._list_state = gr.State(ArmyList())
-
-        self._row_containers = []
-        self._checkboxes = []
-        self._paste_boxes = []
-        self._unit_boxes = []
-        self._del_btns = []
-
-        for i in range(N_MAX):
-            with gr.Row(visible=(i < 2)) as row:  # ArmyList default: 2 armies
-                cb = gr.Checkbox(
-                    value=False,
-                    show_label=False, container=False,
-                    scale=0, min_width=44,
-                    elem_classes=["army-check"],
-                )
-                paste = gr.Textbox(
-                    placeholder="Coller Armée",
-                    show_label=False, container=False,
-                )
-                with gr.Column(scale=0, min_width=200):
-                    with gr.Accordion("Unités", open=False):
-                        with gr.Group():
-                            unit_row_boxes = []
-                            for _, short_name, _ in nm.army.unit_names:
-                                with gr.Row():
-                                    gr.Text(short_name, max_lines=1, show_label=False,
-                                            interactive=False, container=False, min_width=100)
-                                    unit_row_boxes.append(gr.Number(
-                                        value=0, scale=2, precision=0,
-                                        show_label=False, container=False,
-                                    ))
-                del_btn = gr.Button("✕", scale=0, min_width=40, size="sm", variant="secondary")
-
-            self._row_containers.append(row)
-            self._checkboxes.append(cb)
-            self._paste_boxes.append(paste)
-            self._unit_boxes.append(unit_row_boxes)
-            self._del_btns.append(del_btn)
 
         with gr.Row():
             self._add_btn = gr.Button("+ Ajouter", scale=1)
@@ -171,6 +144,27 @@ class PontesTab:
                             gr.Button(str(n), scale=1, min_width=35)
                             for n in range(1, N_MAX + 1)
                         ]
+
+        self._row_containers = []
+        self._checkboxes = []
+        self._army_inputs = []
+        self._del_btns = []
+
+        for i in range(N_MAX):
+            with gr.Row(visible=(i < 2), equal_height=True) as row:
+                del_btn = gr.Button("✕", scale=0, min_width=40, size="sm", variant="secondary")
+                cb = gr.Checkbox(
+                    value=False,
+                    show_label=False, container=False,
+                    scale=0, min_width=44,
+                    elem_classes=["army-check"],
+                )
+                army_input = ArmyInputHTML(btn_align="left", show_import=False)
+
+            self._row_containers.append(row)
+            self._checkboxes.append(cb)
+            self._army_inputs.append(army_input)
+            self._del_btns.append(del_btn)
 
         self._total_display = gr.Textbox(
             label="Total", interactive=False, elem_classes=["result-field"],
@@ -230,32 +224,10 @@ class PontesTab:
                 show_progress="hidden",
             )
 
-            def on_paste(text, lst, i=i):
-                army = nm.army.Army.from_str(text) if text.strip() else nm.army.Army()
-                new_lst = lst.update_army(i, army)
-                return [new_lst] + [gr.update(value=int(army._units[j])) for j in range(15)]
-
-            self._paste_boxes[i].input(
-                on_paste,
-                inputs=[self._paste_boxes[i], self._list_state],
-                outputs=[self._list_state] + self._unit_boxes[i],
-                show_progress="hidden",
-            )
-
-            unit_boxes_i = self._unit_boxes[i]
-            paste_i = self._paste_boxes[i]
-
-            def on_unit_input(*args, i=i):
-                *unit_vals, lst = args
-                army = nm.army.Army([int(v or 0) for v in unit_vals])
-                new_lst = lst.update_army(i, army)
-                return new_lst, army.to_str_compact(sep=", ") if army.count > 0 else ""
-
-            gr.on(
-                triggers=[b.input for b in unit_boxes_i],
-                fn=on_unit_input,
-                inputs=[*unit_boxes_i, self._list_state],
-                outputs=[self._list_state, paste_i],
+            self._army_inputs[i].state.change(
+                lambda army, lst, i=i: lst.update_army(i, army),
+                inputs=[self._army_inputs[i].state, self._list_state],
+                outputs=self._list_state,
                 show_progress="hidden",
             )
 
