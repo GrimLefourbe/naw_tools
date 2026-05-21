@@ -261,7 +261,7 @@ class SegmentedControl(gr.HTML):
     The component's value (accessible as an input) is the selected label string.
     """
 
-    _CSS = """
+    _CSS = r"""
         .seg-control {
             display: flex;
             flex-direction: column;
@@ -302,7 +302,7 @@ class SegmentedControl(gr.HTML):
         }
     """
 
-    _JS = """
+    _JS = r"""
         function updateSelection(val) {
             element.querySelectorAll('.seg-btn').forEach(btn => {
                 btn.classList.toggle('selected', btn.dataset.value === String(val));
@@ -361,7 +361,7 @@ class ArmyInputHTML(gr.HTML):
     # than the css_template approach — investigate if/when we need true group integration.
 
     # --- Widget layout: wrapper, header row, recap display, no-label / btns-right variants ---
-    _CSS_LAYOUT = """
+    _CSS_LAYOUT = r"""
 .ai-wrapper { position: relative; overflow: visible; padding: 0 !important; margin: 0 !important; }
 .ai-widget {
     border: 1px solid var(--border-color-primary);
@@ -398,7 +398,7 @@ class ArmyInputHTML(gr.HTML):
 """
 
     # --- Action buttons (📋 / ✏️ / 📥) in the header ---
-    _CSS_BUTTONS = """
+    _CSS_BUTTONS = r"""
 .ai-btn {
     padding: 2px 7px;
     border: 1px solid var(--border-color-primary);
@@ -417,7 +417,7 @@ class ArmyInputHTML(gr.HTML):
 """
 
     # --- String-paste panel (shared popover base + textarea, error, confirm) ---
-    _CSS_STRING_PANEL = """
+    _CSS_STRING_PANEL = r"""
 .ai-string-panel, .ai-units-popover {
     position: absolute;
     top: calc(100% + 4px);
@@ -468,7 +468,7 @@ class ArmyInputHTML(gr.HTML):
 """
 
     # --- Unit-by-unit editor popover ---
-    _CSS_UNITS_EDITOR = """
+    _CSS_UNITS_EDITOR = r"""
 .ai-units-popover { min-width: 150px; }
 .ai-units-grid {
     display: grid;
@@ -499,7 +499,7 @@ class ArmyInputHTML(gr.HTML):
     _CSS = _CSS_LAYOUT + _CSS_BUTTONS + _CSS_STRING_PANEL + _CSS_UNITS_EDITOR
 
     # --- DOM setup: build unit-input grid, cache element references, state helper ---
-    _JS_SETUP = """
+    _JS_SETUP = r"""
 const widget = element.querySelector('.ai-widget');
 const unitShorts = JSON.parse(widget.dataset.unitShorts);
 
@@ -534,7 +534,7 @@ const btns = Array.from(element.querySelectorAll('.ai-btn'));
 """
 
     # --- Render: sync DOM to state, react to external value updates ---
-    _JS_RENDER = """
+    _JS_RENDER = r"""
 function render(state) {
     if (state.recap) {
         recapEl.textContent = state.recap;
@@ -570,7 +570,7 @@ watch("value", () => { try { render(JSON.parse(props.value)); trigger('change');
 """
 
     # --- Server bridge: send state to Python, render result, fire Gradio events ---
-    _JS_SERVER = """
+    _JS_SERVER = r"""
 async function processAndRender(state) {
     const newState = await server.process_army(state);
     render(newState);
@@ -581,7 +581,7 @@ async function processAndRender(state) {
 """
 
     # --- Event listeners: buttons, string confirm, paste, unit inputs, outside click ---
-    _JS_EVENTS = """
+    _JS_EVENTS = r"""
 element.addEventListener('click', e => {
     const btn = e.target.closest('.ai-btn');
     if (!btn) return;
@@ -600,6 +600,11 @@ element.addEventListener('click', e => {
     } else if (action === 'import') {
         state.panel = 'import';
         processAndRender(state);
+    } else if (action === 'copy') {
+        navigator.clipboard.writeText(getState().recap.replace(/, /g, '\n')).then(() => {
+            btn.textContent = '✓';
+            setTimeout(() => { btn.textContent = '📤'; }, 1200);
+        });
     }
 });
 
@@ -648,6 +653,7 @@ document.addEventListener('click', e => {
         value: nm.army.Army | None = None,
         recap_format: t.Literal["compact", "full"] = "compact",
         show_import: bool = True,
+        show_copy: bool = True,
         btn_align: t.Literal["left", "right"] = "right",
         **kwargs,
     ):
@@ -694,7 +700,7 @@ document.addEventListener('click', e => {
                 "error": None,
                 "panel": "none",
             }),
-            html_template=self._make_html_template(label, btn_align, show_import),
+            html_template=self._make_html_template(label, btn_align, show_import, show_copy),
             css_template=self._CSS,
             js_on_load=self._JS,
             server_functions=[process_army],
@@ -705,16 +711,21 @@ document.addEventListener('click', e => {
         return (a.to_str_compact(sep=", ") if self._recap_format == "compact" else a.to_str()) if a.count > 0 else ""
 
     @classmethod
-    def _make_html_template(cls, label: str | None, btn_align: str, show_import: bool) -> str:
+    def _make_html_template(cls, label: str | None, btn_align: str, show_import: bool, show_copy: bool) -> str:
         unit_shorts_json = json.dumps(cls._UNIT_SHORTS)
         import_btn = (
             "<button class='ai-btn' data-action='import' title='Importer'>\U0001f4e5</button>"
             if show_import else ""
         )
+        copy_btn = (
+            "<button class='ai-btn' data-action='copy' title='Copier armée'>\U0001f4e4</button>"
+            if show_copy else ""
+        )
         btns_html = (
             f"<div class='ai-btns'>"
             f"<button class='ai-btn' data-action='string' title='Coller armée'>\U0001f4cb</button>"
             f"<button class='ai-btn' data-action='units' title='Saisir unités'>✏️</button>"
+            f"{copy_btn}"
             f"{import_btn}"
             f"</div>"
         )

@@ -15,7 +15,6 @@
 ### Future improvements
 - [ ] Compact stats display per row (HP, ATK, count) — always visible alongside the paste box
 - [ ] Split by DMG — répartir variant that equalises attack power across parts; needs a stats/bonuses input
-- [ ] Add "Copy" button to make it easier to copy an army on mobile.
 
 ## App / architecture
 
