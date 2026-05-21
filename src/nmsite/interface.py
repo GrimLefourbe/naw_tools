@@ -1,4 +1,3 @@
-from pickle import NONE
 import json
 import gradio as gr
 
@@ -50,50 +49,6 @@ class ArmyInput:
 
         self.unit_boxes = unit_boxes
         self.state = army_state
-
-
-class ListArmyInput:
-    """Army input for use inside @gr.render list rows.
-
-    No internal gr.State — creating gr.State inside @gr.render fires state.change
-    on initialization, causing render cascades. State management is the caller's
-    responsibility: wire paste.input and unit_boxes.input to whatever state you need.
-    Accordion open/closed state is preserved across re-renders via key=.
-    """
-
-    def __init__(self, key_prefix: str, initial_army: nm.army.Army | None = None):
-        army = initial_army or nm.army.Army()
-        self.paste = gr.Textbox(
-            value=army.to_str_compact(sep=", ") if army.count > 0 else "",
-            placeholder="Coller Armée",
-            show_label=False,
-            container=False,
-        )
-        self.unit_boxes = []
-        with gr.Accordion("Unités", open=False, key=f"{key_prefix}-accordion"):
-            with gr.Group():
-                for idx, (_, short_name, _) in enumerate(nm.army.unit_names):
-                    with gr.Row():
-                        gr.Text(
-                            short_name,
-                            max_lines=1,
-                            show_label=False,
-                            interactive=False,
-                            container=False,
-                            min_width=100,
-                        )
-                        self.unit_boxes.append(
-                            gr.Number(
-                                value=int(army._units[idx]),
-                                scale=2, precision=0,
-                                label=short_name, show_label=False, container=False,
-                            )
-                        )
-
-        # No triggers registered — callers inside @gr.render must wire paste.input and
-        # unit_boxes.input themselves. Registering triggers here would create a second
-        # fn_id for the same event, and when a caller's handler triggers a re-render,
-        # the still-in-flight internal handler's fn_id gets removed → KeyError.
 
 
 class LevelsInput:
@@ -354,13 +309,14 @@ class SegmentedControl(gr.HTML):
             });
         }
         updateSelection(props.value);
-        watch(() => props.value, updateSelection);
+        watch("value", () => { updateSelection(props.value); trigger('change'); });
         element.addEventListener('click', e => {
             const btn = e.target.closest('.seg-btn');
             if (!btn) return;
             updateSelection(btn.dataset.value);
             props.value = btn.dataset.value;
             trigger('input');
+            trigger('change');
         });
     """
 
@@ -705,7 +661,6 @@ document.addEventListener('click', e => {
         kwargs.setdefault("padding", False)
 
         recap = self._fmt(army)
-        fmt = self._fmt
 
         def process_army(state: dict) -> dict:
             panel = state.get("panel", "none")
@@ -728,7 +683,7 @@ document.addEventListener('click', e => {
             except ValueError as e:
                 result_army = current
                 state["error"] = str(e)
-            state["recap"] = fmt(result_army)
+            state["recap"] = self._fmt(result_army)
             return state
 
         super().__init__(

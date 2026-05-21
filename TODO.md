@@ -5,33 +5,17 @@
 - [ ] Add "Now" button on time fields — insert current time with one click
 - [ ] Add input validation feedback — warn when coords are 0,0 or VA is 0 instead of silent failure
 - [ ] Result field styling — left border works for all components but color/font changes don't apply to `gr.Number`
+- [ ] Replace `interactivity_updates` server round-trip with client-side JS — toggling `interactive` state and CSS classes on dependent fields when `SegmentedControl` changes is a purely UI concern; no server call needed. Affects Durées and Armées tabs.
 
 ## Armées tab (was Pontes)
 
-### What's done ✓
-- `src/nmsite/army_list.py` — `ArmyList` class (pure Python, no Gradio): `add`, `remove`, `update_army`, `set_check`, `fusionner`, `repartir`, `total`. Fully tested (unit + property-based).
-- `tests/nmsite/test_army_list.py` — 20+ tests including Hypothesis property tests
-- `tests/nmsite/test_pontes.py` — regression tests for `_find_tdp_alli` (the TDP reverse-compute fix)
-- Tab renamed "Pontes" → "Armées" in `app.py`
-- TDP computation (`_find_tdp_alli`, `_compute`) correctly implemented in `pontes.py`
-- Army list UI with `N_MAX=8` static rows (dropped `@gr.render` which crashed with `KeyError on fn_index`)
-- Action bar redesigned: `[+ Ajouter]` + `[Répartir M en [1][2]...[8]]` — single-click, mobile-friendly, M counter updates on selection
-- Accordion constrained to 200px so paste box dominates each row
-- Large checkboxes via CSS (`.army-check`), checkbox+paste grouped with `gr.Group`
+### Cleanup todos
+- [ ] Move `_find_tdp_alli` into `nawminator` lib (currently in `nmsite/tabs/pontes.py`) — pure game math, no UI dependency
 
 ### Future improvements
 - [ ] Compact stats display per row (HP, ATK, count) — always visible alongside the paste box
-- [ ] Better unit input UX — popup/hover panel instead of accordion, especially important for vertical/mobile layout
 - [ ] Split by DMG — répartir variant that equalises attack power across parts; needs a stats/bonuses input
-- [ ] Check-all button — left of `+ Ajouter`, vertically aligned with the checkboxes
-
-### Cleanup todos
-- [ ] Move `_find_tdp_alli` into `nawminator` lib (currently in `nmsite/tabs/pontes.py`) — pure game math, no UI dependency
-- [ ] `ListArmyInput` in `interface.py` has no internal triggers — dead code since static-row redesign, either repurpose or remove
-
-## Devcontainer
-
-- [ ] Upgrade base image back to `ubuntu` (latest) once Playwright supports Ubuntu 26.04 — pinned to `ubuntu-24.04` as a workaround. Track [microsoft/playwright#40117](https://github.com/microsoft/playwright/issues/40117); they plan to start work once a GHA runner image is available. Check back ~mid-June 2026.
+- [ ] Add "Copy" button to make it easier to copy an army on mobile.
 
 ## App / architecture
 
@@ -46,8 +30,7 @@
 
 - [ ] CSS modularity — move tab-specific CSS out of `app.py` (see TODO comment in that file)
 
-- [ ] JS/CSS in custom HTML components — currently embedded as Python strings in `interface.py` (no syntax highlighting). Consider moving to separate `.js`/`.css` files read at class definition time (`Path(__file__).parent / "army_input.js"`). Only worth doing once there are enough components to establish a shared convention — revisit when a second or third `gr.HTML` component is added.
-  - Durees and Pontes both use `elem_id="mode-selector"` (duplicate ID, invalid HTML) — switching to a shared `elem_classes=["mode-selector"]` + updating the CSS selector would fix this cleanly
+- [ ] JS/CSS in custom HTML components — currently embedded as Python strings in `interface.py` (no syntax highlighting). Consider moving to separate `.js`/`.css` files read at class definition time (`Path(__file__).parent / "army_input.js"`). Only worth doing once there are enough components to establish a shared convention — revisit when a third `gr.HTML` component is added (the time input below would be it).
 
 - [ ] Time input component — reusable picker supporting both `HH:MM:SS` and ajhms notations
   - Both formats are interchangeable in the game (not "clock time vs duration", just two notations for the same value)
@@ -59,7 +42,6 @@
     - `head`: load external JS/CSS libraries (e.g. a touch-friendly time picker lib)
     - No Svelte build pipeline needed — stays within the existing project
   - Full custom Gradio component (Svelte) is the cleanest architecture but high setup cost; Gradio team aware of this pain point (issue #12074)
-  - **First step**: check current Gradio version and whether `server_functions` / `js_on_load` API is available
   - One component needed that accepts/displays both formats, auto-detecting or toggling between them
 
 - [ ] General user feedback / error notifications
@@ -69,3 +51,7 @@
   - Convention to establish: Warning = soft/missing input, Error = hard/unexpected failure
   - Each tab owns its own messages (no central registry needed given tab-based structure)
   - Start with Durées tab as a template, then roll out to other tabs
+
+## Devcontainer
+
+- [ ] Upgrade base image back to `ubuntu` (latest) once Playwright supports Ubuntu 26.04 — pinned to `ubuntu-24.04` as a workaround. Track [microsoft/playwright#40117](https://github.com/microsoft/playwright/issues/40117); they plan to start work once a GHA runner image is available. Check back ~mid-June 2026.
