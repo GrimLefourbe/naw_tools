@@ -52,7 +52,7 @@ def hunt_difficulty(
     v = p * mult
     return np.int64(np.ceil(b + 2.5 * np.round(v / 2.5)))
     return np.ceil(base + 2.5 * (((hunt ** power) * (coef * (hunt + start/10)))//2.5))
-    return base + coef * (hunt ** (power+1)) + (coef/10) * (hunt ** power) * start 
+    return base + coef * (hunt ** (power+1)) + (coef/10) * (hunt ** power) * start
     return base + coef * (hunt ** (power+1)) + coef * hunt ** power * start/10
     return base + coef * (hunt ** (power)) * hunt + coef * hunt ** power * start/10
 

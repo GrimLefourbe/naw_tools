@@ -1,4 +1,3 @@
-from email.policy import strict
 from nawminator.levels import Levels, AllianceType, HeroType, FightZone
 import pytest
 import numpy as np

@@ -1,5 +1,4 @@
 import html
-import io
 import regex as re
 import pandas as pd
 import nawminator as nm

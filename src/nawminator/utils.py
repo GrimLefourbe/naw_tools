@@ -1,4 +1,3 @@
-from collections import namedtuple
 import typing as t
 import re
 import logging
