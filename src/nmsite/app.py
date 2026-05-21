@@ -1,4 +1,3 @@
-from email.policy import default
 import gradio as gr
 import os
 import nmsite
@@ -58,43 +57,50 @@ HEADER = f"""
 ">🚀 {config.title} - {config.subtitle} 🚀</div>
 """
 
+if config.tabs == "default":
+    config.tabs = ["settings", "combat", "pontes", "synchro", "durees"]
+
 with gr.Blocks(title=f"{config.title} - {config.subtitle}", fill_width=True) as demo:
     with gr.Tab("Réglages", render=False) as settings_tab:
         settings = nmsite.tabs.settings.settings_tab(config, demo)
     gr.HTML(HEADER, container=False)
     tabs = {"settings": settings_tab}
-    with gr.Tab("Combat", render=False) as combat_tab:
-        from nmsite.tabs import combat
-        combat.combat_tab(config)
-        tabs["combat"] = combat_tab
+    if config.tabs == "all" or "combat" in config.tabs:
+        with gr.Tab("Combat", render=False) as combat_tab:
+            from nmsite.tabs import combat
+            combat.combat_tab(config)
+            tabs["combat"] = combat_tab
 
-    with gr.Tab(label="Synchro", id="default", render=False) as synchro_tab:
-        from nmsite.tabs import synchro
-        synchro.synchro_tab(config, settings)
-        tabs["synchro"] = synchro_tab
+    if config.tabs == "all" or "synchro" in config.tabs:
+        with gr.Tab(label="Synchro", id="default", render=False) as synchro_tab:
+            from nmsite.tabs import synchro
+            synchro.synchro_tab(config, settings)
+            tabs["synchro"] = synchro_tab
 
-    with gr.Tab("Armées", render=False) as pontes_tab:
-        from nmsite.tabs import pontes
-        pontes.pontes_tab()
-        tabs["pontes"] = pontes_tab
+    if config.tabs == "all" or "pontes" in config.tabs:
+        with gr.Tab("Armées", render=False) as pontes_tab:
+            from nmsite.tabs import pontes
+            pontes.pontes_tab()
+            tabs["pontes"] = pontes_tab
 
-    with gr.Tab("Chasse", render=False) as hunt_tab:
-        from nmsite.tabs import hunt
-        hunt.hunt_tab(config)
-        tabs["hunt"] = hunt_tab
+    if config.tabs == "all" or "hunt" in config.tabs:
+        with gr.Tab("Chasse", render=False) as hunt_tab:
+            from nmsite.tabs import hunt
+            hunt.hunt_tab(config)
+            tabs["hunt"] = hunt_tab
 
-    with gr.Tab("Durées", render=False) as durees_tab:
-        from nmsite.tabs import durees
-        durees.durees_tab(settings)
-        tabs["durees"] = durees_tab
+    if config.tabs == "all" or "durees" in config.tabs:
+        with gr.Tab("Durées", render=False) as durees_tab:
+            from nmsite.tabs import durees
+            durees.durees_tab(settings)
+            tabs["durees"] = durees_tab
 
     match config.tabs:
-        case "default":
-            tab_order = ["combat", "pontes", "synchro", "durees", "settings"]
         case "all":
             tab_order = list(tabs.keys())
         case [*elems] if set(elems) <= tabs.keys():
             tab_order = elems
+
     with gr.Tabs(selected="default") as t:
         for tab in tab_order:
             tabs[tab].render()
