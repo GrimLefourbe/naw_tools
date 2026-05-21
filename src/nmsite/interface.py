@@ -802,7 +802,7 @@ document.addEventListener('click', e => {
         if isinstance(value, str):
             return value
         army = value if isinstance(value, nm.army.Army) else nm.army.Army()
-        recap = army.to_str_compact(sep=", ") if army.count > 0 else ""
+        recap = self._fmt(army)
         return json.dumps({
             "units": army._units.tolist(),
             "raw": recap,
@@ -874,8 +874,8 @@ class WarPartyStats:
         )
         def update_stats(p: nm.battle.WarParty):
             return (
-                f"{p.total_hp:,.0f}".replace(",", " "),
-                f"+{p.bonuses.hp:.0%}",
+                f"{p.total_hp:,.0f}".replace(",", " ") if p.bonuses.hp is not None else "?",
+                f"+{p.bonuses.hp:.0%}" if p.bonuses.hp is not None else "?",
                 f"{p.total_dmg:,.0f}".replace(",", " "),
                 f"+{p.bonuses.dmg:.0%}",
                 f"{p.army.count:,.0f}".replace(",", " "),

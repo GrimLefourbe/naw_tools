@@ -35,14 +35,14 @@ class CombatTab():
                     "<div style='text-align:center; font-weight:bold; font-size:18px;'>Attaquant</div>"
                 )
                 self.attacker_levels_input = interface.LevelsInput(self.hero_enabled, atk=False)
-                self.attacker_army_input = interface.ArmyInput()
+                self.attacker_army_input = interface.ArmyInputHTML(show_import=False, recap_format="full")
 
             with gr.Column(variant="panel", min_width=175, elem_classes=["right"]) as defender_col:
                 gr.Markdown(
                     "<div style='text-align:center; font-weight:bold; font-size:18px;'>Défenseur</div>"
                 )
                 self.defender_levels_input = interface.LevelsInput(self.hero_enabled, atk=False)
-                self.defender_army_input = interface.ArmyInput()
+                self.defender_army_input = interface.ArmyInputHTML(show_import=False, btn_align="left", recap_format="full")
 
             with gr.Column(scale=2, min_width=400, elem_classes=["middle"]):
                 gr.Markdown(
@@ -119,10 +119,10 @@ class CombatTab():
     def configure_triggers(self):
         @gr.on(
             triggers=[
-                self.attacker_army_input.state.change,
+                self.attacker_army_input.change,
                 self.attacker_levels_input.state.change,
             ],
-            inputs=[self.attacker_army_input.state, self.attacker_levels_input.state],
+            inputs=[self.attacker_army_input, self.attacker_levels_input.state],
             outputs=self.attacker_party_state,
         )
         def attacker_update(army: nm.army.Army, levels: nm.levels.Levels):
@@ -132,12 +132,12 @@ class CombatTab():
 
         @gr.on(
             triggers=[
-                self.defender_army_input.state.change,
+                self.defender_army_input.change,
                 self.defender_levels_input.state.change,
                 self.lieu_input.change,
             ],
             inputs=[
-                self.defender_army_input.state,
+                self.defender_army_input,
                 self.defender_levels_input.state,
                 self.lieu_input,
             ],
@@ -158,33 +158,28 @@ class CombatTab():
         @gr.on(
             triggers=self.invert_button.click,
             inputs=[
-                self.attacker_army_input.state,
-                self.defender_army_input.state,
+                self.attacker_army_input,
+                self.defender_army_input,
                 self.attacker_levels_input.state,
                 self.defender_levels_input.state,
                 self.attacker_levels_input.input_box,
                 self.defender_levels_input.input_box,
-                *self.attacker_army_input.unit_boxes,
-                *self.defender_army_input.unit_boxes,
                 *self.attacker_levels_input.input_fields,
                 *self.defender_levels_input.input_fields,
             ],
             outputs=[
-                self.defender_army_input.state,
-                self.attacker_army_input.state,
+                self.defender_army_input,
+                self.attacker_army_input,
                 self.defender_levels_input.state,
                 self.attacker_levels_input.state,
                 self.defender_levels_input.input_box,
                 self.attacker_levels_input.input_box,
-                *self.defender_army_input.unit_boxes,
-                *self.attacker_army_input.unit_boxes,
                 *self.defender_levels_input.input_fields,
                 *self.attacker_levels_input.input_fields,
             ],
             show_progress="hidden",
         )
         def invert_players(*args):
-            print("Invert!")
             return args
 
         @gr.on(
@@ -207,12 +202,10 @@ class CombatTab():
             outputs=[
                 self.attacker_party_state,
                 self.defender_party_state,
-                self.attacker_army_input.state,
-                *self.attacker_army_input.unit_boxes,
+                self.attacker_army_input,
                 self.attacker_levels_input.state,
                 *self.attacker_levels_input.input_fields,
-                self.defender_army_input.state,
-                *self.defender_army_input.unit_boxes,
+                self.defender_army_input,
                 self.defender_levels_input.state,
                 *self.defender_levels_input.input_fields,
             ],
@@ -269,11 +262,9 @@ class CombatTab():
                 attacker,
                 defender,
                 attacker.army,
-                *attacker.army._units,
                 attacker_levels,
                 *attacker_levels_fields,
                 defender.army,
-                *defender.army._units,
                 defender_levels,
                 *defender_levels_fields,
             )
