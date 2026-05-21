@@ -5,7 +5,8 @@ import typing as t
 import nawminator as nm
 
 from nmsite.tabs.settings import Settings
-from nmsite.interface import SegmentedControl, interactivity_updates
+from nmsite.interface import SegmentedControl
+from nmsite.utils import interactivity_updates
 
 
 _TARGETS = ["VA", "Arrivée", "Départ"]

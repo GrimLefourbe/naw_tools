@@ -1,7 +1,7 @@
 from pickle import NONE
 import json
 import gradio as gr
-from gradio.context import get_blocks_context
+
 import nawminator as nm
 import datetime as dt
 
@@ -285,17 +285,6 @@ def _merge_elem_classes(kwargs: dict, cls: str) -> None:
     kwargs["elem_classes"] = list(existing) + [cls]
 
 
-def interactivity_updates(value: str, interactivity_map: dict) -> tuple:
-    """Build gr.update outputs for a segmented-control mode/target change.
-
-    Returns (value, *gr.update(interactive=..., elem_classes=...)) matching the
-    interactivity booleans in interactivity_map[value].
-    """
-    return (value,) + tuple(
-        gr.update(interactive=iv, elem_classes=[] if iv else ["result-field"])
-        for iv in interactivity_map[value]
-    )
-
 
 class SegmentedControl(gr.HTML):
     """Stacked button selector with instant client-side visual feedback.
@@ -415,7 +404,8 @@ class ArmyInputHTML(gr.HTML):
     # brittle. The intended solution is probably a proper Svelte-based custom component rather
     # than the css_template approach — investigate if/when we need true group integration.
 
-    _CSS = """
+    # --- Widget layout: wrapper, header row, recap display, no-label / btns-right variants ---
+    _CSS_LAYOUT = """
 .ai-wrapper { position: relative; overflow: visible; padding: 0 !important; margin: 0 !important; }
 .ai-widget {
     border: 1px solid var(--border-color-primary);
@@ -423,7 +413,6 @@ class ArmyInputHTML(gr.HTML):
     padding: 8px 10px;
     background: var(--background-fill-primary);
 }
-/* --- label present: header is its own row, recap below --- */
 .ai-header {
     display: flex;
     align-items: center;
@@ -432,18 +421,28 @@ class ArmyInputHTML(gr.HTML):
 }
 .ai-label { font-size: .85rem; font-weight: 600; color: var(--body-text-color-subdued); flex: 1; }
 .ai-btns { display: flex; gap: 4px; }
+.ai-recap {
+    font-size: .85rem;
+    color: var(--body-text-color);
+    min-height: 1.2em;
+    word-break: break-word;
+}
+.ai-recap-empty { color: var(--body-text-color-subdued); font-style: italic; }
 
-/* --- no label: widget is a single flex row (buttons inline with recap) --- */
+/* no label: widget is a single flex row (buttons inline with recap) */
 .ai-widget.no-label { display: flex; align-items: center; gap: 8px; }
 .ai-widget.no-label .ai-header { margin-bottom: 0; flex-shrink: 0; }
 .ai-widget.no-label .ai-recap { flex: 1; order: 1; }
 /* btns-right (no label): recap visually before buttons */
 .ai-widget.no-label.btns-right .ai-recap { order: -1; }
 
-/* --- popover anchoring: btns-right → right edge, otherwise left edge --- */
+/* popover anchoring: btns-right → right edge, otherwise left edge */
 .ai-widget.btns-right .ai-string-panel,
 .ai-widget.btns-right .ai-units-popover { right: 0; left: auto; }
+"""
 
+    # --- Action buttons (📋 / ✏️ / 📥) in the header ---
+    _CSS_BUTTONS = """
 .ai-btn {
     padding: 2px 7px;
     border: 1px solid var(--border-color-primary);
@@ -459,13 +458,10 @@ class ArmyInputHTML(gr.HTML):
     background: color-mix(in srgb, var(--color-accent) 15%, var(--background-fill-secondary));
 }
 .ai-btn.active { background: var(--color-accent); }
-.ai-recap {
-    font-size: .85rem;
-    color: var(--body-text-color);
-    min-height: 1.2em;
-    word-break: break-word;
-}
-.ai-recap-empty { color: var(--body-text-color-subdued); font-style: italic; }
+"""
+
+    # --- String-paste panel (shared popover base + textarea, error, confirm) ---
+    _CSS_STRING_PANEL = """
 .ai-string-panel, .ai-units-popover {
     position: absolute;
     top: calc(100% + 4px);
@@ -481,7 +477,6 @@ class ArmyInputHTML(gr.HTML):
     overflow-y: auto;
 }
 .ai-string-panel { min-width: 280px; }
-.ai-units-popover { min-width: 150px; }
 .ai-textarea {
     width: 100%;
     min-height: 60px;
@@ -514,6 +509,11 @@ class ArmyInputHTML(gr.HTML):
 .ai-confirm:hover {
     background: color-mix(in srgb, var(--color-accent) 10%, var(--background-fill-secondary));
 }
+"""
+
+    # --- Unit-by-unit editor popover ---
+    _CSS_UNITS_EDITOR = """
+.ai-units-popover { min-width: 150px; }
 .ai-units-grid {
     display: grid;
     grid-template-columns: auto 1fr;
@@ -540,7 +540,10 @@ class ArmyInputHTML(gr.HTML):
 .ai-unit-input:focus { outline: 2px solid var(--color-accent); outline-offset: -1px; }
 """
 
-    _JS = """
+    _CSS = _CSS_LAYOUT + _CSS_BUTTONS + _CSS_STRING_PANEL + _CSS_UNITS_EDITOR
+
+    # --- DOM setup: build unit-input grid, cache element references, state helper ---
+    _JS_SETUP = """
 const widget = element.querySelector('.ai-widget');
 const unitShorts = JSON.parse(widget.dataset.unitShorts);
 
@@ -572,7 +575,10 @@ const textarea = element.querySelector('.ai-textarea');
 const errorDiv = element.querySelector('.ai-error');
 const unitInputs = Array.from(grid.querySelectorAll('.ai-unit-input'));
 const btns = Array.from(element.querySelectorAll('.ai-btn'));
+"""
 
+    # --- Render: sync DOM to state, react to external value updates ---
+    _JS_RENDER = """
 function render(state) {
     if (state.recap) {
         recapEl.textContent = state.recap;
@@ -604,15 +610,22 @@ function render(state) {
 }
 
 render(getState());
-watch(() => props.value, newVal => { try { render(JSON.parse(newVal)); } catch(e) {} });
+watch("value", () => { try { render(JSON.parse(props.value)); trigger('change'); } catch(e) {} });
+"""
 
+    # --- Server bridge: send state to Python, render result, fire Gradio events ---
+    _JS_SERVER = """
 async function processAndRender(state) {
     const newState = await server.process_army(state);
     render(newState);
     props.value = JSON.stringify(newState);
     trigger('input');
+    trigger('change');
 }
+"""
 
+    # --- Event listeners: buttons, string confirm, paste, unit inputs, outside click ---
+    _JS_EVENTS = """
 element.addEventListener('click', e => {
     const btn = e.target.closest('.ai-btn');
     if (!btn) return;
@@ -671,6 +684,8 @@ document.addEventListener('click', e => {
 });
 """
 
+    _JS = _JS_SETUP + _JS_RENDER + _JS_SERVER + _JS_EVENTS
+
     def __init__(
         self,
         label: str | None = None,
@@ -681,21 +696,17 @@ document.addEventListener('click', e => {
         **kwargs,
     ):
         army = value or nm.army.Army()
+        self._recap_format = recap_format
 
-        def _fmt(a: nm.army.Army) -> str:
-            return (a.to_str_compact(sep=", ") if recap_format == "compact" else a.to_str()) if a.count > 0 else ""
+        _merge_elem_classes(kwargs, "ai-wrapper")
+        kwargs.setdefault("container", False)
+        kwargs.setdefault("show_label", False)
+        kwargs.setdefault("apply_default_css", False)
+        kwargs.setdefault("padding", False)
 
-        recap = _fmt(army)
+        recap = self._fmt(army)
+        fmt = self._fmt
 
-        initial_state = json.dumps({
-            "units": army._units.tolist(),
-            "raw": recap,
-            "recap": recap,
-            "error": None,
-            "panel": "none",
-        })
-
-        # Closes over recap_format; must be defined before super().__init__().
         def process_army(state: dict) -> dict:
             panel = state.get("panel", "none")
             current = nm.army.Army([int(x) for x in state.get("units", [0] * 15)])
@@ -717,10 +728,30 @@ document.addEventListener('click', e => {
             except ValueError as e:
                 result_army = current
                 state["error"] = str(e)
-            state["recap"] = _fmt(result_army)
+            state["recap"] = fmt(result_army)
             return state
 
-        unit_shorts_json = json.dumps(self._UNIT_SHORTS)
+        super().__init__(
+            value=json.dumps({
+                "units": army._units.tolist(),
+                "raw": recap,
+                "recap": recap,
+                "error": None,
+                "panel": "none",
+            }),
+            html_template=self._make_html_template(label, btn_align, show_import),
+            css_template=self._CSS,
+            js_on_load=self._JS,
+            server_functions=[process_army],
+            **kwargs,
+        )
+
+    def _fmt(self, a: nm.army.Army) -> str:
+        return (a.to_str_compact(sep=", ") if self._recap_format == "compact" else a.to_str()) if a.count > 0 else ""
+
+    @classmethod
+    def _make_html_template(cls, label: str | None, btn_align: str, show_import: bool) -> str:
+        unit_shorts_json = json.dumps(cls._UNIT_SHORTS)
         import_btn = (
             "<button class='ai-btn' data-action='import' title='Importer'>\U0001f4e5</button>"
             if show_import else ""
@@ -735,20 +766,16 @@ document.addEventListener('click', e => {
         # DOM order determines button side for the label case:
         # btn_align="right" → [label, buttons]; "left" → [buttons, label]
         label_html = f"<span class='ai-label'>{label}</span>" if label else ""
-        if btn_align == "left":
-            header_content = btns_html + label_html
-        else:
-            header_content = label_html + btns_html
+        header_content = btns_html + label_html if btn_align == "left" else label_html + btns_html
 
         widget_classes = ["ai-widget"]
         if btn_align == "right":
             widget_classes.append("btns-right")
         if not label:
             widget_classes.append("no-label")
-        widget_cls = " ".join(widget_classes)
 
-        html_template = (
-            f"<div class='{widget_cls}' data-unit-shorts='{unit_shorts_json}'>"
+        return (
+            f"<div class='{' '.join(widget_classes)}' data-unit-shorts='{unit_shorts_json}'>"
             f"<div class='ai-header'>{header_content}</div>"
             f"<div class='ai-recap'></div>"
             f"<div class='ai-string-panel' style='display:none'>"
@@ -762,41 +789,27 @@ document.addEventListener('click', e => {
             f"</div>"
         )
 
-        _merge_elem_classes(kwargs, "ai-wrapper")
-        kwargs.setdefault("container", False)
-        kwargs.setdefault("show_label", False)
-        kwargs.setdefault("apply_default_css", False)
-        kwargs.setdefault("padding", False)
+    def preprocess(self, payload):
+        if payload is None:
+            return nm.army.Army()
+        try:
+            state = json.loads(str(payload))
+            return nm.army.Army([int(x) for x in state.get("units", [0] * 15)])
+        except (json.JSONDecodeError, ValueError, OverflowError):
+            return nm.army.Army()
 
-        super().__init__(
-            value=initial_state,
-            html_template=html_template,
-            css_template=self._CSS,
-            js_on_load=self._JS,
-            server_functions=[process_army],
-            **kwargs,
-        )
-
-        self.state = gr.State(army)
-
-        # trigger('input') fires this after processAndRender() to propagate the Army
-        # to self.state for external consumers.
-        # Guard: Gradio's postprocess_data reconstructs output components by calling
-        # __init__ again outside the Blocks context; skip event registration then.
-        if get_blocks_context() is not None:
-            @gr.on(
-                triggers=[self.input],
-                inputs=[self],
-                outputs=[self.state],
-                show_progress="hidden",
-            )
-            def _(state_json: str):
-                state = json.loads(state_json)
-                units = state.get("units", [0] * 15)
-                try:
-                    return nm.army.Army([int(x) for x in units])
-                except (ValueError, OverflowError):
-                    return nm.army.Army()
+    def postprocess(self, value):
+        if isinstance(value, str):
+            return value
+        army = value if isinstance(value, nm.army.Army) else nm.army.Army()
+        recap = army.to_str_compact(sep=", ") if army.count > 0 else ""
+        return json.dumps({
+            "units": army._units.tolist(),
+            "raw": recap,
+            "recap": recap,
+            "error": None,
+            "panel": "none",
+        })
 
 
 class RCInput:

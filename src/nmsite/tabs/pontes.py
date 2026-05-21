@@ -2,10 +2,10 @@ import gradio as gr
 import nawminator as nm
 import datetime as dt
 import math
-import json
 
 from nmsite.army_list import ArmyList
-from nmsite.interface import ArmyInputHTML, SegmentedControl, interactivity_updates
+from nmsite.interface import ArmyInputHTML, SegmentedControl
+from nmsite.utils import interactivity_updates
 
 
 N_MAX = 8
@@ -81,17 +81,6 @@ def _compute_total(mode, lst: ArmyList, tdp, alli, duration):
     return _compute(mode, lst.total, tdp, alli, duration)
 
 
-def _army_to_html_value(army: nm.army.Army) -> str:
-    recap = army.to_str_compact(sep=", ") if army.count > 0 else ""
-    return json.dumps({
-        "units": army._units.tolist(),
-        "raw": recap,
-        "recap": recap,
-        "error": None,
-        "panel": "none",
-    })
-
-
 def pontes_tab():
     return PontesTab()
 
@@ -117,22 +106,23 @@ class PontesTab:
                 updates += [
                     gr.update(visible=True),
                     gr.update(value=al.checks[i]),
-                    gr.update(value=_army_to_html_value(army)),
+                    gr.update(value=army),
                 ]
             else:
                 updates += [
                     gr.update(visible=False),
                     gr.update(value=False),
-                    gr.update(value=_army_to_html_value(nm.army.Army())),
+                    gr.update(value=nm.army.Army()),
                 ]
         return updates
 
     def _set_layout(self):
         self._list_state = gr.State(ArmyList())
 
-        with gr.Row():
-            self._add_btn = gr.Button("+ Ajouter", scale=1)
-            with gr.Column(scale=3):
+        with gr.Row(equal_height=True):
+            self._add_btn = gr.Button("+", scale=0, min_width=40, size="sm", variant="secondary")
+            self._all_btn = gr.Button("All", scale=0, min_width=44, size="sm", variant="secondary")
+            with gr.Column():
                 with gr.Group():
                     with gr.Row():
                         self._repartir_label = gr.Text(
@@ -192,14 +182,49 @@ class PontesTab:
         row_outputs = self._row_outputs()
         shift_outputs = [self._list_state] + row_outputs
 
+        tdp_fields = [self._tdp, self._alli, self._duration]
+        list_change_outputs = (
+            [self._total_display, self._add_btn, self._repartir_label, *self._repartir_btns]
+            + tdp_fields
+        )
+        list_change_inputs = [self._list_state, self._tdp_mode_state, self._tdp, self._alli, self._duration]
+
         def on_shift(new_lst):
             return [new_lst] + self._row_updates(new_lst)
+
+        def _on_list_change(lst: ArmyList, mode, tdp, alli, duration):
+            m = sum(lst.checks)
+            n_armies = len(lst.armies)
+            max_n = N_MAX - n_armies + m
+            total = lst.total
+            tdp_out, alli_out, dur_out = _compute(mode, total, tdp, alli, duration)
+            return (
+                total.to_str_compact(sep=", ") if total.count > 0 else "",
+                gr.update(interactive=n_armies < N_MAX),
+                gr.update(value=f"Répartir {m} en"),
+                *[gr.update(interactive=(n <= max_n)) for n in range(1, N_MAX + 1)],
+                tdp_out, alli_out, dur_out,
+            )
 
         self._add_btn.click(
             lambda lst: on_shift(lst.add() if len(lst.armies) < N_MAX else lst),
             inputs=self._list_state, outputs=shift_outputs,
             show_progress="hidden",
-        )
+        ).then(_on_list_change, inputs=list_change_inputs, outputs=list_change_outputs, show_progress="hidden")
+
+        def on_toggle_all(lst: ArmyList):
+            n = len(lst.armies)
+            target = not all(lst.checks[:n])
+            new_lst = lst
+            for i in range(n):
+                new_lst = new_lst.set_check(i, target)
+            return on_shift(new_lst)
+
+        self._all_btn.click(
+            on_toggle_all,
+            inputs=self._list_state, outputs=shift_outputs,
+            show_progress="hidden",
+        ).then(_on_list_change, inputs=list_change_inputs, outputs=list_change_outputs, show_progress="hidden")
 
         for btn, n in zip(self._repartir_btns, range(1, N_MAX + 1)):
             btn.click(
@@ -224,36 +249,16 @@ class PontesTab:
                 show_progress="hidden",
             )
 
-            self._army_inputs[i].state.change(
+            self._army_inputs[i].change(
                 lambda army, lst, i=i: lst.update_army(i, army),
-                inputs=[self._army_inputs[i].state, self._list_state],
+                inputs=[self._army_inputs[i], self._list_state],
                 outputs=self._list_state,
                 show_progress="hidden",
             )
 
-        tdp_fields = [self._tdp, self._alli, self._duration]
-        list_change_outputs = (
-            [self._total_display, self._add_btn, self._repartir_label, *self._repartir_btns]
-            + tdp_fields
-        )
-
-        def _on_list_change(lst: ArmyList, mode, tdp, alli, duration):
-            m = sum(lst.checks)
-            n_armies = len(lst.armies)
-            max_n = N_MAX - n_armies + m
-            total = lst.total
-            tdp_out, alli_out, dur_out = _compute(mode, total, tdp, alli, duration)
-            return (
-                total.to_str_compact(sep=", ") if total.count > 0 else "",
-                gr.update(interactive=n_armies < N_MAX),
-                gr.update(value=f"Répartir {m} en"),
-                *[gr.update(interactive=(n <= max_n)) for n in range(1, N_MAX + 1)],
-                tdp_out, alli_out, dur_out,
-            )
-
         self._list_state.change(
             _on_list_change,
-            inputs=[self._list_state, self._tdp_mode_state, self._tdp, self._alli, self._duration],
+            inputs=list_change_inputs,
             outputs=list_change_outputs,
             show_progress="hidden",
         )

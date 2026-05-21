@@ -45,6 +45,8 @@
   - Gradio 6.10.0 pinned due to separate tab-freeze bug in 6.11+ (gradio-app/gradio#13285, fix pending in PR #13240).
 
 - [ ] CSS modularity — move tab-specific CSS out of `app.py` (see TODO comment in that file)
+
+- [ ] JS/CSS in custom HTML components — currently embedded as Python strings in `interface.py` (no syntax highlighting). Consider moving to separate `.js`/`.css` files read at class definition time (`Path(__file__).parent / "army_input.js"`). Only worth doing once there are enough components to establish a shared convention — revisit when a second or third `gr.HTML` component is added.
   - Durees and Pontes both use `elem_id="mode-selector"` (duplicate ID, invalid HTML) — switching to a shared `elem_classes=["mode-selector"]` + updating the CSS selector would fix this cleanly
 
 - [ ] Time input component — reusable picker supporting both `HH:MM:SS` and ajhms notations
