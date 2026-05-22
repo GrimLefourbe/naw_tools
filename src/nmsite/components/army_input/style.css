@@ -12,7 +12,7 @@
     gap: 6px;
     margin-bottom: 4px;
 }
-.ai-label { font-size: .85rem; font-weight: 600; color: var(--body-text-color-subdued); flex: 1; }
+.ai-label { font-size: .85rem; font-weight: 600; color: var(--body-text-color); flex: 1; }
 .ai-btns { display: flex; gap: 4px; }
 .ai-recap {
     font-size: .85rem;
