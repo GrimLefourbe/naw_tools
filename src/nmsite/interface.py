@@ -782,6 +782,508 @@ class RCInput:
     pass
 
 
+class LevelsInputComponent(gr.HTML):
+    """HTML-based interactive levels input using Gradio 6's interactive HTML API.
+
+    props.value is a JSON string with keys: mandibule, carapace, hero_lvl, hero_type,
+    dome, loge, alliance, special, raw, error, panel.
+
+    The set of displayed fields is controlled by a frozenset built from constructor
+    parameters.  hero_enabled and show_buildings are convenience shortcuts; future
+    parameters add their fields to the same set without multiplying boolean flags.
+    """
+
+    # (id, label, layout, fields)  layout: "grid2" | "inline"
+    _GROUPS: t.ClassVar[list[tuple[str, str, str, list[str]]]] = [
+        ("recherche", "Recherche", "grid2", ["mandibule", "carapace"]),
+        ("hero",      "Héros",     "grid2", ["hero_type", "hero_lvl"]),
+        ("bonus",     "Bonus",     "grid2", ["special", "alliance"]),
+        ("buildings", "Bâtiments", "grid2", ["dome", "loge"]),
+    ]
+
+    _CSS = r"""
+.li-wrapper { position: relative; overflow: visible; padding: 0 !important; margin: 0 !important; }
+.li-widget {
+    border: 1px solid var(--border-color-primary);
+    border-radius: var(--radius-lg, 8px);
+    padding: 8px 10px;
+    background: var(--background-fill-primary);
+    container-type: inline-size;
+}
+.li-header { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; flex-wrap: wrap; }
+.li-label {
+    font-size: .85rem; font-weight: 600; color: var(--body-text-color-subdued);
+    flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.li-recap-row { display: flex; align-items: flex-start; gap: 4px; margin-bottom: 6px; }
+.li-recap {
+    flex: 1; min-width: 0;
+    font-size: .82rem;
+    font-family: monospace;
+    color: var(--body-text-color-subdued);
+    min-height: 1em;
+    white-space: pre;
+}
+.li-recap-btns { display: none; flex-wrap: wrap; gap: 4px; flex-shrink: 0; }
+@container (max-width: 200px) {
+    .li-btn-copy { display: none; }
+    .li-recap-btns { display: flex; }
+}
+.li-btns { display: flex; flex-wrap: wrap; gap: 4px; flex-shrink: 0; }
+.li-btn {
+    padding: 2px 7px;
+    border: 1px solid var(--border-color-primary);
+    border-radius: var(--radius-sm, 4px);
+    background: var(--background-fill-secondary);
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1.5;
+    transition: background .1s;
+    color: var(--body-text-color);
+}
+.li-btn:hover { background: color-mix(in srgb, var(--color-accent) 15%, var(--background-fill-secondary)); }
+.li-btn.active { background: var(--color-accent); }
+.li-import-hidden [data-action='import'] { display: none; }
+.li-group { margin-bottom: 4px; }
+/* grid2: two equal columns, field name above element */
+.li-group-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 8px; }
+/* middle rows: selector col gets 2× the number col */
+.li-group-hero  { grid-template-columns: 2fr 1fr; }
+.li-group-bonus { grid-template-columns: 1fr 2fr; }
+.li-col { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.li-col-label {
+    font-size: .72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--body-text-color-subdued);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+/* inline: flex row (kept for future use) */
+.li-group-inline { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+.li-field-label { font-size: .8rem; font-weight: 600; color: var(--body-text-color); }
+.li-input {
+    padding: 5px 6px;
+    border: 1px solid var(--border-color-primary);
+    border-radius: var(--radius-sm, 4px);
+    background: var(--background-fill-secondary);
+    color: var(--body-text-color);
+    font-size: .85rem;
+    text-align: center;
+    box-sizing: border-box;
+    width: 100%;
+}
+.li-input-sm { width: 58px; }
+.li-input:focus { outline: 2px solid var(--color-accent); outline-offset: -1px; }
+/* selects inside grid2 fill their column */
+.li-group-grid2 .li-select { width: 100%; box-sizing: border-box; }
+/* selector stretches to match adjacent number input height */
+.li-col > .li-selector { flex: 1; }
+/* selector: horizontal button strip */
+.li-selector { display: flex; gap: 2px; }
+.li-sel-btn {
+    flex: 1;
+    padding: 4px 0;
+    border: 1px solid var(--border-color-primary);
+    border-radius: var(--radius-sm, 4px);
+    background: var(--background-fill-secondary);
+    cursor: pointer;
+    font-size: .78rem;
+    font-weight: 700;
+    color: var(--body-text-color-subdued);
+    text-align: center;
+    line-height: 1;
+    transition: background .1s, color .1s;
+}
+.li-sel-btn:hover:not(.li-sel-active) {
+    background: color-mix(in srgb, var(--color-accent) 15%, var(--background-fill-secondary));
+    color: var(--body-text-color);
+}
+.li-sel-active { background: var(--color-accent); color: white; border-color: var(--color-accent); }
+.li-select {
+    padding: 3px 5px;
+    border: 1px solid var(--border-color-primary);
+    border-radius: var(--radius-sm, 4px);
+    background: var(--background-fill-secondary);
+    color: var(--body-text-color);
+    font-size: .85rem;
+}
+.li-select:focus { outline: 2px solid var(--color-accent); outline-offset: -1px; }
+.li-string-panel {
+    background: var(--background-fill-primary);
+    border: 1px solid var(--border-color-primary);
+    border-radius: var(--radius-lg, 8px);
+    padding: 8px;
+    margin-bottom: 6px;
+}
+.li-textarea {
+    width: 100%;
+    min-height: 50px;
+    padding: 5px;
+    border: 1px solid var(--border-color-primary);
+    border-radius: var(--radius-sm, 4px);
+    background: var(--background-fill-secondary);
+    color: var(--body-text-color);
+    font-size: .85rem;
+    font-family: monospace;
+    resize: vertical;
+    box-sizing: border-box;
+}
+.li-textarea:focus { outline: 2px solid var(--color-accent); outline-offset: -1px; }
+.li-error { color: var(--error-text-color, #dc2626); font-size: .8rem; margin-top: 4px; }
+.li-confirm {
+    margin-top: 5px;
+    padding: 3px 10px;
+    border: 1px solid var(--border-color-primary);
+    border-radius: var(--radius-sm, 4px);
+    background: var(--background-fill-secondary);
+    cursor: pointer;
+    font-size: .85rem;
+    color: var(--body-text-color);
+}
+.li-confirm:hover { background: color-mix(in srgb, var(--color-accent) 10%, var(--background-fill-secondary)); }
+"""
+
+    _JS_SETUP = r"""
+const recapEl = element.querySelector('.li-recap');
+const stringPanel = element.querySelector('.li-string-panel');
+const textarea = element.querySelector('.li-textarea');
+const errorDiv = element.querySelector('.li-error');
+const fieldEls = Array.from(element.querySelectorAll('input[data-field], select[data-field]'));
+const selectorEls = Array.from(element.querySelectorAll('.li-selector[data-field]'));
+const btnEls = Array.from(element.querySelectorAll('.li-btn'));
+let wheelTimer;
+
+function getState() {
+    try { return JSON.parse(props.value); }
+    catch(e) {
+        return {mandibule:0, carapace:0, hero_lvl:0, hero_type:null,
+                dome:0, loge:0, alliance:'None', special:0,
+                raw:'', error:null, panel:'none'};
+    }
+}
+"""
+
+    _JS_RENDER = r"""
+function render(state) {
+    fieldEls.forEach(el => {
+        if (document.activeElement === el) return;
+        const v = state[el.dataset.field];
+        if (el.tagName === 'SELECT') {
+            el.value = (v == null ? '' : String(v));
+        } else {
+            el.value = (v == null ? 0 : v);
+        }
+    });
+    selectorEls.forEach(container => {
+        const cur = state[container.dataset.field];
+        const curStr = cur == null ? '' : String(cur);
+        container.querySelectorAll('.li-sel-btn').forEach(btn =>
+            btn.classList.toggle('li-sel-active', btn.dataset.value === curStr));
+    });
+    recapEl.textContent = state.raw || '';
+    const showStr = state.panel === 'string';
+    stringPanel.style.display = showStr ? '' : 'none';
+    if (showStr && document.activeElement !== textarea) textarea.value = state.raw || '';
+    if (state.error) { errorDiv.textContent = state.error; errorDiv.style.display = ''; }
+    else errorDiv.style.display = 'none';
+    btnEls.forEach(btn =>
+        btn.classList.toggle('active', btn.dataset.action === 'string' && state.panel === 'string'));
+}
+
+render(getState());
+watch("value", () => { try { render(JSON.parse(props.value)); trigger('change'); } catch(e) {} });
+"""
+
+    _JS_SERVER = r"""
+async function processAndRender(state) {
+    const newState = await server.process_levels(state);
+    render(newState);
+    props.value = JSON.stringify(newState);
+    trigger('input');
+    trigger('change');
+}
+"""
+
+    _JS_EVENTS = r"""
+element.addEventListener('input', e => {
+    const el = e.target.closest('[data-field]');
+    if (!el || el.tagName !== 'INPUT') return;
+    const state = getState();
+    state[el.dataset.field] = Math.max(0, parseInt(el.value, 10) || 0);
+    processAndRender(state);
+});
+
+element.addEventListener('wheel', e => {
+    const el = e.target.closest('[data-field]');
+    if (!el || el.tagName !== 'INPUT') return;
+    e.preventDefault();
+    const min = el.min !== '' ? parseInt(el.min, 10) : 0;
+    const max = el.max !== '' ? parseInt(el.max, 10) : Infinity;
+    const current = parseInt(el.value, 10) || 0;
+    const newVal = Math.min(max, Math.max(min, current + (e.deltaY < 0 ? 1 : -1)));
+    el.value = newVal;
+    const state = getState();
+    state[el.dataset.field] = newVal;
+    props.value = JSON.stringify(state);
+    clearTimeout(wheelTimer);
+    wheelTimer = setTimeout(() => processAndRender(state), 120);
+}, { passive: false });
+
+element.addEventListener('change', e => {
+    const el = e.target.closest('[data-field]');
+    if (!el || el.tagName !== 'SELECT') return;
+    const state = getState();
+    state[el.dataset.field] = el.value === '' ? null : el.value;
+    processAndRender(state);
+});
+
+element.addEventListener('click', e => {
+    const selBtn = e.target.closest('.li-sel-btn');
+    if (selBtn) {
+        const container = selBtn.closest('.li-selector[data-field]');
+        if (!container) return;
+        const state = getState();
+        const val = selBtn.dataset.value;
+        state[container.dataset.field] = val === '' ? null : val;
+        processAndRender(state);
+        return;
+    }
+    const btn = e.target.closest('.li-btn');
+    if (!btn) return;
+    const state = getState();
+    const action = btn.dataset.action;
+    if (action === 'string') {
+        state.panel = state.panel === 'string' ? 'none' : 'string';
+        props.value = JSON.stringify(state);
+        render(state);
+        if (state.panel === 'string') setTimeout(() => textarea.focus(), 0);
+    } else if (action === 'import') {
+        state.panel = 'import';
+        processAndRender(state);
+    } else if (action === 'copy') {
+        navigator.clipboard.writeText(getState().raw || '').then(() => {
+            btn.textContent = '✓';
+            setTimeout(() => { btn.textContent = '📤'; }, 1200);
+        });
+    }
+});
+
+element.querySelector('.li-confirm').addEventListener('click', () => {
+    const state = getState();
+    state.raw = textarea.value;
+    state.panel = 'string';
+    processAndRender(state);
+});
+
+textarea.addEventListener('paste', e => {
+    const pasted = (e.clipboardData || window.clipboardData).getData('text');
+    const state = getState();
+    state.raw = pasted;
+    state.panel = 'string';
+    setTimeout(() => processAndRender(state), 0);
+});
+
+document.addEventListener('click', e => {
+    if (!element.isConnected || element.contains(e.target)) return;
+    const state = getState();
+    if (state.panel === 'string') {
+        state.panel = 'none';
+        props.value = JSON.stringify(state);
+        render(state);
+    }
+});
+"""
+
+    _JS = _JS_SETUP + _JS_RENDER + _JS_SERVER + _JS_EVENTS
+
+    def __init__(
+        self,
+        label: str | None = None,
+        value: nm.levels.Levels | None = None,
+        hero_enabled: bool = True,
+        show_buildings: bool = True,
+        show_import: bool = False,
+        recap_sep: str = "\n",
+        min_width: int = 160,
+        **kwargs,
+    ):
+        _fields: set[str] = {"mandibule", "carapace", "special", "alliance"}
+        if hero_enabled:
+            _fields |= {"hero_lvl", "hero_type"}
+        if show_buildings:
+            _fields |= {"dome", "loge"}
+        self._fields = frozenset(_fields)
+        self._recap_sep = recap_sep
+
+        _merge_elem_classes(kwargs, "li-wrapper")
+        kwargs.setdefault("container", False)
+        kwargs.setdefault("show_label", False)
+        kwargs.setdefault("apply_default_css", False)
+        kwargs.setdefault("padding", False)
+
+        levels = value or nm.levels.Levels()
+
+        def process_levels(state: dict) -> dict:
+            panel = state.get("panel", "none")
+            if panel == "string":
+                try:
+                    lvl = nm.levels.Levels.from_str(state.get("raw", ""))
+                    self._fill_state(state, lvl)
+                    state["error"] = None
+                    state["panel"] = "none"
+                except ValueError as e:
+                    state["error"] = str(e)
+                    return state
+            elif panel == "import":
+                lvl = nm.levels.Levels()
+                self._fill_state(state, lvl)
+                state["error"] = None
+                state["panel"] = "none"
+            else:
+                lvl = self._levels_from_state(state)
+            state["raw"] = lvl.to_str(hero_enabled=("hero_lvl" in self._fields), sep=self._recap_sep)
+            return state
+
+        super().__init__(
+            value=json.dumps(self._build_state(levels)),
+            html_template=self._make_html_template(label, show_import, min_width),
+            css_template=self._CSS,
+            js_on_load=self._JS,
+            server_functions=[process_levels],
+            **kwargs,
+        )
+
+    def _fill_state(self, state: dict, lvl: nm.levels.Levels) -> None:
+        state["mandibule"] = lvl.mandibule
+        state["carapace"] = lvl.carapace
+        state["hero_lvl"] = lvl.hero_lvl
+        state["hero_type"] = lvl.hero_type.value if lvl.hero_type else None
+        state["dome"] = lvl.dome
+        state["loge"] = lvl.loge
+        state["alliance"] = lvl.alliance.value
+        state["special"] = lvl.special
+
+    def _levels_from_state(self, state: dict) -> nm.levels.Levels:
+        hero_lvl = 0
+        hero_type = None
+        if "hero_lvl" in self._fields:
+            ht_val = state.get("hero_type")
+            hero_type = nm.levels.HeroType(ht_val) if ht_val else None
+            hero_lvl = int(state.get("hero_lvl") or 0)
+        return nm.levels.Levels(
+            mandibule=int(state.get("mandibule") or 0),
+            carapace=int(state.get("carapace") or 0),
+            hero_lvl=hero_lvl,
+            hero_type=hero_type,
+            dome=int(state.get("dome") or 0) if "dome" in self._fields else 0,
+            loge=int(state.get("loge") or 0) if "loge" in self._fields else 0,
+            alliance=nm.levels.AllianceType(state.get("alliance") or "None"),
+            special=int(state.get("special") or 0),
+        )
+
+    _FIELD_LABELS: t.ClassVar[dict[str, str]] = {
+        "mandibule": "Mandibule", "carapace": "Carapace",
+        "hero_lvl": "Niv", "hero_type": "Héros",
+        "special": "Spe Combat", "alliance": "Alliance",
+        "dome": "Dôme", "loge": "Loge",
+    }
+    # (value, full_label, abbreviation)
+    _FIELD_SELECTS: t.ClassVar[dict[str, list[tuple[str, str, str]]]] = {
+        "hero_type": [("", "—", "—"), ("Attaque", "Attaque", "A"), ("Défense", "Défense", "D"), ("Vie", "Vie", "V")],
+        "alliance":  [("None", "—", "—"), ("Guerrier", "Guerrier", "G"), ("Pacifiste", "Pacifiste", "P"), ("Neutre", "Neutre", "N")],
+    }
+    _FIELD_NUM_ATTRS: t.ClassVar[dict[str, str]] = {
+        "hero_lvl": "min='0' max='180'", "special": "min='0' max='5'",
+    }
+
+    def _build_state(self, lvl: nm.levels.Levels) -> dict:
+        state: dict = {}
+        self._fill_state(state, lvl)
+        state["raw"] = lvl.to_str(hero_enabled=("hero_lvl" in self._fields), sep=self._recap_sep)
+        state["error"] = None
+        state["panel"] = "none"
+        return state
+
+    def _make_html_template(self, label: str | None, show_import: bool, min_width: int = 160) -> str:
+        widget_classes = ["li-widget"]
+        if not show_import:
+            widget_classes.append("li-import-hidden")
+
+        label_html = f"<span class='li-label'>{label}</span>" if label else ""
+        btns_html = (
+            "<div class='li-btns'>"
+            "<button class='li-btn' data-action='string' title='Coller niveaux'>\U0001f4cb</button>"
+            "<button class='li-btn' data-action='import' title='Réinitialiser'>\U0001f4e5</button>"
+            "<button class='li-btn li-btn-copy' data-action='copy' title='Copier niveaux'>\U0001f4e4</button>"
+            "</div>"
+        )
+
+        groups_html = ""
+        for group_id, _, layout, fields in self._GROUPS:
+            enabled = [f for f in fields if f in self._fields]
+            if not enabled:
+                continue
+            fields_html = "".join(self._make_field_html(f, layout) for f in enabled)
+            groups_html += f"<div class='li-group li-group-{layout} li-group-{group_id}'>{fields_html}</div>"
+
+        return (
+            f"<div class='{' '.join(widget_classes)}' style='min-width:{min_width}px'>"
+            f"<div class='li-header'>{label_html}{btns_html}</div>"
+            f"<div class='li-recap-row'>"
+            f"<div class='li-recap'></div>"
+            f"<div class='li-recap-btns'>"
+            f"<button class='li-btn' data-action='copy' title='Copier niveaux'>\U0001f4e4</button>"
+            f"</div>"
+            f"</div>"
+            f"<div class='li-string-panel' style='display:none'>"
+            f"<textarea class='li-textarea' placeholder='Coller niveaux ici…'></textarea>"
+            f"<div class='li-error' style='display:none'></div>"
+            f"<button class='li-confirm'>Valider</button>"
+            f"</div>"
+            f"<div class='li-edit-panel'>{groups_html}</div>"
+            f"</div>"
+        )
+
+    @classmethod
+    def _make_field_html(cls, field: str, layout: str) -> str:
+        label = cls._FIELD_LABELS.get(field, field)
+        if layout == "grid2":
+            if field in cls._FIELD_SELECTS:
+                btns = "".join(
+                    f"<button class='li-sel-btn' data-value='{v}'>{a}</button>"
+                    for v, _, a in cls._FIELD_SELECTS[field]
+                )
+                inner = f"<div class='li-selector' data-field='{field}'>{btns}</div>"
+            else:
+                attrs = cls._FIELD_NUM_ATTRS.get(field, "min='0'")
+                inner = f"<input type='number' class='li-input' data-field='{field}' {attrs} step='1'>"
+            return f"<div class='li-col'><span class='li-col-label'>{label}</span>{inner}</div>"
+        # inline layout (kept for future use)
+        if field in cls._FIELD_SELECTS:
+            opts = "".join(f"<option value='{v}'>{t}</option>" for v, t, _ in cls._FIELD_SELECTS[field])
+            return f"<select class='li-select' data-field='{field}'>{opts}</select>"
+        attrs = cls._FIELD_NUM_ATTRS.get(field, "min='0'")
+        return f"<span class='li-field-label'>{label}</span><input type='number' class='li-input li-input-sm' data-field='{field}' {attrs} step='1'>"
+
+    def preprocess(self, payload):
+        if payload is None:
+            return nm.levels.Levels()
+        try:
+            state = json.loads(str(payload))
+            return self._levels_from_state(state)
+        except (json.JSONDecodeError, ValueError, TypeError):
+            return nm.levels.Levels()
+
+    def postprocess(self, value):
+        if isinstance(value, str):
+            return value
+        levels = value if isinstance(value, nm.levels.Levels) else nm.levels.Levels()
+        return json.dumps(self._build_state(levels))
+
+
 ### OUTPUTS
 
 

@@ -67,6 +67,7 @@ class Settings:
         # self.player_name_input = gr.Textbox(
         #     label="Votre pseudo", interactive=True
         # )
+
     
     def _on_data_load(self, data: pd.DataFrame):
         logger.debug(f"Loading data {data}")
@@ -90,9 +91,10 @@ class Settings:
 
         self.data_input_btn.click(
             parse_data,
-            inputs=self.data_input, 
+            inputs=self.data_input,
             outputs=self.data_state,
         )
+
 
 
 def parse_data(s: str) -> pd.DataFrame:
