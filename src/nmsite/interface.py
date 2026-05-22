@@ -367,7 +367,7 @@ class ArmyInputHTML(gr.HTML):
     border: 1px solid var(--border-color-primary);
     border-radius: var(--radius-lg, 8px);
     padding: 8px 10px;
-    background: var(--background-fill-primary);
+    background: var(--block-background-fill);
 }
 .ai-header {
     display: flex;
@@ -403,7 +403,7 @@ class ArmyInputHTML(gr.HTML):
     padding: 2px 7px;
     border: 1px solid var(--border-color-primary);
     border-radius: var(--radius-sm, 4px);
-    background: var(--background-fill-secondary);
+    background: var(--input-background-fill);
     cursor: pointer;
     font-size: 1rem;
     line-height: 1.5;
@@ -424,7 +424,7 @@ class ArmyInputHTML(gr.HTML):
     left: 0;
     right: auto;
     z-index: 200;
-    background: var(--background-fill-primary);
+    background: var(--block-background-fill);
     border: 1px solid var(--border-color-primary);
     border-radius: var(--radius-lg, 8px);
     padding: 10px;
@@ -439,7 +439,7 @@ class ArmyInputHTML(gr.HTML):
     padding: 6px;
     border: 1px solid var(--border-color-primary);
     border-radius: var(--radius-sm, 4px);
-    background: var(--background-fill-secondary);
+    background: var(--input-background-fill);
     color: var(--body-text-color);
     font-size: .85rem;
     resize: vertical;
@@ -457,7 +457,7 @@ class ArmyInputHTML(gr.HTML):
     padding: 4px 12px;
     border: 1px solid var(--border-color-primary);
     border-radius: var(--radius-sm, 4px);
-    background: var(--background-fill-secondary);
+    background: var(--input-background-fill);
     cursor: pointer;
     font-size: .85rem;
     color: var(--body-text-color);
@@ -488,7 +488,7 @@ class ArmyInputHTML(gr.HTML):
     padding: 2px 5px;
     border: 1px solid var(--border-color-primary);
     border-radius: var(--radius-sm, 4px);
-    background: var(--background-fill-secondary);
+    background: var(--input-background-fill);
     color: var(--body-text-color);
     font-size: .8rem;
     text-align: right;
@@ -807,7 +807,7 @@ class LevelsInputComponent(gr.HTML):
     border: 1px solid var(--border-color-primary);
     border-radius: var(--radius-lg, 8px);
     padding: 8px 10px;
-    background: var(--background-fill-primary);
+    background: var(--block-background-fill);
     container-type: inline-size;
 }
 .li-header { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; flex-wrap: wrap; }
@@ -816,14 +816,27 @@ class LevelsInputComponent(gr.HTML):
     flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .li-recap-row { display: flex; align-items: flex-start; gap: 4px; margin-bottom: 6px; }
-.li-recap {
+.li-recap-input {
     flex: 1; min-width: 0;
     font-size: .82rem;
     font-family: monospace;
     color: var(--body-text-color-subdued);
-    min-height: 1em;
-    white-space: pre;
+    background: var(--input-background-fill);
+    border: 1px solid var(--border-color-primary);
+    border-radius: var(--radius-sm, 4px);
+    padding: 3px 6px;
+    outline: none;
+    resize: none;
+    overflow: hidden;
+    line-height: 1.4;
+    display: block;
 }
+.li-recap-input:focus {
+    color: var(--body-text-color);
+    outline: 2px solid var(--color-accent);
+    outline-offset: -1px;
+}
+.li-recap-input::placeholder { font-style: italic; }
 .li-recap-btns { display: none; flex-wrap: wrap; gap: 4px; flex-shrink: 0; }
 @container (max-width: 200px) {
     .li-btn-copy { display: none; }
@@ -834,7 +847,7 @@ class LevelsInputComponent(gr.HTML):
     padding: 2px 7px;
     border: 1px solid var(--border-color-primary);
     border-radius: var(--radius-sm, 4px);
-    background: var(--background-fill-secondary);
+    background: var(--input-background-fill);
     cursor: pointer;
     font-size: 1rem;
     line-height: 1.5;
@@ -868,7 +881,7 @@ class LevelsInputComponent(gr.HTML):
     padding: 5px 6px;
     border: 1px solid var(--border-color-primary);
     border-radius: var(--radius-sm, 4px);
-    background: var(--background-fill-secondary);
+    background: var(--input-background-fill);
     color: var(--body-text-color);
     font-size: .85rem;
     text-align: center;
@@ -888,7 +901,7 @@ class LevelsInputComponent(gr.HTML):
     padding: 4px 0;
     border: 1px solid var(--border-color-primary);
     border-radius: var(--radius-sm, 4px);
-    background: var(--background-fill-secondary);
+    background: var(--input-background-fill);
     cursor: pointer;
     font-size: .78rem;
     font-weight: 700;
@@ -906,50 +919,16 @@ class LevelsInputComponent(gr.HTML):
     padding: 3px 5px;
     border: 1px solid var(--border-color-primary);
     border-radius: var(--radius-sm, 4px);
-    background: var(--background-fill-secondary);
+    background: var(--input-background-fill);
     color: var(--body-text-color);
     font-size: .85rem;
 }
 .li-select:focus { outline: 2px solid var(--color-accent); outline-offset: -1px; }
-.li-string-panel {
-    background: var(--background-fill-primary);
-    border: 1px solid var(--border-color-primary);
-    border-radius: var(--radius-lg, 8px);
-    padding: 8px;
-    margin-bottom: 6px;
-}
-.li-textarea {
-    width: 100%;
-    min-height: 50px;
-    padding: 5px;
-    border: 1px solid var(--border-color-primary);
-    border-radius: var(--radius-sm, 4px);
-    background: var(--background-fill-secondary);
-    color: var(--body-text-color);
-    font-size: .85rem;
-    font-family: monospace;
-    resize: vertical;
-    box-sizing: border-box;
-}
-.li-textarea:focus { outline: 2px solid var(--color-accent); outline-offset: -1px; }
-.li-error { color: var(--error-text-color, #dc2626); font-size: .8rem; margin-top: 4px; }
-.li-confirm {
-    margin-top: 5px;
-    padding: 3px 10px;
-    border: 1px solid var(--border-color-primary);
-    border-radius: var(--radius-sm, 4px);
-    background: var(--background-fill-secondary);
-    cursor: pointer;
-    font-size: .85rem;
-    color: var(--body-text-color);
-}
-.li-confirm:hover { background: color-mix(in srgb, var(--color-accent) 10%, var(--background-fill-secondary)); }
+.li-error { color: var(--error-text-color, #dc2626); font-size: .8rem; margin-bottom: 4px; }
 """
 
     _JS_SETUP = r"""
-const recapEl = element.querySelector('.li-recap');
-const stringPanel = element.querySelector('.li-string-panel');
-const textarea = element.querySelector('.li-textarea');
+const recapInput = element.querySelector('.li-recap-input');
 const errorDiv = element.querySelector('.li-error');
 const fieldEls = Array.from(element.querySelectorAll('input[data-field], select[data-field]'));
 const selectorEls = Array.from(element.querySelectorAll('.li-selector[data-field]'));
@@ -983,14 +962,12 @@ function render(state) {
         container.querySelectorAll('.li-sel-btn').forEach(btn =>
             btn.classList.toggle('li-sel-active', btn.dataset.value === curStr));
     });
-    recapEl.textContent = state.raw || '';
-    const showStr = state.panel === 'string';
-    stringPanel.style.display = showStr ? '' : 'none';
-    if (showStr && document.activeElement !== textarea) textarea.value = state.raw || '';
+    if (document.activeElement !== recapInput)
+        recapInput.value = state.raw || '';
+    recapInput.style.height = 'auto';
+    recapInput.style.height = recapInput.scrollHeight + 'px';
     if (state.error) { errorDiv.textContent = state.error; errorDiv.style.display = ''; }
     else errorDiv.style.display = 'none';
-    btnEls.forEach(btn =>
-        btn.classList.toggle('active', btn.dataset.action === 'string' && state.panel === 'string'));
 }
 
 render(getState());
@@ -1009,6 +986,15 @@ async function processAndRender(state) {
 
     _JS_EVENTS = r"""
 element.addEventListener('input', e => {
+    if (e.target === recapInput) {
+        recapInput.style.height = 'auto';
+        recapInput.style.height = recapInput.scrollHeight + 'px';
+        const state = getState();
+        state.raw = recapInput.value;
+        state.panel = 'string';
+        processAndRender(state);
+        return;
+    }
     const el = e.target.closest('[data-field]');
     if (!el || el.tagName !== 'INPUT') return;
     const state = getState();
@@ -1056,10 +1042,8 @@ element.addEventListener('click', e => {
     const state = getState();
     const action = btn.dataset.action;
     if (action === 'string') {
-        state.panel = state.panel === 'string' ? 'none' : 'string';
-        props.value = JSON.stringify(state);
-        render(state);
-        if (state.panel === 'string') setTimeout(() => textarea.focus(), 0);
+        recapInput.focus();
+        recapInput.select();
     } else if (action === 'import') {
         state.panel = 'import';
         processAndRender(state);
@@ -1071,29 +1055,12 @@ element.addEventListener('click', e => {
     }
 });
 
-element.querySelector('.li-confirm').addEventListener('click', () => {
-    const state = getState();
-    state.raw = textarea.value;
-    state.panel = 'string';
-    processAndRender(state);
-});
-
-textarea.addEventListener('paste', e => {
+recapInput.addEventListener('paste', e => {
     const pasted = (e.clipboardData || window.clipboardData).getData('text');
     const state = getState();
     state.raw = pasted;
     state.panel = 'string';
     setTimeout(() => processAndRender(state), 0);
-});
-
-document.addEventListener('click', e => {
-    if (!element.isConnected || element.contains(e.target)) return;
-    const state = getState();
-    if (state.panel === 'string') {
-        state.panel = 'none';
-        props.value = JSON.stringify(state);
-        render(state);
-    }
 });
 """
 
@@ -1233,16 +1200,12 @@ document.addEventListener('click', e => {
             f"<div class='{' '.join(widget_classes)}' style='min-width:{min_width}px'>"
             f"<div class='li-header'>{label_html}{btns_html}</div>"
             f"<div class='li-recap-row'>"
-            f"<div class='li-recap'></div>"
+            f"<textarea class='li-recap-input' rows='1' placeholder='Coller / saisir niveaux…'></textarea>"
             f"<div class='li-recap-btns'>"
             f"<button class='li-btn' data-action='copy' title='Copier niveaux'>\U0001f4e4</button>"
             f"</div>"
             f"</div>"
-            f"<div class='li-string-panel' style='display:none'>"
-            f"<textarea class='li-textarea' placeholder='Coller niveaux ici…'></textarea>"
             f"<div class='li-error' style='display:none'></div>"
-            f"<button class='li-confirm'>Valider</button>"
-            f"</div>"
             f"<div class='li-edit-panel'>{groups_html}</div>"
             f"</div>"
         )

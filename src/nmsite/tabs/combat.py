@@ -34,14 +34,14 @@ class CombatTab():
                 gr.Markdown(
                     "<div style='text-align:center; font-weight:bold; font-size:18px;'>Attaquant</div>"
                 )
-                self.attacker_levels_input = interface.LevelsInputComponent(hero_enabled=self.hero_enabled, show_buildings=True)
+                self.attacker_levels_input = interface.LevelsInputComponent(label="Niveaux Attaquant", hero_enabled=self.hero_enabled, show_buildings=True)
                 self.attacker_army_input = interface.ArmyInputHTML(show_import=False, recap_format="full")
 
             with gr.Column(variant="panel", min_width=175, elem_classes=["right"]) as defender_col:
                 gr.Markdown(
                     "<div style='text-align:center; font-weight:bold; font-size:18px;'>Défenseur</div>"
                 )
-                self.defender_levels_input = interface.LevelsInputComponent(hero_enabled=self.hero_enabled, show_buildings=True)
+                self.defender_levels_input = interface.LevelsInputComponent(label="Niveaux Défenseur", hero_enabled=self.hero_enabled, show_buildings=True)
                 self.defender_army_input = interface.ArmyInputHTML(show_import=False, btn_align="left", recap_format="full")
 
             with gr.Column(scale=2, min_width=400, elem_classes=["middle"]):
