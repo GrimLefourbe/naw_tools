@@ -34,14 +34,14 @@ class CombatTab():
                 gr.Markdown(
                     "<div style='text-align:center; font-weight:bold; font-size:18px;'>Attaquant</div>"
                 )
-                self.attacker_levels_input = interface.LevelsInput(self.hero_enabled, atk=False)
+                self.attacker_levels_input = interface.LevelsInputComponent(hero_enabled=self.hero_enabled, show_buildings=True)
                 self.attacker_army_input = interface.ArmyInputHTML(show_import=False, recap_format="full")
 
             with gr.Column(variant="panel", min_width=175, elem_classes=["right"]) as defender_col:
                 gr.Markdown(
                     "<div style='text-align:center; font-weight:bold; font-size:18px;'>Défenseur</div>"
                 )
-                self.defender_levels_input = interface.LevelsInput(self.hero_enabled, atk=False)
+                self.defender_levels_input = interface.LevelsInputComponent(hero_enabled=self.hero_enabled, show_buildings=True)
                 self.defender_army_input = interface.ArmyInputHTML(show_import=False, btn_align="left", recap_format="full")
 
             with gr.Column(scale=2, min_width=400, elem_classes=["middle"]):
@@ -120,25 +120,23 @@ class CombatTab():
         @gr.on(
             triggers=[
                 self.attacker_army_input.change,
-                self.attacker_levels_input.state.change,
+                self.attacker_levels_input.change,
             ],
-            inputs=[self.attacker_army_input, self.attacker_levels_input.state],
+            inputs=[self.attacker_army_input, self.attacker_levels_input],
             outputs=self.attacker_party_state,
         )
         def attacker_update(army: nm.army.Army, levels: nm.levels.Levels):
-            print(levels.alliance)
-            print(type(levels.alliance))
             return nm.battle.WarParty(army, nm.battle.Bonuses(*levels.bonus_atk), atk=True)
 
         @gr.on(
             triggers=[
                 self.defender_army_input.change,
-                self.defender_levels_input.state.change,
+                self.defender_levels_input.change,
                 self.lieu_input.change,
             ],
             inputs=[
                 self.defender_army_input,
-                self.defender_levels_input.state,
+                self.defender_levels_input,
                 self.lieu_input,
             ],
             outputs=self.defender_party_state,
@@ -160,22 +158,14 @@ class CombatTab():
             inputs=[
                 self.attacker_army_input,
                 self.defender_army_input,
-                self.attacker_levels_input.state,
-                self.defender_levels_input.state,
-                self.attacker_levels_input.input_box,
-                self.defender_levels_input.input_box,
-                *self.attacker_levels_input.input_fields,
-                *self.defender_levels_input.input_fields,
+                self.attacker_levels_input,
+                self.defender_levels_input,
             ],
             outputs=[
                 self.defender_army_input,
                 self.attacker_army_input,
-                self.defender_levels_input.state,
-                self.attacker_levels_input.state,
-                self.defender_levels_input.input_box,
-                self.attacker_levels_input.input_box,
-                *self.defender_levels_input.input_fields,
-                *self.attacker_levels_input.input_fields,
+                self.defender_levels_input,
+                self.attacker_levels_input,
             ],
             show_progress="hidden",
         )
@@ -196,76 +186,43 @@ class CombatTab():
             inputs=[
                 self.output,
                 self.lieu_input,
-                self.attacker_levels_input.alliance_input,
-                self.defender_levels_input.alliance_input,
+                self.attacker_levels_input,
+                self.defender_levels_input,
             ],
             outputs=[
                 self.attacker_party_state,
                 self.defender_party_state,
                 self.attacker_army_input,
-                self.attacker_levels_input.state,
-                *self.attacker_levels_input.input_fields,
+                self.attacker_levels_input,
                 self.defender_army_input,
-                self.defender_levels_input.state,
-                *self.defender_levels_input.input_fields,
+                self.defender_levels_input,
             ],
             show_progress="hidden",
         )
-        def analyse_fight(rc: str, lieu: nm.levels.FightZone, atk_alli, def_alli):
-            atk_alli = nm.levels.AllianceType(atk_alli)
-            def_alli = nm.levels.AllianceType(def_alli)
-            assert isinstance(atk_alli, nm.levels.AllianceType)
-            assert isinstance(def_alli, nm.levels.AllianceType)
+        def analyse_fight(rc: str, lieu: nm.levels.FightZone, atk_levels_in: nm.levels.Levels, def_levels_in: nm.levels.Levels):
             attacker, defender = nm.battle.BattleReport.from_str(rc).analyze()
-            attacker_levels = l = nm.levels.Levels.from_bonuses(
+            attacker_levels = nm.levels.Levels.from_bonuses(
                 bonus_dmg=(attacker.bonuses.min_dmg, attacker.bonuses.max_dmg),
-                bonus_hp=(attacker.bonuses.min_hp, attacker.bonuses.max_hp), 
-                lieu=lieu, 
-                alli_type=atk_alli, 
-                atk=True, 
-                hero_enabled=self.hero_enabled
+                bonus_hp=(attacker.bonuses.min_hp, attacker.bonuses.max_hp),
+                lieu=lieu,
+                alli_type=atk_levels_in.alliance,
+                atk=True,
+                hero_enabled=self.hero_enabled,
             )
-            if l.hero_lvl is None:
-                raise ValueError("Hero lvl can't be None")
-            attacker_levels_fields = [
-                l.mandibule,
-                l.carapace,
-                l.hero_lvl,
-                l.hero_type,
-                l.special,
-                l.dome,
-                l.loge,
-                l.alliance,
-            ]
-            defender_levels = l = nm.levels.Levels.from_bonuses(
-                bonus_dmg=(defender.bonuses.min_dmg, defender.bonuses.max_dmg), 
-                bonus_hp=(defender.bonuses.min_hp, defender.bonuses.max_hp), 
-                lieu=lieu, 
-                alli_type=def_alli, 
-                atk=False, 
-                hero_enabled=self.hero_enabled
+            defender_levels = nm.levels.Levels.from_bonuses(
+                bonus_dmg=(defender.bonuses.min_dmg, defender.bonuses.max_dmg),
+                bonus_hp=(defender.bonuses.min_hp, defender.bonuses.max_hp),
+                lieu=lieu,
+                alli_type=def_levels_in.alliance,
+                atk=False,
+                hero_enabled=self.hero_enabled,
             )
-            if l.hero_lvl is None:
-                raise ValueError("Hero lvl can't be None")
-            defender_levels_fields = [
-                l.mandibule,
-                l.carapace,
-                l.hero_lvl,
-                l.hero_type,
-                l.special,
-                l.dome,
-                l.loge,
-                l.alliance,
-            ]
-
             return (
                 attacker,
                 defender,
                 attacker.army,
                 attacker_levels,
-                *attacker_levels_fields,
                 defender.army,
                 defender_levels,
-                *defender_levels_fields,
             )
 

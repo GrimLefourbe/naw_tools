@@ -24,7 +24,7 @@ class HuntTab:
             with gr.Accordion("Mon armée (NON UTILISEE)", open=False):
                 army_input = nmsite.interface.ArmyInput()
             with gr.Accordion("Mes niveaux", open=False):
-                levels_input = nmsite.interface.LevelsInput(hero_enabled=self.hero_enabled)
+                levels_input = nmsite.interface.LevelsInputComponent(hero_enabled=self.hero_enabled, show_buildings=False)
         with gr.Row():
             start = gr.Number(minimum=0, label="TDC de départ", min_width=75)
             hunt = gr.Number(minimum=0, label="TDC chassé", min_width=75)
@@ -56,15 +56,14 @@ class HuntTab:
             return duration_text, float(efficiency), int(difficulty)
 
         @gr.on(
-            triggers=[diff.change, levels_input.cara_input.change, levels_input.spe_input.change, levels_input.alliance_input.change],
-            inputs=[diff, levels_input.cara_input, levels_input.spe_input, levels_input.alliance_input],
+            triggers=[diff.change, levels_input.change],
+            inputs=[diff, levels_input],
             outputs=[pertes],
             show_progress="hidden",
         )
-        def compute_losses(diff, cara, spe_cbt, alli_type):
+        def compute_losses(diff, levels: nm.levels.Levels):
             dmg_taken = diff * 0.3596 * 0.1
-            js_lost = round(dmg_taken / nm.battle.WarParty(army=nm.army.Army(JS=1), bonuses=nm.battle.Bonuses(*nm.levels.Levels(carapace=cara, special=spe_cbt, alliance=alli_type).bonus_atk), atk=True).total_hp)
-            # js_lost = round(dmg_taken / (nm.army.unit_stats[2][0] * (1 + 0.05 * cara + spe_cbt*0.02)))
+            js_lost = round(dmg_taken / nm.battle.WarParty(army=nm.army.Army(JS=1), bonuses=nm.battle.Bonuses(*levels.bonus_atk), atk=True).total_hp)
             return gr.Number(js_lost, visible=True)
         
         @gr.on(
