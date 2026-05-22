@@ -85,36 +85,18 @@ def pontes_tab():
     return PontesTab()
 
 
+# No-op sentinel: tells Gradio "leave this component alone" (no value push → watch() stays silent).
+_NOOP = gr.update()
+
+
 class PontesTab:
     def __init__(self):
         self._set_layout()
         self._configure_triggers()
 
-    def _row_outputs(self) -> list:
-        """Flat list: [container, checkbox, army_input] * N_MAX."""
-        out = []
-        for i in range(N_MAX):
-            out += [self._row_containers[i], self._checkboxes[i], self._army_inputs[i]]
-        return out
-
-    def _row_updates(self, al: ArmyList) -> list:
-        """Flat list of gr.update() matching _row_outputs() order."""
-        updates = []
-        for i in range(N_MAX):
-            if i < len(al.armies):
-                army = al.armies[i]
-                updates += [
-                    gr.update(visible=True),
-                    gr.update(value=al.checks[i]),
-                    gr.update(value=army),
-                ]
-            else:
-                updates += [
-                    gr.update(visible=False),
-                    gr.update(value=False),
-                    gr.update(value=nm.army.Army()),
-                ]
-        return updates
+    # ------------------------------------------------------------------
+    # Layout
+    # ------------------------------------------------------------------
 
     def _set_layout(self):
         self._list_state = gr.State(ArmyList())
@@ -179,19 +161,91 @@ class PontesTab:
                     elem_classes=["result-field"], placeholder="ex: 1J 2H 30M",
                 )
 
+    # ------------------------------------------------------------------
+    # Row-update helpers
+    #
+    # Each returns a flat list [container_upd, cb_upd, ai_upd] * N_MAX.
+    # Only slots that genuinely change get a real update; everything else
+    # gets _NOOP so Gradio sends nothing to that component (watch stays silent).
+    # ------------------------------------------------------------------
+
+    def _noop_row(self):
+        return [_NOOP, _NOOP, _NOOP]
+
+    def _updates_add(self, lst: ArmyList) -> list:
+        """Show one new row at index n; leave all existing rows untouched."""
+        n = len(lst.armies) - 1  # index of the newly added army
+        updates = []
+        for i in range(N_MAX):
+            if i == n:
+                updates += [gr.update(visible=True), gr.update(value=False),
+                            gr.update(value=nm.army.Army())]
+            else:
+                updates += self._noop_row()
+        return updates
+
+    def _updates_delete(self, new_lst: ArmyList, deleted_idx: int) -> list:
+        """Shift armies down into the gap; hide the last visible row."""
+        n_new = len(new_lst.armies)  # == len(old_lst.armies) - 1
+        updates = []
+        for i in range(N_MAX):
+            if i < deleted_idx:
+                updates += self._noop_row()
+            elif i < n_new:
+                updates += [_NOOP, gr.update(value=new_lst.checks[i]), gr.update(value=new_lst.armies[i])]
+            elif i == n_new:
+                updates += [gr.update(visible=False), _NOOP, _NOOP]
+            else:
+                updates += self._noop_row()
+        return updates
+
+    def _updates_toggle_all(self, lst: ArmyList, target: bool) -> list:
+        """Flip checkboxes; army inputs are never touched (no cascade)."""
+        n = len(lst.armies)
+        updates = []
+        for i in range(N_MAX):
+            if i < n:
+                updates += [_NOOP, gr.update(value=target), _NOOP]
+            else:
+                updates += self._noop_row()
+        return updates
+
+    def _updates_repartir(self, old_lst: ArmyList, new_lst: ArmyList) -> list:
+        """Push new army values; show/hide rows to match new count."""
+        n_old = len(old_lst.armies)
+        n_new = len(new_lst.armies)
+        updates = []
+        for i in range(N_MAX):
+            if i < n_new:
+                container_upd = gr.update(visible=True) if i >= n_old else _NOOP
+                updates += [container_upd,
+                            gr.update(value=new_lst.checks[i]),
+                            gr.update(value=new_lst.armies[i])]
+            elif i < n_old:
+                updates += [gr.update(visible=False), _NOOP, _NOOP]
+            else:
+                updates += self._noop_row()
+        return updates
+
+    # ------------------------------------------------------------------
+    # Events
+    # ------------------------------------------------------------------
+
     def _configure_triggers(self):
-        row_outputs = self._row_outputs()
-        shift_outputs = [self._list_state] + row_outputs
+        shift_outputs = [self._list_state] + [
+            comp
+            for i in range(N_MAX)
+            for comp in (self._row_containers[i], self._checkboxes[i], self._army_inputs[i])
+        ]
 
         tdp_fields = [self._tdp, self._alli, self._duration]
         list_change_outputs = (
             [self._total_display, self._add_btn, self._repartir_label, *self._repartir_btns]
             + tdp_fields
         )
-        list_change_inputs = [self._list_state, self._tdp_mode_state, self._tdp, self._alli, self._duration]
-
-        def on_shift(new_lst):
-            return [new_lst] + self._row_updates(new_lst)
+        list_change_inputs = [
+            self._list_state, self._tdp_mode_state, self._tdp, self._alli, self._duration,
+        ]
 
         def _on_list_change(lst: ArmyList, mode, tdp, alli, duration):
             m = sum(lst.checks)
@@ -207,51 +261,64 @@ class PontesTab:
                 tdp_out, alli_out, dur_out,
             )
 
-        self._add_btn.click(
-            lambda lst: on_shift(lst.add() if len(lst.armies) < N_MAX else lst),
-            inputs=self._list_state, outputs=shift_outputs,
-            show_progress="hidden",
-        ).then(_on_list_change, inputs=list_change_inputs, outputs=list_change_outputs, show_progress="hidden")
+        # --- Structural operations (shift_outputs) ---
 
-        def on_toggle_all(lst: ArmyList):
+        def on_add(lst):
+            if len(lst.armies) >= N_MAX:
+                return [lst] + [_NOOP] * (3 * N_MAX)
+            new_lst = lst.add()
+            return [new_lst] + self._updates_add(new_lst)
+
+        self._add_btn.click(
+            on_add, inputs=self._list_state, outputs=shift_outputs, show_progress="hidden",
+        )
+
+        def on_toggle_all(lst):
             n = len(lst.armies)
             target = not all(lst.checks[:n])
             new_lst = lst
             for i in range(n):
                 new_lst = new_lst.set_check(i, target)
-            return on_shift(new_lst)
+            return [new_lst] + self._updates_toggle_all(new_lst, target)
 
         self._all_btn.click(
-            on_toggle_all,
-            inputs=self._list_state, outputs=shift_outputs,
-            show_progress="hidden",
-        ).then(_on_list_change, inputs=list_change_inputs, outputs=list_change_outputs, show_progress="hidden")
+            on_toggle_all, inputs=self._list_state, outputs=shift_outputs, show_progress="hidden",
+        )
 
         for btn, n in zip(self._repartir_btns, range(1, N_MAX + 1)):
+            def on_repartir(lst, n=n):
+                new_lst = lst.repartir(n)
+                return [new_lst] + self._updates_repartir(lst, new_lst)
+
             btn.click(
-                lambda lst, n=n: on_shift(lst.repartir(n)),
-                inputs=self._list_state, outputs=shift_outputs,
-                show_progress="hidden",
+                on_repartir, inputs=self._list_state, outputs=shift_outputs, show_progress="hidden",
             )
 
         for i in range(N_MAX):
             def on_delete(lst, i=i):
-                return on_shift(lst.remove(i) if len(lst.armies) > 1 else lst)
+                if len(lst.armies) <= 1:
+                    return [lst] + [_NOOP] * (3 * N_MAX)
+                new_lst = lst.remove(i)
+                return [new_lst] + self._updates_delete(new_lst, i)
 
             self._del_btns[i].click(
-                on_delete,
-                inputs=self._list_state, outputs=shift_outputs,
-                show_progress="hidden",
+                on_delete, inputs=self._list_state, outputs=shift_outputs, show_progress="hidden",
             )
 
             self._checkboxes[i].change(
                 lambda checked, lst, i=i: lst.set_check(i, checked) if i < len(lst.armies) else lst,
-                inputs=[self._checkboxes[i], self._list_state], outputs=self._list_state,
+                inputs=[self._checkboxes[i], self._list_state],
+                outputs=self._list_state,
                 show_progress="hidden",
             )
 
+            def on_army_change(army, lst, i=i):
+                if i >= len(lst.armies) or army == lst.armies[i]:
+                    return gr.update()
+                return lst.update_army(i, army)
+
             self._army_inputs[i].change(
-                lambda army, lst, i=i: lst.update_army(i, army),
+                on_army_change,
                 inputs=[self._army_inputs[i], self._list_state],
                 outputs=self._list_state,
                 show_progress="hidden",
