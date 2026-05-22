@@ -12,6 +12,9 @@
 ### Cleanup todos
 - [ ] Move `_find_tdp_alli` into `nawminator` lib (currently in `nmsite/tabs/pontes.py`) — pure game math, no UI dependency
 
+### Bugs
+- [ ] **Add/remove row buttons unreliable** — the army list add and remove rows buttons in the Armées tab are not reliable in practice; needs a rework of the row management system
+
 ### Future improvements
 - [ ] Compact stats display per row (HP, ATK, count) — always visible alongside the paste box
 - [ ] Split by DMG — répartir variant that equalises attack power across parts; needs a stats/bonuses input
@@ -28,8 +31,6 @@
   - Gradio 6.10.0 pinned due to separate tab-freeze bug in 6.11+ (gradio-app/gradio#13285, fix pending in PR #13240).
 
 - [ ] CSS modularity — move tab-specific CSS out of `app.py` (see TODO comment in that file)
-
-- [ ] JS/CSS in custom HTML components — currently embedded as Python strings in `interface.py` (no syntax highlighting). Consider moving to separate `.js`/`.css` files read at class definition time (`Path(__file__).parent / "army_input.js"`). Only worth doing once there are enough components to establish a shared convention — revisit when a third `gr.HTML` component is added (the time input below would be it).
 
 - [ ] Time input component — reusable picker supporting both `HH:MM:SS` and ajhms notations
   - Both formats are interchangeable in the game (not "clock time vs duration", just two notations for the same value)
