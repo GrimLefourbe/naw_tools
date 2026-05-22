@@ -4,7 +4,7 @@ import datetime as dt
 import math
 
 from nmsite.army_list import ArmyList
-from nmsite.interface import ArmyInputHTML, SegmentedControl
+from nmsite.components import ArmyInputHTML, SegmentedControl
 from nmsite.utils import interactivity_updates
 
 

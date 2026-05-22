@@ -1,6 +1,7 @@
 import gradio as gr
 import nawminator as nm
 import nmsite
+from nmsite.components import LevelsInputComponent
 import math
 import datetime as dt
 
@@ -24,7 +25,7 @@ class HuntTab:
             with gr.Accordion("Mon armée (NON UTILISEE)", open=False):
                 army_input = nmsite.interface.ArmyInput()
             with gr.Accordion("Mes niveaux", open=False):
-                levels_input = nmsite.interface.LevelsInputComponent(hero_enabled=self.hero_enabled, show_buildings=False)
+                levels_input = LevelsInputComponent(hero_enabled=self.hero_enabled, show_buildings=False)
         with gr.Row():
             start = gr.Number(minimum=0, label="TDC de départ", min_width=75)
             hunt = gr.Number(minimum=0, label="TDC chassé", min_width=75)

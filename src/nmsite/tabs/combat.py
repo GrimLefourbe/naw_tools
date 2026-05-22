@@ -1,7 +1,8 @@
 import nawminator as nm
 import gradio as gr
 import numpy as np
-from nmsite import interface, config
+from nmsite import components, config
+from nmsite.interface import WarPartyStats
 
 def combat_tab(config: config.Config):
     CombatTab(config.hero_enabled)
@@ -34,15 +35,15 @@ class CombatTab():
                 gr.Markdown(
                     "<div style='text-align:center; font-weight:bold; font-size:18px;'>Attaquant</div>"
                 )
-                self.attacker_levels_input = interface.LevelsInputComponent(label="Niveaux Attaquant", hero_enabled=self.hero_enabled, show_buildings=True)
-                self.attacker_army_input = interface.ArmyInputHTML(show_import=False, recap_format="full")
+                self.attacker_levels_input = components.LevelsInputComponent(label="Niveaux Attaquant", hero_enabled=self.hero_enabled, show_buildings=True)
+                self.attacker_army_input = components.ArmyInputHTML(show_import=False, recap_format="full")
 
             with gr.Column(variant="panel", min_width=175, elem_classes=["right"]) as defender_col:
                 gr.Markdown(
                     "<div style='text-align:center; font-weight:bold; font-size:18px;'>Défenseur</div>"
                 )
-                self.defender_levels_input = interface.LevelsInputComponent(label="Niveaux Défenseur", hero_enabled=self.hero_enabled, show_buildings=True)
-                self.defender_army_input = interface.ArmyInputHTML(show_import=False, btn_align="left", recap_format="full")
+                self.defender_levels_input = components.LevelsInputComponent(label="Niveaux Défenseur", hero_enabled=self.hero_enabled, show_buildings=True)
+                self.defender_army_input = components.ArmyInputHTML(show_import=False, btn_align="left", recap_format="full")
 
             with gr.Column(scale=2, min_width=400, elem_classes=["middle"]):
                 gr.Markdown(
@@ -59,7 +60,7 @@ class CombatTab():
                     )
                 with gr.Group(), gr.Row():
                     with gr.Column(scale=1, min_width=10):
-                        interface.WarPartyStats(
+                        WarPartyStats(
                             self.attacker_party_state,
                             show_labels=False,
                         )
@@ -106,7 +107,7 @@ class CombatTab():
                             max_lines=1,
                         )
                     with gr.Column(scale=1, min_width=10):
-                        interface.WarPartyStats(
+                        WarPartyStats(
                             self.defender_party_state,
                             show_labels=False,
                             right_to_left=True,

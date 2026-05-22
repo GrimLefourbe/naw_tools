@@ -1,0 +1,38 @@
+.seg-control {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    border: 1px solid var(--border-color-primary, rgba(0,0,0,0.15));
+    border-radius: var(--radius-lg, 8px);
+    overflow: hidden;
+}
+.seg-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 36px;
+    padding: 8px 12px;
+    cursor: pointer;
+    border: none;
+    background: var(--background-fill-primary, white);
+    color: var(--body-text-color);
+    font-size: .9rem;
+    font-weight: 600;
+    text-align: center;
+    transition: background .1s, color .1s;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+}
+.seg-btn + .seg-btn {
+    border-top: 1px solid var(--border-color-primary, rgba(0,0,0,0.1));
+}
+.seg-btn:hover:not(.selected) {
+    background: color-mix(in srgb, var(--color-accent) 10%, var(--background-fill-primary, white));
+}
+.seg-btn.selected {
+    background: var(--color-accent);
+    color: var(--color-accent-text, white);
+}
