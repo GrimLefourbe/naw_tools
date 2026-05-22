@@ -14,10 +14,9 @@
     justify-content: center;
     width: 100%;
     min-height: 36px;
-    padding: 8px 12px;
     cursor: pointer;
     border: none;
-    background: var(--background-fill-primary, white);
+    background: var(--input-background-fill);
     color: var(--body-text-color);
     font-size: .9rem;
     font-weight: 600;
@@ -30,9 +29,21 @@
     border-top: 1px solid var(--border-color-primary, rgba(0,0,0,0.1));
 }
 .seg-btn:hover:not(.selected) {
-    background: color-mix(in srgb, var(--color-accent) 10%, var(--background-fill-primary, white));
+    background: color-mix(in srgb, var(--color-accent) 15%, var(--background-fill-secondary));
 }
 .seg-btn.selected {
     background: var(--color-accent);
     color: var(--color-accent-text, white);
+}
+
+/* Horizontal orientation */
+.seg-control.seg-horizontal {
+    flex-direction: row;
+}
+.seg-control.seg-horizontal .seg-btn {
+    width: auto;
+}
+.seg-control.seg-horizontal .seg-btn + .seg-btn {
+    border-top: none;
+    border-left: 1px solid var(--border-color-primary, rgba(0,0,0,0.1));
 }

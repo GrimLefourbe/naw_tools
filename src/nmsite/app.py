@@ -17,13 +17,13 @@ css = """
     margin-right: -4 !important; /* cancel flex gap */
 }
 
+.seg-wrapper { padding: 0 !important; }
+
 .smgroup {
     gap: 0.25rem;
     min-width: 0 !important;
 }
 
-
-.seg-wrapper { flex: 1 !important; display: flex !important; flex-direction: column !important; min-height: 0; }
 
 
 /* TODO: tab-specific CSS (above and below) should live alongside each tab file,

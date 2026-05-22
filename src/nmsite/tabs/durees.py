@@ -105,6 +105,7 @@ class DureesTab:
                     choices=_TARGETS,
                     value="Arrivée",
                     elem_id="durees_target",
+                    container=False,
                 )
 
             with gr.Column(min_width=100), gr.Group():

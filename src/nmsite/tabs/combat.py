@@ -49,14 +49,15 @@ class CombatTab():
                 gr.Markdown(
                     "<div style='text-align:center; font-weight:bold; font-size:18px;'>Combat</div>"
                 )
-                with gr.Row():
+                with gr.Row(equal_height=True):
                     gr.Text(scale=1, show_label=False, max_lines=1, interactive=False)
                     self.invert_button = gr.Button("<--->", scale=0, min_width=75)
-                    self.lieu_input = gr.Radio(
-                        value=nm.levels.FightZone.DOME,
+                    self.lieu_input = components.SegmentedControl(
                         choices=list(nm.levels.FightZone),
+                        value=nm.levels.FightZone.DOME,
+                        orientation="horizontal",
                         scale=1,
-                        show_label=False,
+                        container=True,
                     )
                 with gr.Group(), gr.Row():
                     with gr.Column(scale=1, min_width=10):

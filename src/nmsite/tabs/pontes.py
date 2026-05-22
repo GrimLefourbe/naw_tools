@@ -167,6 +167,7 @@ class PontesTab:
                     choices=_TDP_MODES,
                     value="Durée",
                     elem_id="pontes_tdp_mode",
+                    container=False,
                 )
             with gr.Column():
                 self._tdp = gr.Number(value=0, label="TDP", precision=0)
