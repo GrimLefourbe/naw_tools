@@ -11,7 +11,7 @@
 ## Armées tab (was Pontes)
 
 ### Cleanup todos
-- [ ] Move `_find_tdp_alli` into `nawminator` lib (currently in `nmsite/tabs/pontes.py`) — pure game math, no UI dependency
+- [ ] Move `_find_tdp_alli` into `nawminator` lib (currently in `nmsite/tabs/armees.py`) — pure game math, no UI dependency
 
 ### Bugs
 - [ ] **Add/remove row buttons unreliable** — the army list add and remove rows buttons in the Armées tab are not reliable in practice; needs a rework of the row management system

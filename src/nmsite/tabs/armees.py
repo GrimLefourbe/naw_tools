@@ -73,15 +73,15 @@ def _compute_total(mode, lst: ArmyList, tdp, alli, duration):
     return _compute(mode, lst.total, tdp, alli, duration)
 
 
-def pontes_tab():
-    return PontesTab()
+def armees_tab():
+    return ArmeesTab()
 
 
 # No-op sentinel: tells Gradio "leave this component alone" (no value push → watch() stays silent).
 _NOOP = gr.update()
 
 
-class PontesTab:
+class ArmeesTab:
     @staticmethod
     def _interactivity_to_duree():
         return (gr.update(interactive=True,  elem_classes=[]),
@@ -152,17 +152,17 @@ class PontesTab:
                 self._tdp_sel = SegmentedControl(
                     choices=_TDP_MODES,
                     value="Durée",
-                    elem_id="pontes_tdp_mode",
+                    elem_id="armees_tdp_mode",
                     container=False,
                 )
             with gr.Column():
-                self._tdp = gr.Number(value=0, label="TDP", precision=0, elem_id="pontes_tdp")
+                self._tdp = gr.Number(value=0, label="TDP", precision=0, elem_id="armees_tdp")
             with gr.Column():
-                self._alli = gr.Number(value=0, label="Quête Alliance", precision=0, elem_id="pontes_alli")
+                self._alli = gr.Number(value=0, label="Quête Alliance", precision=0, elem_id="armees_alli")
             with gr.Column():
                 self._duration = gr.Textbox(
                     value="0S", label="Durée", interactive=False,
-                    elem_classes=["result-field"], placeholder="ex: 1J 2H 30M", elem_id="pontes_duration",
+                    elem_classes=["result-field"], placeholder="ex: 1J 2H 30M", elem_id="armees_duration",
                 )
 
     # ------------------------------------------------------------------

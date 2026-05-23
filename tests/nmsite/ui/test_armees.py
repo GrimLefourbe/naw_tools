@@ -6,7 +6,7 @@ pytestmark = pytest.mark.ui
 
 @pytest.fixture()
 def armees_page(live_page) -> Page:
-    return live_page("Armées", "#pontes_tdp_mode")
+    return live_page("Armées", "#armees_tdp_mode")
 
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
@@ -19,8 +19,8 @@ def test_armees_tab_renders(armees_page: Page) -> None:
     expect(page.get_by_label("TDP")).to_be_visible()
     expect(page.get_by_label("Quête Alliance")).to_be_visible()
     expect(page.get_by_label("Durée")).to_be_visible()
-    expect(page.locator("#pontes_tdp_mode").get_by_role("button", name="Durée")).to_be_visible()
-    expect(page.locator("#pontes_tdp_mode").get_by_role("button", name="TDP")).to_be_visible()
+    expect(page.locator("#armees_tdp_mode").get_by_role("button", name="Durée")).to_be_visible()
+    expect(page.locator("#armees_tdp_mode").get_by_role("button", name="TDP")).to_be_visible()
 
 
 @pytest.mark.skip(reason="TODO")

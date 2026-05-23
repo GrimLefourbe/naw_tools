@@ -58,7 +58,7 @@ HEADER = f"""
 """
 
 if config.tabs == "default":
-    config.tabs = ["settings", "combat", "pontes", "synchro", "durees"]
+    config.tabs = ["settings", "combat", "armees", "synchro", "durees"]
 
 with gr.Blocks(title=f"{config.title} - {config.subtitle}", fill_width=True) as demo:
     with gr.Tab("Réglages", render=False) as settings_tab:
@@ -77,11 +77,11 @@ with gr.Blocks(title=f"{config.title} - {config.subtitle}", fill_width=True) as 
             synchro.synchro_tab(config, settings)
             tabs["synchro"] = synchro_tab
 
-    if config.tabs == "all" or "pontes" in config.tabs:
-        with gr.Tab("Armées", render=False) as pontes_tab:
-            from nmsite.tabs import pontes
-            pontes.pontes_tab()
-            tabs["pontes"] = pontes_tab
+    if config.tabs == "all" or "armees" in config.tabs:
+        with gr.Tab("Armées", render=False) as armees_tab:
+            from nmsite.tabs import armees
+            armees.armees_tab()
+            tabs["armees"] = armees_tab
 
     if config.tabs == "all" or "hunt" in config.tabs:
         with gr.Tab("Chasse", render=False) as hunt_tab:

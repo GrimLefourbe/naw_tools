@@ -3,7 +3,7 @@ import hypothesis as hp
 import hypothesis.strategies as st
 import nawminator as nm
 from nawminator.army import MAX_UNIT_COUNT
-from nmsite.tabs.pontes import _find_tdp_alli
+from nmsite.tabs.armees import _find_tdp_alli
 from tests.nawminator.strategies import army_strategy_factory
 
 
