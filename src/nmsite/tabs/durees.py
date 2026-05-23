@@ -92,13 +92,13 @@ class DureesTab:
                 gr.Markdown(
                     "<div style='text-align:center; font-weight:bold; font-size:18px;'>Source</div>"
                 )
-                self._src_player_select = gr.Dropdown(container=False, visible=False)
+                self._src_player_select = gr.Dropdown(container=False, visible=False, elem_id="durees_src_player")
                 with gr.Row():
                     gr.Text("x", min_width=30, **args)
-                    self._from_x = gr.Number(value=0, scale=0, min_width=70, **args)
+                    self._from_x = gr.Number(value=0, scale=0, min_width=70, elem_id="durees_from_x", **args)
                 with gr.Row():
                     gr.Text("y", min_width=30, **args)
-                    self._from_y = gr.Number(value=0, scale=0, min_width=70, **args)
+                    self._from_y = gr.Number(value=0, scale=0, min_width=70, elem_id="durees_from_y", **args)
 
             with gr.Column(scale=0, min_width=90):
                 self._target_sel = SegmentedControl(
@@ -112,24 +112,24 @@ class DureesTab:
                 gr.Markdown(
                     "<div style='text-align:center; font-weight:bold; font-size:18px;'>Cible</div>"
                 )
-                self._tgt_player_select = gr.Dropdown(container=False, visible=False)
+                self._tgt_player_select = gr.Dropdown(container=False, visible=False, elem_id="durees_tgt_player")
                 with gr.Row():
                     gr.Text("x", min_width=30, **args)
-                    self._to_x = gr.Number(value=0, scale=0, min_width=70, **args)
+                    self._to_x = gr.Number(value=0, scale=0, min_width=70, elem_id="durees_to_x", **args)
                 with gr.Row():
                     gr.Text("y", min_width=30, **args)
-                    self._to_y = gr.Number(value=0, scale=0, min_width=70, **args)
+                    self._to_y = gr.Number(value=0, scale=0, min_width=70, elem_id="durees_to_y", **args)
 
         with gr.Row():
             with gr.Column(min_width=200):
-                self._va = gr.Number(value=0, label="Vitesse d'Attaque")
+                self._va = gr.Number(value=0, label="Vitesse d'Attaque", elem_id="durees_va")
             with gr.Column(min_width=200):
-                self._duration = gr.Text("0s", label="Durée", interactive=False, elem_classes=["result-field"])
+                self._duration = gr.Text("0s", label="Durée", interactive=False, elem_classes=["result-field"], elem_id="durees_duration")
         with gr.Row():
             with gr.Column(min_width=200):
-                self._start_time = gr.Textbox(value="00:00:00", label="Heure de départ", placeholder="HH:MM:SS")
+                self._start_time = gr.Textbox(value="00:00:00", label="Heure de départ", placeholder="HH:MM:SS", elem_id="durees_start_time")
             with gr.Column(min_width=200):
-                self._arrival_time = gr.Textbox(value="", label="Heure d'arrivée", placeholder="HH:MM:SS", interactive=False, elem_classes=["result-field"])
+                self._arrival_time = gr.Textbox(value="", label="Heure d'arrivée", placeholder="HH:MM:SS", interactive=False, elem_classes=["result-field"], elem_id="durees_arrival_time")
 
     def _configure_triggers(self, settings: Settings):
         @settings.data_state.change(

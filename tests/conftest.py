@@ -9,8 +9,12 @@ settings.register_profile("stress", max_examples=1000, deadline=None)
 settings.load_profile(os.getenv("HYPOTHESIS_PROFILE", "dev"))
 
 def pytest_collection_modifyitems(session, config, items):
-    non_prop, prop = [], []
+    unit, prop, ui = [], [], []
     for it in items:
-        is_property = bool(it.get_closest_marker("property"))
-        (prop if is_property else non_prop).append(it)
-    items[:] = non_prop + prop
+        if it.get_closest_marker("ui"):
+            ui.append(it)
+        elif it.get_closest_marker("property"):
+            prop.append(it)
+        else:
+            unit.append(it)
+    items[:] = unit + prop + ui
