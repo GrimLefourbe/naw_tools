@@ -6,6 +6,7 @@
 - [ ] Add input validation feedback — warn when coords are 0,0 or VA is 0 instead of silent failure
 - [ ] Result field styling — left border works for all components but color/font changes don't apply to `gr.Number`
 - [ ] Replace `interactivity_updates` server round-trip with client-side JS — toggling `interactive` state and CSS classes on dependent fields when `SegmentedControl` changes is a purely UI concern; no server call needed. Affects Durées and Armées tabs.
+  - **Research done, shelved**: The cleanest Gradio approach would be per-choice `js=True` events: add `EventListener(event_name='btn_N')` to `SegmentedControl.EVENTS` (processed by `ComponentMeta` metaclass), fire `trigger('btn_N')` from JS, define one zero-arg `@staticmethod` per mode returning `gr.update(interactive=..., elem_classes=...)` literals (Groovy transpiles to JS, no server call). Two blockers: (1) `gr.HTML` custom events require the event name to appear as a quoted string literal in `js_on_load` for Gradio to route them — dynamically-computed names (template literals) don't work without either hardcoding all names or hijacking `__getattr__`; (2) Groovy's transpiler requires fully hardcoded literal values, no ternary on variables, forcing one separate function body per mode. Both point to missing first-class custom event support in Gradio. Revisit when Gradio adds a proper `custom_event(name)` API.
 
 ## Armées tab (was Pontes)
 

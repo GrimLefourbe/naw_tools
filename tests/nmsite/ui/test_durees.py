@@ -169,6 +169,9 @@ def test_va_mode_computes_va_from_times(durees_page: Page) -> None:
 
     _click_segment(page, "VA")
     expect(_va(page)).not_to_be_editable(timeout=5_000)
+    # not_to_be_editable fires instantly (js=True); wait for the server chain
+    # (_apply_time_defaults → _compute) to finish so it can't overwrite arrival.
+    page.wait_for_timeout(500)
 
     # Set arrival first (before coords) so the queue is clear when we trigger
     # the coord fill — that compute runs with VA mode + the correct arrival.
@@ -211,9 +214,9 @@ def test_mode_switch_applies_time_defaults(durees_page: Page) -> None:
     # Case 2: clear start in VA mode, switch to Arrivée → start refills to 00:00:00
     _click_segment(page, "VA")
     expect(_start_time(page)).to_be_editable(timeout=5_000)
-    # Wait for the full VA chain (interactivity + _apply_time_defaults + _compute) to
-    # complete before clearing start. not_to_be_editable only catches the first step;
-    # the trailing _compute would push "23:10:00" back and overwrite our fill("").
+    # Wait for the full VA chain (_apply_time_defaults + _compute) to complete before
+    # clearing start. not_to_be_editable only catches the js=True interactivity step
+    # (instant); the trailing _compute would push "23:10:00" back and overwrite our fill("").
     page.wait_for_timeout(500)
 
     _start_time(page).fill("")

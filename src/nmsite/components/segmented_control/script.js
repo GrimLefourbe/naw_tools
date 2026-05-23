@@ -8,8 +8,11 @@ watch("value", () => { updateSelection(props.value); trigger('change'); });
 element.addEventListener('click', e => {
     const btn = e.target.closest('.seg-btn');
     if (!btn) return;
-    updateSelection(btn.dataset.value);
-    props.value = btn.dataset.value;
+    const val = btn.dataset.value;
+    updateSelection(val);
+    props.value = val;
+    trigger(`select_${val}`);
+    trigger('select');
     trigger('input');
     trigger('change');
 });

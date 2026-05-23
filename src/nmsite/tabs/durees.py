@@ -6,7 +6,6 @@ import nawminator as nm
 
 from nmsite.tabs.settings import Settings
 from nmsite.components import SegmentedControl
-from nmsite.utils import interactivity_updates
 
 
 _TARGETS = ["VA", "Arrivée", "Départ"]
@@ -31,13 +30,6 @@ def _times_to_secs(start: str, arrival: str) -> float | None:
     secs = secs_arrival - secs_start
     return secs + 86400 if secs < 0 else secs
 
-
-_TARGET_INTERACTIVITY: dict[str, tuple[bool, bool, bool, bool]] = {
-    # (va, duration, start_time, arrival_time)
-    "VA":      (False, True,  True,  True),
-    "Arrivée": (True,  False, True,  False),
-    "Départ":  (True,  False, False, True),
-}
 
 
 def _apply_time_defaults(target, start, arrival):
@@ -83,6 +75,27 @@ class DureesTab:
     def __init__(self, settings: Settings) -> None:
         self._set_layout(settings)
         self._configure_triggers(settings)
+
+    @staticmethod
+    def _interactivity_to_va():
+        return (gr.update(interactive=False, elem_classes=["result-field"]),
+                gr.update(interactive=True,  elem_classes=[]),
+                gr.update(interactive=True,  elem_classes=[]),
+                gr.update(interactive=True,  elem_classes=[]))
+
+    @staticmethod
+    def _interactivity_to_arrivee():
+        return (gr.update(interactive=True,  elem_classes=[]),
+                gr.update(interactive=False, elem_classes=["result-field"]),
+                gr.update(interactive=True,  elem_classes=[]),
+                gr.update(interactive=False, elem_classes=["result-field"]))
+
+    @staticmethod
+    def _interactivity_to_depart():
+        return (gr.update(interactive=True,  elem_classes=[]),
+                gr.update(interactive=False, elem_classes=["result-field"]),
+                gr.update(interactive=False, elem_classes=["result-field"]),
+                gr.update(interactive=True,  elem_classes=[]))
 
     def _set_layout(self, settings: Settings):
         self._target_state = gr.State("Arrivée")
@@ -174,10 +187,14 @@ class DureesTab:
 
         value_fields = [self._va, self._duration, self._start_time, self._arrival_time]
 
+        self._target_sel.on_choice("VA")(self._interactivity_to_va,       outputs=value_fields, js=True, show_progress="hidden")
+        self._target_sel.on_choice("Arrivée")(self._interactivity_to_arrivee, outputs=value_fields, js=True, show_progress="hidden")
+        self._target_sel.on_choice("Départ")(self._interactivity_to_depart,   outputs=value_fields, js=True, show_progress="hidden")
+
         self._target_sel.input(
-            fn=lambda target: interactivity_updates(target, _TARGET_INTERACTIVITY),
+            fn=lambda target: target,
             inputs=[self._target_sel],
-            outputs=[self._target_state] + value_fields,
+            outputs=[self._target_state],
             show_progress="hidden",
         ).then(
             fn=_apply_time_defaults,

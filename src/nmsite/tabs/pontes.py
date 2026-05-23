@@ -5,18 +5,10 @@ import math
 
 from nmsite.army_list import ArmyList
 from nmsite.components import ArmyInputHTML, SegmentedControl
-from nmsite.utils import interactivity_updates
-
 
 N_MAX = 8
 
 _TDP_MODES = ["Durée", "TDP"]
-
-_TDP_MODE_INTERACTIVITY: dict[str, tuple[bool, bool, bool]] = {
-    # (tdp_interactive, alli_interactive, duration_interactive)
-    "Durée": (True,  True,  False),
-    "TDP":   (False, False, True),
-}
 
 
 def _find_tdp_alli(army: nm.army.Army, target_secs: float) -> tuple[int, int]:
@@ -90,6 +82,18 @@ _NOOP = gr.update()
 
 
 class PontesTab:
+    @staticmethod
+    def _interactivity_to_duree():
+        return (gr.update(interactive=True,  elem_classes=[]),
+                gr.update(interactive=True,  elem_classes=[]),
+                gr.update(interactive=False, elem_classes=["result-field"]))
+
+    @staticmethod
+    def _interactivity_to_tdp():
+        return (gr.update(interactive=False, elem_classes=["result-field"]),
+                gr.update(interactive=False, elem_classes=["result-field"]),
+                gr.update(interactive=True,  elem_classes=[]))
+
     def __init__(self):
         self._set_layout()
         self._configure_triggers()
@@ -152,13 +156,13 @@ class PontesTab:
                     container=False,
                 )
             with gr.Column():
-                self._tdp = gr.Number(value=0, label="TDP", precision=0)
+                self._tdp = gr.Number(value=0, label="TDP", precision=0, elem_id="pontes_tdp")
             with gr.Column():
-                self._alli = gr.Number(value=0, label="Quête Alliance", precision=0)
+                self._alli = gr.Number(value=0, label="Quête Alliance", precision=0, elem_id="pontes_alli")
             with gr.Column():
                 self._duration = gr.Textbox(
                     value="0S", label="Durée", interactive=False,
-                    elem_classes=["result-field"], placeholder="ex: 1J 2H 30M",
+                    elem_classes=["result-field"], placeholder="ex: 1J 2H 30M", elem_id="pontes_duration",
                 )
 
     # ------------------------------------------------------------------
@@ -331,10 +335,13 @@ class PontesTab:
             show_progress="hidden",
         )
 
+        self._tdp_sel.on_choice("Durée")(self._interactivity_to_duree, outputs=tdp_fields, js=True, show_progress="hidden")
+        self._tdp_sel.on_choice("TDP")(self._interactivity_to_tdp,   outputs=tdp_fields, js=True, show_progress="hidden")
+
         self._tdp_sel.input(
-            fn=lambda mode: interactivity_updates(mode, _TDP_MODE_INTERACTIVITY),
+            fn=lambda mode: mode,
             inputs=[self._tdp_sel],
-            outputs=[self._tdp_mode_state] + tdp_fields,
+            outputs=[self._tdp_mode_state],
             show_progress="hidden",
         ).then(
             fn=_compute_total,
