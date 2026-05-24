@@ -4,6 +4,9 @@ import nawminator as nm
 import nmsite
 import datetime as dt
 import logging
+
+from nmsite.components import TimeInput
+
 logger = logging.getLogger(__name__)
 
 LOCALSTORAGE_KEY = "nawminator_settings"
@@ -68,11 +71,93 @@ class Settings:
         # self.player_name_input = gr.Textbox(
         #     label="Votre pseudo", interactive=True
         # )
+        self._create_time_input_demo()
 
     
     def _on_data_load(self, data: pd.DataFrame):
         logger.debug(f"Loading data {data}")
         return data, gr.Accordion(label=f"{data.shape[0]} joueurs chargés")
+
+    def _create_time_input_demo(self):
+        gr.Markdown("---\n### TimeInput — démo")
+        gr.Markdown(
+            "Cinq configurations du composant `TimeInput`. "
+            "La valeur Python reçue s'affiche en dessous de chaque champ."
+        )
+
+        with gr.Row():
+            with gr.Column():
+                gr.Markdown("**A** — durée H:M:S")
+                self._ti_a = TimeInput(
+                    mode="duration",
+                    segments=["hours", "minutes", "seconds"],
+                    formats=["HH:MM:SS"],
+                    label="Durée",
+                    elem_id="ti_demo_a",
+                )
+                self._ti_a_out = gr.Text(label="Python", interactive=False)
+
+            with gr.Column():
+                gr.Markdown("**B** — durée J H M S, double format")
+                self._ti_b = TimeInput(
+                    mode="duration",
+                    segments=["days", "hours", "minutes", "seconds"],
+                    formats=["AJHMS", "HH:MM:SS"],
+                    label="Durée",
+                    elem_id="ti_demo_b",
+                )
+                self._ti_b_out = gr.Text(label="Python", interactive=False)
+
+            with gr.Column():
+                gr.Markdown("**C** — durée complète AJHMS + Maintenant")
+                self._ti_c = TimeInput(
+                    mode="duration",
+                    segments=["years", "days", "hours", "minutes", "seconds"],
+                    formats=["AJHMS"],
+                    quick_fills=["now"],
+                    label="Durée",
+                    elem_id="ti_demo_c",
+                )
+                self._ti_c_out = gr.Text(label="Python", interactive=False)
+
+        with gr.Row():
+            with gr.Column():
+                gr.Markdown("**D** — heure (clock_time) + Heure actuelle")
+                self._ti_d = TimeInput(
+                    mode="clock_time",
+                    segments=["hours", "minutes", "seconds"],
+                    formats=["HH:MM:SS"],
+                    quick_fills=["current_time"],
+                    label="Heure",
+                    elem_id="ti_demo_d",
+                )
+                self._ti_d_out = gr.Text(label="Python", interactive=False)
+
+            with gr.Column():
+                gr.Markdown("**E** — datetime complet")
+                self._ti_e = TimeInput(
+                    mode="datetime",
+                    formats=["DD/MM/YYYY HH:MM:SS"],
+                    quick_fills=["now", "today", "current_time"],
+                    label="Date et heure",
+                    elem_id="ti_demo_e",
+                )
+                self._ti_e_out = gr.Text(label="Python", interactive=False)
+
+    def _configure_time_input_demo(self):
+        for ti, out in [
+            (self._ti_a, self._ti_a_out),
+            (self._ti_b, self._ti_b_out),
+            (self._ti_c, self._ti_c_out),
+            (self._ti_d, self._ti_d_out),
+            (self._ti_e, self._ti_e_out),
+        ]:
+            ti.change(
+                fn=lambda v: repr(v),
+                inputs=[ti],
+                outputs=[out],
+                show_progress="hidden",
+            )
 
     def _configure_triggers(self):
         self.data_state.change(
@@ -95,6 +180,8 @@ class Settings:
             inputs=self.data_input,
             outputs=self.data_state,
         )
+
+        self._configure_time_input_demo()
 
 
 

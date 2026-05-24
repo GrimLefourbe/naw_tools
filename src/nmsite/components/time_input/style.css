@@ -1,0 +1,181 @@
+/* TimeInput component styles */
+
+.ti-widget {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* Container styled like a text field */
+.ti-field {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    min-height: 40px;
+    padding: 4px 8px;
+    border: var(--input-border-width, 1px) solid var(--input-border-color, var(--border-color-primary, #d1d5db));
+    border-radius: var(--input-border-radius, var(--radius-sm, 4px));
+    background: var(--input-background-fill, var(--background-fill-primary, #fff));
+    font-family: monospace;
+    font-size: 1rem;
+    cursor: default;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.ti-field-inner {
+    display: flex;
+    align-items: center;
+    max-width: calc(100% - 90px);
+}
+
+.ti-field:focus-within {
+    border-color: var(--input-border-color-focus, var(--color-accent, #f97316));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent, #f97316) 20%, transparent);
+    outline: none;
+}
+
+/* Interactive segment span */
+.ti-seg {
+    display: inline-block;
+    padding: 2px 3px;
+    min-width: 1.8ch;
+    text-align: center;
+    border-radius: 3px;
+    cursor: ns-resize;
+    color: var(--body-text-color, #111827);
+    transition: background 0.1s;
+    touch-action: none;
+    outline: none;
+}
+
+.ti-seg:hover {
+    background: color-mix(in srgb, var(--color-accent, #f97316) 12%, transparent);
+}
+
+.ti-seg:focus,
+.ti-seg.active {
+    background: color-mix(in srgb, var(--color-accent, #f97316) 25%, transparent);
+}
+
+.ti-seg[data-disabled="true"] {
+    cursor: default;
+    color: var(--body-text-color-subdued, #6b7280);
+    pointer-events: none;
+}
+
+/* Separator spans */
+.ti-sep {
+    display: inline-block;
+    color: var(--body-text-color-subdued, #6b7280);
+    padding: 2px 1px;
+    min-width: 0.6ch;
+    text-align: center;
+}
+
+/* AJHMS unit labels (H, M, S etc.) */
+.ti-sep.ti-unit {
+    font-size: 0.85em;
+    color: var(--body-text-color-subdued, #6b7280);
+    padding: 2px 0 2px 1px;
+}
+
+/* Button row — absolutely positioned so segments can be truly centered */
+.ti-btns {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* Small action buttons (copy, format toggle, clear) */
+.ti-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 6px;
+    border: 1px solid var(--button-secondary-border-color, var(--border-color-primary, #d1d5db));
+    border-radius: 3px;
+    background: var(--button-secondary-background-fill, var(--background-fill-secondary, #f9fafb));
+    color: var(--body-text-color, #374151);
+    font-size: 0.72rem;
+    cursor: pointer;
+    white-space: nowrap;
+    line-height: 1.4;
+    transition: background 0.1s, border-color 0.1s;
+    font-family: inherit;
+}
+
+.ti-btn:hover {
+    background: var(--background-fill-tertiary, #f3f4f6);
+    border-color: var(--color-accent, #f97316);
+}
+
+.ti-btn:active {
+    background: color-mix(in srgb, var(--color-accent, #f97316) 15%, transparent);
+}
+
+/* Quick-fill pills */
+.ti-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 7px;
+    border: 1px solid var(--border-color-primary, #d1d5db);
+    border-radius: 12px;
+    background: var(--background-fill-secondary, #f9fafb);
+    color: var(--body-text-color, #374151);
+    font-size: 0.7rem;
+    cursor: pointer;
+    white-space: nowrap;
+    line-height: 1.5;
+    transition: background 0.1s, border-color 0.1s;
+    font-family: inherit;
+}
+
+.ti-pill:hover {
+    background: color-mix(in srgb, var(--color-accent, #f97316) 10%, transparent);
+    border-color: var(--color-accent, #f97316);
+}
+
+/* Label above the field */
+.ti-label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--body-text-color, #374151);
+    display: block;
+    margin-bottom: 2px;
+}
+
+/* Non-interactive (result) mode */
+.ti-widget[data-interactive="false"] .ti-field {
+    background: var(--background-fill-secondary, #f9fafb);
+    border-style: solid;
+    border-color: var(--border-color-accent, #f97316);
+    border-left-width: 3px;
+}
+
+.ti-widget[data-interactive="false"] .ti-seg {
+    cursor: default;
+    pointer-events: none;
+}
+
+.ti-widget[data-interactive="false"] .ti-btn,
+.ti-widget[data-interactive="false"] .ti-pill {
+    pointer-events: none;
+    opacity: 0.5;
+}
+
+/* Clear/reset button */
+.ti-clear {
+    color: var(--body-text-color-subdued, #6b7280);
+}
+
+.ti-clear:hover {
+    color: var(--error-icon-color, #ef4444);
+    border-color: var(--error-icon-color, #ef4444);
+    background: color-mix(in srgb, #ef4444 10%, transparent);
+}
