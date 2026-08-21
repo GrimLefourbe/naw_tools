@@ -11,13 +11,13 @@ class ParsingError(Exception):
 joueurs_copy_paste_pat = re.compile(
     r"""
     ^
-    ([\d,]+)\s+
+    (\d+(?:[.,]\d+)?)\s+
     ((?:\w+\ ?)+)\s+
     (\[[-\d]+:[-\d]+\])\s+
-    ([\d,]+)\s+
-    (.*?)\s+
-    ([\S ]+)\s+
-    (\S+)\s+
+    ([\d, ]+)\s+
+    (.+?)\s+
+    ([\S ]+?)\s+
+    (?:(\S+)\s+)?
     (Libre|Vassal\ de\ [\S ]+|En\ vacances)
     $
     """, flags=re.X | re.M
@@ -26,10 +26,10 @@ joueurs_copy_paste_pat = re.compile(
 joueurs_source_code_pat = re.compile(
     r"""
     <tr[^>]*>[\t \r\n]*
-    <td>[0-9,]+</td>[\t \r\n]*
+    <td[^>]*>[0-9,]+</td>[\t \r\n]*
     <td[^>]*>[^<]*</td>[\t \r\n]*
     <td>(\[[0-9:-]+\])</td>[\t \r\n]*
-    <td>([0-9,]+)</td>[\t \r\n]+
+    <td[^>]*>([0-9 ]+)</td>[\t \r\n]+
     <td><a[^>]*>([^<]+)</a></td>[\t \r\n]*
     <td><a[^>]+href="profil-([0-9]+)">\ <b>([^<]+)</b></a></td>[\t \r\n]*
     <td><a[^>]*>\ <b>([^<]*)</b></a></td>[\t \r\n]*
@@ -41,7 +41,9 @@ joueurs_source_code_pat = re.compile(
 
 def parse_joueurs_text(s: str):
     try:
-        lines = [i.groups() for i in joueurs_copy_paste_pat.finditer(s)]
+        # alliance is the only field the game lets be blank; the regex leaves
+        # its group as None rather than "" when unmatched — normalize here.
+        lines = [tuple(g if g is not None else "" for g in i.groups()) for i in joueurs_copy_paste_pat.finditer(s)]
         if len(lines) == 0:
             exc = ParsingError("Failed to parse: found no matching line in input_data")
             # exc.add_note(s)

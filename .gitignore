@@ -5,3 +5,4 @@ idea
 .idea
 .hypothesis
 *.pyi
+tests/nawminator/local_data/

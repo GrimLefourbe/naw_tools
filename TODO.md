@@ -20,6 +20,14 @@
 - [ ] Compact stats display per row (HP, ATK, count) — always visible alongside the paste box
 - [ ] Split by DMG — répartir variant that equalises attack power across parts; needs a stats/bonuses input
 
+## Parsing
+
+- [ ] **`joueurs_copy_paste_pat` can misattribute multi-word player/colony names when `alliance` is blank** — the copy-paste format has no way to mark an empty field (it's whitespace-separated, not a fixed delimiter), so "Word1 Word2" + empty alliance is indistinguishable from "Word1" + alliance "Word2". Pre-existing bug (confirmed live before this session's changes), not introduced by the NAW number-format adaptation. Current regex (`src/nawminator/parsing.py`) is tuned to at least get single-word names right (the common case) rather than the previous behavior which mishandled *all* blank-alliance rows including single-word ones. Real fix needs a reliable literal delimiter (e.g. tab) instead of generic whitespace, but that needs investigating across browsers/OSes/mobile first — an earlier attempt using a literal `\t` was reverted here specifically because we don't yet know if tab is reliably preserved by copy-paste on all platforms (mobile in particular), and breaking that path entirely was judged worse than the pre-existing ambiguity bug. Needs real-world data from a few different platforms before revisiting.
+
+## Tests
+
+- [ ] **Durées UI test coupled to real parser** — `test_player_dropdown_fills_coordinates` (`tests/nmsite/ui/test_durees.py`) loads `players_fixture.html` and runs it through the real `joueurs_source_code_pat` parser just to populate the player dropdown. Any parser/format change (e.g. the NAW joueurs-page format change) breaks this test even though it has nothing to do with parsing logic. Decouple by mocking/stubbing the player list instead of routing through the real HTML fixture.
+
 ## App / architecture
 
 - [x] Upgrade Gradio 5 → 6 — **done** but with known regressions (see below).
