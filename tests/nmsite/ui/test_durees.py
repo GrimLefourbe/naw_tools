@@ -182,7 +182,7 @@ def test_va_mode_computes_va_from_times(durees_page: Page) -> None:
     page.keyboard.press("Tab")
 
     expected_va = nm.formulas.from_va(target_secs / base_secs)
-    expect(_va(page)).to_have_value(str(int(expected_va)), timeout=10_000)
+    expect(_va(page)).to_have_value(str(expected_va), timeout=10_000)
     expect(_duration(page)).to_have_value(_expected_duration(target_secs), timeout=10_000)
 
 

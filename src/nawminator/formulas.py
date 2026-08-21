@@ -14,7 +14,10 @@ def duree_attaque(
 ):
     d = ((x1 - x2)**2 + (y1 - y2)**2)**0.5
 
-    return naw_round(3000 * (1 + 100*(1-math.exp(-naw_round(d)/1415)))*va_ratio(va))
+    # exp_ratio = 1/1415
+    exp_ratio = 1/290.5545
+
+    return naw_round(3000 * (1 + 100*(1-math.exp(-d*exp_ratio)))*va_ratio(va))
 
 def va_ratio(va: int):
     return 1/(1+va/10)
