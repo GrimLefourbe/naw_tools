@@ -39,6 +39,7 @@ class SynchroTab:
                 "2.b.1 Mettez le nom de l'alliance que vous cherchez dans la barre de recherche.\n" \
                 "2.b.2 Copiez le tableau ou la page complète (ctrl-A)  et copiez-collez la dans la boite.\n" \
                 "2.b.3 Répétez pour les alliances que vous souhaitez voir et collez à la suite du c/c précédent (vérifiez bien que vous n'avez pas collé sur la même ligne que le précédent).\n" \
+                "2.b.4 Sur téléphone : utilisez le collage normal, pas \"coller en texte brut\" (celui-ci casse la mise en forme du tableau et empêche la lecture des données).\n" \
                 "3. Vérifiez dans l'onglet Données Chargées qu'il y a bien ceux que vous cherchez."
             )
             self.data_input_btn = gr.Button("Charger les données")
