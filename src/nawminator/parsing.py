@@ -99,7 +99,7 @@ joueurs_source_code_pat = re.compile(
     <td[^>]*>[^<]*</td>[\t \r\n]*
     <td[^>]*><a[^>]*>(\[[0-9:-]+\])</a></td>[\t \r\n]*
     <td[^>]*><strong>([0-9 ]+)</strong></td>[\t \r\n]+
-    <td[^>]*><a[^>]*>([^<]+)</a></td>[\t \r\n]*
+    <td[^>]*><a[^>]*\btitle='([^']*)'[^>]*>[^<]*</a></td>[\t \r\n]*
     <td[^>]*><a[^>]+href="profil-([0-9]+)">([^<]+)</a></td>[\t \r\n]*
     <td[^>]*><a[^>]*>([^<]*)</a></td>[\t \r\n]*
     <td[^>]*><span[^>]*aria-label="([^"]*)"[\s\S]*?</td>[\t \r\n]*

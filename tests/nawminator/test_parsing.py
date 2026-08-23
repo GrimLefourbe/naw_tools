@@ -172,6 +172,22 @@ _TR_MULTIWORD_NAMES_WITH_ALLIANCE = """\
     <td data-player-column="state"><span class="naw-player-state-list" aria-label="Libre"><button type="button" class="naw-player-state-icon is-free naw-player-state-tooltip-trigger" data-html="true" data-toggle="tooltip" data-trigger="manual" data-placement="top" data-container="body" title="&lt;div class=&#039;tooltip-zone-principale-general&#039;&gt;Libre&lt;/div&gt;" aria-label="Libre"><span class="glyphicon glyphicon-ok-circle" aria-hidden="true"></span></button></span></td>
 </tr>"""
 
+# The colony name column truncates its *visible* link text once it's over
+# ~14 chars ("Before i for.." for "Before i forget") but keeps the full name
+# in the <a title='...'> attribute (also mirrored on the <td>'s data-search/
+# data-order, unused here) — captured from real dump data, profil-139.
+_TR_TRUNCATED_COLO_NAME = """\
+<tr class="naw-player-directory-row" style='color:black;'>
+    <td data-player-column="distance" data-order="6.000000">6,0</td>
+    <td data-player-column="duration">40m 03s</td>
+    <td data-player-column="map"><a class="naw-map-coordinate-text" href="/carte-1-38" title="Voir cette colonie sur la carte">[1:38]</a></td>
+    <td data-player-column="terrain" class="naw-player-terrain" data-order="43651372"><strong>43 651 372</strong></td>
+    <td data-player-column="colony" data-search="Before i forget" data-order="Before i forget"><a style='color:black;' href='attaque-1-38' title='Before i forget'>Before i for..</a></td>
+    <td data-player-column="player"><a style='color:black;' href="profil-139">SlipKnot</a></td>
+    <td data-player-column="alliance"><a style='color:black;' href="descriptionalliance-S2">S2</a></td>
+    <td data-player-column="state"><span class="naw-player-state-list" aria-label="Vassal de KingShark"><a class="naw-player-state-icon is-vassal has-visible-label naw-player-state-tooltip-trigger naw-player-state-profile-link" href="profil-6" data-html="true" data-toggle="tooltip" data-trigger="manual" data-placement="top" data-container="body" title="&lt;div class=&#039;tooltip-zone-principale-general&#039;&gt;Vassal de KingShark&lt;/div&gt;" aria-label="Vassal de KingShark"><span class="glyphicon glyphicon-link" aria-hidden="true"></span><span class="naw-player-state-icon-label">KingShark</span></a></span></td>
+</tr>"""
+
 test_source_code_data_1 = "\n\n".join(
     [
         _TR_PLAIN_INTEGER_DISTANCE,
@@ -181,6 +197,7 @@ test_source_code_data_1 = "\n\n".join(
         _TR_EMOJI_COLO_NAME_NEGATIVE_COORD,
         _TR_APOSTROPHE_ACCENTED_NAME_BLANK_ALLIANCE,
         _TR_MULTIWORD_NAMES_WITH_ALLIANCE,
+        _TR_TRUNCATED_COLO_NAME,
     ]
 )
 
@@ -193,6 +210,7 @@ _EXPECTED_SOURCE_CODE = pd.DataFrame(
         ["[14:-19]", 3_625_043, "🪳🪳🪳", "Troglodyte", "RP"],
         ["[36:98]", 63_988, "Kröm'land", "Krömiz", ""],
         ["[46:46]", 917_344, "Synchro 59", "Jack Sparrow", "RDP"],
+        ["[1:38]", 43_651_372, "Before i forget", "SlipKnot", "S2"],
     ],
     columns=_COLUMNS,
 )
