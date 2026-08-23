@@ -40,7 +40,11 @@ css = """
 
 .army-check { align-self: stretch !important; display: flex !important; align-items: center !important; justify-content: center !important; padding: 0 !important; flex: 0 0 44px !important; min-width: 0 !important; border: none !important; background: none !important; box-shadow: none !important; }
 .army-check span { display: none !important; }
-.army-check input[type="checkbox"] { width: 1.75rem !important; height: 1.75rem !important; cursor: pointer; accent-color: var(--color-accent); }"""
+.army-check input[type="checkbox"] { width: 1.75rem !important; height: 1.75rem !important; cursor: pointer; accent-color: var(--color-accent); }
+
+/* Icon-only buttons (e.g. the Discord logo button) don't stretch to a Row's shared
+   height by default the way text buttons do - force it, same fix as .army-check above. */
+.discord-copy-btn { align-self: stretch !important; height: auto !important; display: flex !important; align-items: center !important; justify-content: center !important; }"""
 
 HEADER = f"""
 <div id="app-header" style="

@@ -61,6 +61,10 @@
   - Each tab owns its own messages (no central registry needed given tab-based structure)
   - Start with Durées tab as a template, then roll out to other tabs
 
+## Documentation conventions
+
+- [ ] **Define a convention for hybrid human/AI code documentation, then refactor to match it.** A human reading code has small context but infers a lot from little; an AI agent (Claude) has much more context available per-session but none carried over between sessions, so it needs the "why"/design-rationale spelled out explicitly to avoid re-introducing bugs it already fixed once (e.g. the synchro tab's BBCode-link-in-shared-DataFrame bug). What's "enough" documentation differs a lot between the two audiences, and this project has no established docstring/comment convention to build on (most functions have none, by design — code is meant to be readable at a glance). Pattern applied twice now in `src/nmsite/tabs/synchro.py` (2026-08-23): `format_copy_data_table` first, then `format_copy_data_discord`/`_format_discord_row`/`_discord_row_widths` — short, caller-focused docstrings (what a function does) plus inline comments at the exact line each design decision applies to (why), rather than one dense docstring or a separate linked doc file. Consistent enough now to call a working pattern, not yet a written-down, generalizable guideline. Next steps: (1) look at what other projects/teams do for hybrid human/AI documentation for inspiration, (2) write the actual guideline once informed by that, (3) refactor the rest of the codebase's docstrings/comments to match (most files haven't been touched yet — this has so far only been applied where Claude happened to be already working).
+
 ## Devcontainer
 
 - [ ] Upgrade base image back to `ubuntu` (latest) once Playwright supports Ubuntu 26.04 — pinned to `ubuntu-24.04` as a workaround. Track [microsoft/playwright#40117](https://github.com/microsoft/playwright/issues/40117); they plan to start work once a GHA runner image is available. Check back ~mid-June 2026.
