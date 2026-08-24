@@ -20,7 +20,7 @@ pulp = "^3.2.2"
 optional = true
 
 [tool.poetry.group.nmsite.dependencies]
-gradio = ">=6.10.0,<6.11.0"  # pinned: 6.11+ freezes on tab switch (gr.DataFrame in gr.Accordion bug, gradio-app/gradio#13285)
+gradio = ">=6.16.0,<7.0.0"  # 6.11-6.15 froze on tab switch (gr.DataFrame in gr.Accordion bug, gradio-app/gradio#13285); fixed in 6.16.0 (PR #13240)
 pyyaml = "^6.0.2"
 
 [tool.poetry.group.dev]
