@@ -34,8 +34,8 @@
    copy) — a fixed guess can't fit all of them. The 90px fallback only
    applies before that JS runs (or if it somehow doesn't). */
 
-.ti-display {
-    position: relative;
+.ti-display,
+.ti-field {
     display: flex;
     justify-content: center;
     align-items: center;
@@ -46,9 +46,13 @@
     background: var(--input-background-fill, var(--background-fill-primary, #fff));
     font-family: monospace;
     font-size: 1rem;
-    cursor: pointer;
     user-select: none;
     -webkit-user-select: none;
+}
+
+.ti-display {
+    position: relative;
+    cursor: pointer;
     transition: border-color 0.15s;
 }
 
@@ -77,21 +81,9 @@
 
 /* ── Editor field ──────────────────────────────────────────────────────────── */
 
-/* Container styled like a text field */
+/* Container styled like a text field (shared declarations with .ti-display above) */
 .ti-field {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 40px;
-    padding: 4px var(--ti-btns-reserve, 90px) 4px 12px;  /* matches .ti-display's padding, see comment above */
-    border: var(--input-border-width, 1px) solid var(--input-border-color, var(--border-color-primary, #d1d5db));
-    border-radius: var(--input-border-radius, var(--radius-sm, 4px));
-    background: var(--input-background-fill, var(--background-fill-primary, #fff));
-    font-family: monospace;
-    font-size: 1rem;
     cursor: default;
-    user-select: none;
-    -webkit-user-select: none;
 }
 
 .ti-field-inner {
@@ -163,31 +155,30 @@
     gap: 4px;
 }
 
-/* Small action buttons (copy, format toggle, clear) */
+/* Small action buttons (copy, format toggle, clear) — same base look and
+   hover treatment as ArmyInputHTML's .ai-btn / LevelsInputComponent's
+   .li-btn (variable names, border-radius token, color-mix hover), sized
+   down (padding/font-size/line-height) for this component's more compact
+   overlay toolbar. */
 .ti-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     padding: 2px 6px;
-    border: 1px solid var(--button-secondary-border-color, var(--border-color-primary, #d1d5db));
-    border-radius: 3px;
-    background: var(--button-secondary-background-fill, var(--background-fill-secondary, #f9fafb));
-    color: var(--body-text-color, #374151);
+    border: 1px solid var(--border-color-primary);
+    border-radius: var(--radius-sm, 4px);
+    background: var(--input-background-fill);
+    color: var(--body-text-color);
     font-size: 0.72rem;
     cursor: pointer;
     white-space: nowrap;
     line-height: 1.4;
-    transition: background 0.1s, border-color 0.1s;
+    transition: background 0.1s;
     font-family: inherit;
 }
 
 .ti-btn:hover {
-    background: var(--background-fill-tertiary, #f3f4f6);
-    border-color: var(--color-accent, #f97316);
-}
-
-.ti-btn:active {
-    background: color-mix(in srgb, var(--color-accent, #f97316) 15%, transparent);
+    background: color-mix(in srgb, var(--color-accent) 15%, var(--background-fill-secondary));
 }
 
 /* Quick-fill pills */

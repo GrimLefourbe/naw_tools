@@ -1,6 +1,7 @@
 __all__ = ["TimeInput"]
 
 import json
+import re
 import datetime as dt
 import typing as t
 from pathlib import Path
@@ -13,12 +14,37 @@ from nmsite.interface import _merge_elem_classes
 _CSS = (Path(__file__).parent / "style.css").read_text()
 _JS  = (Path(__file__).parent / "script.js").read_text()
 
-# Valid segment keys per mode
-_MODE_KEYS: dict[str, list[str]] = {
-    "duration":   ["years", "days", "hours", "minutes", "seconds"],
-    "clock_time": ["hours", "minutes", "seconds"],
-    "datetime":   ["year", "month", "day", "hours", "minutes", "seconds"],
+# Full per-segment metadata per mode (key, min, max [None=unbounded], display
+# width) — the single source of truth for segment identity/order/bounds.
+# Serialized to JS via the `data-seg-meta` attribute (see _build_template)
+# instead of being re-declared independently there: Python owns this
+# configuration end to end, JS just renders/wires what it's given.
+_SEG_META: dict[str, list[dict[str, int | str | None]]] = {
+    "duration": [
+        {"key": "years",   "min": 0, "max": None, "width": 2},
+        {"key": "days",    "min": 0, "max": None, "width": 3},
+        {"key": "hours",   "min": 0, "max": None, "width": 2},
+        {"key": "minutes", "min": 0, "max": None, "width": 2},
+        {"key": "seconds", "min": 0, "max": None, "width": 2},
+    ],
+    "clock_time": [
+        {"key": "hours",   "min": 0, "max": 23, "width": 2},
+        {"key": "minutes", "min": 0, "max": 59, "width": 2},
+        {"key": "seconds", "min": 0, "max": 59, "width": 2},
+    ],
+    "datetime": [
+        {"key": "year",    "min": 1970, "max": 9999, "width": 4},
+        {"key": "month",   "min": 1,    "max": 12,   "width": 2},
+        {"key": "day",     "min": 1,    "max": 31,   "width": 2},
+        {"key": "hours",   "min": 0,    "max": 23,   "width": 2},
+        {"key": "minutes", "min": 0,    "max": 59,   "width": 2},
+        {"key": "seconds", "min": 0,    "max": 59,   "width": 2},
+    ],
 }
+
+# Valid segment keys per mode, derived from _SEG_META (not a second
+# independently-maintained list).
+_MODE_KEYS: dict[str, list[str]] = {mode: [s["key"] for s in segs] for mode, segs in _SEG_META.items()}
 
 # Default display formats per mode
 _MODE_FORMATS: dict[str, list[str]] = {
@@ -83,6 +109,12 @@ class TimeInput(gr.HTML):
             if k not in all_keys:
                 raise ValueError(f"Segment {k!r} not valid for mode {mode!r}. Valid: {all_keys}")
 
+        # Full metadata (min/max/width) for just the enabled segments, in
+        # seg_keys order — sent to JS via data-seg-meta so it doesn't need
+        # its own independent copy of this configuration.
+        seg_meta_by_key = {s["key"]: s for s in _SEG_META[mode]}
+        seg_meta_list = [seg_meta_by_key[k] for k in seg_keys]
+
         # Display formats
         valid_formats = _MODE_FORMATS[mode]
         fmt_list = formats if formats is not None else valid_formats
@@ -120,13 +152,52 @@ class TimeInput(gr.HTML):
 
         initial_json = self.postprocess(value)
 
+        def parse_pasted_text(text: str) -> dict[str, int] | None:
+            """Parse pasted clipboard text into segment values. Tries AJHMS,
+            HH:MM:SS/HH:MM, then DD/MM/YYYY HH:MM:SS/DD/MM HH:MM:SS, same as
+            the pre-server_functions JS parser did — reused here so paste
+            parsing has one canonical implementation (nawminator.utils'
+            NAW-formatted-int-aware AJHMS grammar) instead of a second,
+            independently-maintained regex living in the JS layer."""
+            text = text.strip()
+
+            # AJHMS: e.g. "2A 3J 4H 30M 15S". parse_ajhms silently returns a
+            # zero timedelta when nothing matches, so gate on an actual
+            # number+unit-letter appearing before trusting its result.
+            if re.search(r"\d[\d ]*\s*[AJHMSajhms]", text):
+                return nm.utils.timedelta_to_ajhms_parts(nm.utils.parse_ajhms(text))
+
+            # HH:MM:SS or HH:MM
+            m = re.match(r"^(\d+):(\d+)(?::(\d+))?$", text)
+            if m:
+                return {
+                    "hours": int(m.group(1)),
+                    "minutes": int(m.group(2)),
+                    "seconds": int(m.group(3) or 0),
+                }
+
+            # DD/MM/YYYY HH:MM:SS or DD/MM HH:MM:SS
+            m = re.match(r"^(\d{1,2})/(\d{1,2})(?:/(\d{4}))?\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$", text)
+            if m:
+                return {
+                    "day": int(m.group(1)),
+                    "month": int(m.group(2)),
+                    "year": int(m.group(3) or 1970),
+                    "hours": int(m.group(4)),
+                    "minutes": int(m.group(5)),
+                    "seconds": int(m.group(6) or 0),
+                }
+
+            return None
+
         super().__init__(
             value=initial_json,
             html_template=self._build_template(
-                mode, seg_keys, fmt_list, fill_list, hidden_defaults, interactive, label
+                mode, seg_keys, seg_meta_list, fmt_list, fill_list, hidden_defaults, interactive, label
             ),
             css_template=_CSS,
             js_on_load=_JS,
+            server_functions=[parse_pasted_text],
             **kwargs,
         )
 
@@ -134,6 +205,7 @@ class TimeInput(gr.HTML):
     def _build_template(
         mode: str,
         seg_keys: list[str],
+        seg_meta_list: list[dict[str, int | str | None]],
         fmt_list: list[str],
         fill_list: list[str],
         hidden_defaults: dict[str, int],
@@ -173,6 +245,7 @@ class TimeInput(gr.HTML):
             f'<div class="ti-widget"'
             f' data-mode="{mode}"'
             f' data-segments=\'{json.dumps(seg_keys)}\''
+            f' data-seg-meta=\'{json.dumps(seg_meta_list)}\''
             f' data-formats=\'{json.dumps(fmt_list)}\''
             f' data-quick-fills=\'{json.dumps(fill_list)}\''
             f' data-interactive="{str(interactive).lower()}"'
@@ -261,12 +334,10 @@ class TimeInput(gr.HTML):
         return json.dumps(s)
 
     def _empty_state(self) -> dict[str, int]:
+        # Hidden defaults are merged once, by postprocess()'s own merge loop
+        # right after this returns — no need to duplicate that here too.
         if self._mode == "duration":
-            s = {"years": 0, "days": 0, "hours": 0, "minutes": 0, "seconds": 0}
+            return {"years": 0, "days": 0, "hours": 0, "minutes": 0, "seconds": 0}
         elif self._mode == "clock_time":
-            s = {"hours": 0, "minutes": 0, "seconds": 0}
-        else:
-            s = {"year": 1970, "month": 1, "day": 1, "hours": 0, "minutes": 0, "seconds": 0}
-        for k, v in self._hidden_defaults.items():
-            s[k] = v
-        return s
+            return {"hours": 0, "minutes": 0, "seconds": 0}
+        return {"year": 1970, "month": 1, "day": 1, "hours": 0, "minutes": 0, "seconds": 0}

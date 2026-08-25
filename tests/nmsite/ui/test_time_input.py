@@ -33,10 +33,6 @@ def _enter_edit_mode(page: Page, elem_id: str) -> None:
     page.locator(f"#{elem_id} .ti-field").wait_for(state="visible")
 
 
-def _seg_text(page: Page, elem_id: str, key: str) -> str:
-    return _seg(page, elem_id, key).inner_text()
-
-
 # ── Tests: Rendering ─────────────────────────────────────────────────────────
 
 def test_demo_a_display_badge_visible_by_default(settings_page: Page) -> None:

@@ -10,32 +10,18 @@ const QUICK_FILLS = JSON.parse(widget.dataset.quickFills);
 const INTERACTIVE = widget.dataset.interactive !== 'false';
 const HIDDEN_DEFAULTS = JSON.parse(widget.dataset.hiddenDefaults || '{}');
 
-// All segment definitions per mode: {key, min, max (null=unbounded), ajhmsLabel}
-const SEG_META = {
-    duration: [
-        {key: 'years',   min: 0, max: null, width: 2},
-        {key: 'days',    min: 0, max: null, width: 3},
-        {key: 'hours',   min: 0, max: null, width: 2},
-        {key: 'minutes', min: 0, max: null, width: 2},
-        {key: 'seconds', min: 0, max: null, width: 2},
-    ],
-    clock_time: [
-        {key: 'hours',   min: 0, max: 23,   width: 2},
-        {key: 'minutes', min: 0, max: 59,   width: 2},
-        {key: 'seconds', min: 0, max: 59,   width: 2},
-    ],
-    datetime: [
-        {key: 'year',    min: 1970, max: 9999, width: 4},
-        {key: 'month',   min: 1,    max: 12,   width: 2},
-        {key: 'day',     min: 1,    max: 31,   width: 2},
-        {key: 'hours',   min: 0,    max: 23,   width: 2},
-        {key: 'minutes', min: 0,    max: 59,   width: 2},
-        {key: 'seconds', min: 0,    max: 59,   width: 2},
-    ],
-};
+// These containers are part of the static initial template and are never
+// removed from the DOM (only .ti-field-inner's children get replaced on a
+// full rebuild) — cache them once instead of re-querying on every render()/
+// updateDisplayBadge() call, which happens on every wheel tick/keystroke.
+const fieldEl = widget.querySelector('.ti-field-inner');
+const badgeEl = widget.querySelector('.ti-display-value');
 
-// Ordered meta for enabled segments only
-const META = SEG_META[MODE].filter(d => ENABLED_KEYS.includes(d.key));
+// Per-segment metadata (key, min, max [null=unbounded], display width) for
+// just the enabled segments, in order — sent from Python (data-seg-meta)
+// rather than re-declared here, so segment identity/order/bounds have one
+// source of truth instead of two independently-maintained copies.
+const META = JSON.parse(widget.dataset.segMeta);
 
 // -- State --
 let state = parseValue(props.value);
@@ -87,8 +73,6 @@ function fromDisplayState(display, fmt) {
     // Only distribute to enabled higher segments
     let remaining = h;
     const out = {...state, hours: remaining, minutes: display.minutes, seconds: display.seconds};
-    out.seconds = display.seconds;
-    out.minutes = display.minutes;
     if (ENABLED_KEYS.includes('days')) {
         out.days = Math.floor(remaining / 24);
         out.hours = remaining % 24;
@@ -146,7 +130,7 @@ function clampField(key, val, displayFmt) {
     // must be allowed through rather than floored at 0, or the borrow branch
     // never gets a negative value to act on in the first place.
     if (MODE === 'duration') return val;
-    const m = SEG_META[MODE].find(d => d.key === key);
+    const m = META.find(d => d.key === key);
     if (!m) return val;
     // Wrap by the actual overshoot (modulo), not just to the opposite
     // boundary — a multi-step delta (e.g. a fast wheel scroll) can overshoot
@@ -161,53 +145,59 @@ function clampField(key, val, displayFmt) {
 
 // ---- Format-specific layout ----
 
+// Shared between getSegmentsForFormat and formatState — kept as one
+// module-level constant instead of a copy hand-typed into each.
+const AJHMS_LABELS = {years: 'A', days: 'J', hours: 'H', minutes: 'M', seconds: 'S'};
+
+// Segments the HH:MM:SS format shows, for both clock_time/datetime (all of
+// META) and duration (restricted to whichever of hours/minutes/seconds are
+// actually enabled for this instance) — used by both getSegmentsForFormat
+// and formatState.
+function hmsVisibleKeys() {
+    return MODE === 'duration'
+        ? ['hours', 'minutes', 'seconds'].filter(k => ENABLED_KEYS.includes(k))
+        : META.map(m => m.key);
+}
+
+// Push a {type:'seg'} item per key, with a {type:'sep'} between (not
+// before/after) consecutive ones — the shared shape behind the HH:MM:SS and
+// DD/MM/YYYY branches below.
+function pushJoined(items, keys, sep) {
+    for (let i = 0; i < keys.length; i++) {
+        if (i > 0) items.push({type: 'sep', text: sep});
+        items.push({type: 'seg', key: keys[i]});
+    }
+}
+
 function getSegmentsForFormat(fmt) {
     // Returns array of render items: {type:'seg'|'sep', key?, text?}
     if (fmt === 'AJHMS') {
-        const LABELS = {years:'A', days:'J', hours:'H', minutes:'M', seconds:'S'};
         const items = [];
         for (const m of META) {
             items.push({type: 'seg', key: m.key});
-            items.push({type: 'sep', text: LABELS[m.key] || '', cls: 'ti-unit'});
+            items.push({type: 'sep', text: AJHMS_LABELS[m.key] || '', cls: 'ti-unit'});
         }
         // Remove trailing space after last unit label if desired
         return items;
     }
     if (fmt === 'HH:MM:SS') {
-        // For duration: shows aggregated hours:minutes:seconds, restricted to
-        // whichever of those are actually enabled for this instance
-        // (segments config) — matching the AJHMS branch's respect for
-        // ENABLED_KEYS instead of always showing all three regardless.
-        // For clock_time: same.
         const items = [];
-        const visKeys = MODE === 'duration'
-            ? ['hours', 'minutes', 'seconds'].filter(k => ENABLED_KEYS.includes(k))
-            : META.map(m => m.key);
-        for (let i = 0; i < visKeys.length; i++) {
-            if (i > 0) items.push({type: 'sep', text: ':'});
-            items.push({type: 'seg', key: visKeys[i]});
-        }
+        pushJoined(items, hmsVisibleKeys(), ':');
         return items;
     }
     if (fmt === 'DD/MM/YYYY HH:MM:SS') {
         // datetime — explicit day/month/year order to match the format name
-        // (META always follows SEG_META.datetime's declaration order,
-        // year/month/day, which isn't what this format displays)
+        // (META always follows the mode's declaration order, year/month/day,
+        // which isn't what this format displays)
         const enabledKeys = META.map(m => m.key);
         const dateKeys = ['day', 'month', 'year'].filter(k => enabledKeys.includes(k));
         const timeKeys = ['hours', 'minutes', 'seconds'].filter(k => enabledKeys.includes(k));
         const items = [];
-        for (let i = 0; i < dateKeys.length; i++) {
-            if (i > 0) items.push({type: 'sep', text: '/'});
-            items.push({type: 'seg', key: dateKeys[i]});
-        }
+        pushJoined(items, dateKeys, '/');
         if (dateKeys.length > 0 && timeKeys.length > 0) {
             items.push({type: 'sep', text: ' '});
         }
-        for (let i = 0; i < timeKeys.length; i++) {
-            if (i > 0) items.push({type: 'sep', text: ':'});
-            items.push({type: 'seg', key: timeKeys[i]});
-        }
+        pushJoined(items, timeKeys, ':');
         return items;
     }
     return META.map(m => ({type: 'seg', key: m.key}));
@@ -226,9 +216,26 @@ function itemsSignature(items) {
 }
 
 let lastRenderedSig = null;  // shape of the .ti-field-inner DOM as of the last full rebuild
+let segEls = new Map();      // data-key -> <span>, rebuilt alongside lastRenderedSig
+
+// getSegmentsForFormat's result only actually changes when activeFormat
+// changes (format toggle) — cache it instead of recomputing (plus the
+// itemsSignature() derived from it) on every single render() call.
+let cachedFmt = null;
+let cachedItems = null;
+let cachedSig = null;
+
+function itemsForActiveFormat() {
+    if (activeFormat !== cachedFmt) {
+        cachedFmt = activeFormat;
+        cachedItems = getSegmentsForFormat(activeFormat);
+        cachedSig = itemsSignature(cachedItems);
+    }
+    return {items: cachedItems, sig: cachedSig};
+}
 
 function segmentText(key, displayState) {
-    const m = SEG_META[MODE].find(d => d.key === key);
+    const m = META.find(d => d.key === key);
     const val = displayVal(key, displayState);
     return (focusedSegKey === key && digitBuffer)
         ? digitBuffer.padStart(m?.width ?? 2, '0')
@@ -238,12 +245,7 @@ function segmentText(key, displayState) {
 function render() {
     isRendering = true;
     const displayState = toDisplayState(state, activeFormat);
-    const items = getSegmentsForFormat(activeFormat);
-
-    const fieldEl = widget.querySelector('.ti-field-inner');
-    if (!fieldEl) { isRendering = false; return; }
-
-    const sig = itemsSignature(items);
+    const {items, sig} = itemsForActiveFormat();
 
     if (sig === lastRenderedSig) {
         // Same segments/separators as last render (the overwhelmingly common
@@ -255,7 +257,7 @@ function render() {
         // every single event.
         for (const item of items) {
             if (item.type !== 'seg') continue;
-            const el = fieldEl.querySelector(`.ti-seg[data-key="${item.key}"]`);
+            const el = segEls.get(item.key);
             if (!el) continue;
             const text = segmentText(item.key, displayState);
             if (el.textContent !== text) el.textContent = text;
@@ -274,13 +276,16 @@ function render() {
         }
         fieldEl.innerHTML = html;
         lastRenderedSig = sig;
+        segEls = new Map(
+            Array.from(fieldEl.querySelectorAll('.ti-seg')).map(el => [el.dataset.key, el])
+        );
     }
 
     // Re-attach focus to the active segment. No-op when it's already
     // focused — the common case on the patch path above, since the DOM
     // node's identity (and thus its focus) is preserved across ticks.
     if (focusedSegKey) {
-        const el = fieldEl.querySelector(`[data-key="${focusedSegKey}"]`);
+        const el = segEls.get(focusedSegKey);
         if (el && document.activeElement !== el) el.focus({preventScroll: true});
     }
     isRendering = false;
@@ -293,7 +298,7 @@ function getDisplayMeta(key) {
     if (MODE === 'duration' && activeFormat === 'HH:MM:SS' && key === 'hours') {
         return {key, min: 0, max: null, width: 4};
     }
-    return SEG_META[MODE].find(d => d.key === key) || {key, min: 0, max: null, width: 2};
+    return META.find(d => d.key === key) || {key, min: 0, max: null, width: 2};
 }
 
 function applyDelta(key, delta) {
@@ -326,8 +331,7 @@ function commitAndNormalize() {
 }
 
 function updateDisplayBadge() {
-    const badge = widget.querySelector('.ti-display-value');
-    if (badge) badge.textContent = formatState(state, activeFormat);
+    if (badgeEl) badgeEl.textContent = formatState(state, activeFormat);
 }
 
 function enterEditMode() {
@@ -633,11 +637,15 @@ widget.addEventListener('click', e => {
         return;
     }
 
-    // Copy button
+    // Copy button — matches the checkmark-feedback pattern used by the
+    // ArmyInputHTML/LevelsInputComponent copy buttons.
     const copyBtn = e.target.closest('.ti-copy');
     if (copyBtn) {
         const text = formatState(state, activeFormat);
-        navigator.clipboard?.writeText(text).catch(() => {});
+        navigator.clipboard?.writeText(text).then(() => {
+            copyBtn.textContent = '✓';
+            setTimeout(() => { copyBtn.textContent = '⎘'; }, 1200);
+        }).catch(() => {});
         return;
     }
 
@@ -666,9 +674,11 @@ function applyQuickFill(fill) {
     const now = new Date();
     if (fill === 'now') {
         if (MODE === 'duration') {
-            const totalSecs = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
-            state = applyDefaults(fromDisplayState({hours: Math.floor(totalSecs / 3600),
-                minutes: now.getMinutes(), seconds: now.getSeconds()}, 'HH:MM:SS'));
+            // Math.floor((mins*60+secs)/3600) is always exactly now.getHours()
+            // (minutes+seconds can never total a full hour) — use it directly.
+            state = fromDisplayState(
+                {hours: now.getHours(), minutes: now.getMinutes(), seconds: now.getSeconds()}, 'HH:MM:SS'
+            );
         } else if (MODE === 'clock_time') {
             state.hours = now.getHours();
             state.minutes = now.getMinutes();
@@ -697,13 +707,19 @@ function applyQuickFill(fill) {
 // ---- Paste ----
 // Spans with tabindex don't receive browser paste events, so we use document-level.
 
-document.addEventListener('paste', e => {
+document.addEventListener('paste', async e => {
     if (!INTERACTIVE) return;
     const active = document.activeElement;
     if (!active || !widget.contains(active) || !active.classList.contains('ti-seg')) return;
     e.preventDefault();
     const text = e.clipboardData.getData('text');
-    const parsed = parseTimeString(text);
+    // Parsing (AJHMS/HH:MM:SS/DD-MM-YYYY) lives server-side so there's one
+    // canonical implementation (nawminator.utils.parse_ajhms, which already
+    // handles NAW-formatted space-grouped numbers) instead of a second,
+    // independently-maintained parser here — paste is a rare, deliberate
+    // action, so the round trip is not a concern the way it would be on a
+    // per-keystroke/per-tick hot path.
+    const parsed = await server.parse_pasted_text(text);
     if (parsed) {
         Object.assign(state, parsed);
         applyDefaults(state);
@@ -711,64 +727,15 @@ document.addEventListener('paste', e => {
     }
 });
 
-function parseTimeString(s) {
-    s = s.trim();
-
-    // AJHMS: e.g. "2A 3J 4H 30M 15S" or "4H 30M" etc.
-    const ajhmsRe = /(?:(\d+)\s*[Aa])?[\s,]*(?:(\d+)\s*[Jj])?[\s,]*(?:(\d+)\s*[Hh])?[\s,]*(?:(\d+)\s*[Mm])?[\s,]*(?:(\d+)\s*[Ss])?/;
-    const ajhmsMatch = s.match(/\d+\s*[AaJjHhMmSs]/);
-    if (ajhmsMatch) {
-        const m = s.match(ajhmsRe);
-        if (m && (m[1]||m[2]||m[3]||m[4]||m[5])) {
-            return {
-                years: parseInt(m[1] || '0', 10),
-                days: parseInt(m[2] || '0', 10),
-                hours: parseInt(m[3] || '0', 10),
-                minutes: parseInt(m[4] || '0', 10),
-                seconds: parseInt(m[5] || '0', 10),
-            };
-        }
-    }
-
-    // HH:MM:SS or HH:MM
-    const hmsMatch = s.match(/^(\d+):(\d+)(?::(\d+))?$/);
-    if (hmsMatch) {
-        return {
-            hours: parseInt(hmsMatch[1], 10),
-            minutes: parseInt(hmsMatch[2], 10),
-            seconds: parseInt(hmsMatch[3] || '0', 10),
-        };
-    }
-
-    // DD/MM/YYYY HH:MM:SS or DD/MM HH:MM:SS
-    const dtMatch = s.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-    if (dtMatch) {
-        return {
-            day: parseInt(dtMatch[1], 10),
-            month: parseInt(dtMatch[2], 10),
-            year: parseInt(dtMatch[3] || '1970', 10),  // matches buildEmptyState()'s convention
-            hours: parseInt(dtMatch[4], 10),
-            minutes: parseInt(dtMatch[5], 10),
-            seconds: parseInt(dtMatch[6] || '0', 10),
-        };
-    }
-
-    return null;
-}
-
 // ---- Format state to string (for copy) ----
 
 function formatState(s, fmt) {
     const d = toDisplayState(s, fmt);
     if (fmt === 'AJHMS') {
-        const LABELS = {years:'A', days:'J', hours:'H', minutes:'M', seconds:'S'};
-        return META.map(m => `${d[m.key]}${LABELS[m.key]}`).join(' ');
+        return META.map(m => `${d[m.key]}${AJHMS_LABELS[m.key]}`).join(' ');
     }
     if (fmt === 'HH:MM:SS') {
-        const keys = MODE === 'duration'
-            ? ['hours', 'minutes', 'seconds'].filter(k => ENABLED_KEYS.includes(k))
-            : META.map(m=>m.key);
-        return keys.map(k => pad(d[k]||0, k==='hours' && MODE==='duration' ? 3 : 2)).join(':');
+        return hmsVisibleKeys().map(k => pad(d[k]||0, k==='hours' && MODE==='duration' ? 3 : 2)).join(':');
     }
     if (fmt === 'DD/MM/YYYY HH:MM:SS') {
         return `${pad(s.day,2)}/${pad(s.month,2)}/${s.year} ${pad(s.hours,2)}:${pad(s.minutes,2)}:${pad(s.seconds,2)}`;
