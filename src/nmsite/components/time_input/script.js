@@ -45,6 +45,7 @@ let digitBuffer = '';
 let digitTimeout = null;
 let touchStartY = null;
 let touchLastY = null;
+let isEditing = false;        // true while the segment editor is open
 let isRendering = false;     // guard: suppress focusin/focusout during DOM rebuild
 let isInternalCommit = false; // guard: skip watch during own commit
 
@@ -139,8 +140,12 @@ function normalize(s) {
 }
 
 function clampField(key, val, displayFmt) {
-    // In duration mode all fields are unbounded from above (normalization handles carry)
-    if (MODE === 'duration') return Math.max(0, val);
+    // In duration mode, fields are unbounded in both directions: normalize()
+    // carries overflow up into the next bigger unit, and (symmetrically)
+    // borrows from it on underflow — so a negative intermediate value here
+    // must be allowed through rather than floored at 0, or the borrow branch
+    // never gets a negative value to act on in the first place.
+    if (MODE === 'duration') return val;
     const m = SEG_META[MODE].find(d => d.key === key);
     if (!m) return val;
     if (m.min !== null && val < m.min) return m.max;   // wrap around
@@ -175,9 +180,12 @@ function getSegmentsForFormat(fmt) {
         return items;
     }
     if (fmt === 'DD/MM/YYYY HH:MM:SS') {
-        // datetime
-        const dateKeys = META.map(m => m.key).filter(k => ['year','month','day'].includes(k));
-        const timeKeys = META.map(m => m.key).filter(k => ['hours','minutes','seconds'].includes(k));
+        // datetime — explicit day/month/year order to match the format name
+        // (META always follows SEG_META.datetime's declaration order,
+        // year/month/day, which isn't what this format displays)
+        const enabledKeys = META.map(m => m.key);
+        const dateKeys = ['day', 'month', 'year'].filter(k => enabledKeys.includes(k));
+        const timeKeys = ['hours', 'minutes', 'seconds'].filter(k => enabledKeys.includes(k));
         const items = [];
         for (let i = 0; i < dateKeys.length; i++) {
             if (i > 0) items.push({type: 'sep', text: '/'});
@@ -201,6 +209,22 @@ function pad(val, width) {
     return String(Math.abs(val)).padStart(width, '0');
 }
 
+// Identifies the DOM shape a given items list would produce (which segments/
+// separators, in which order) without caring about their current values.
+function itemsSignature(items) {
+    return items.map(i => i.type === 'seg' ? 'S:' + i.key : 'T:' + i.text + (i.cls || '')).join('|');
+}
+
+let lastRenderedSig = null;  // shape of the .ti-field-inner DOM as of the last full rebuild
+
+function segmentText(key, displayState) {
+    const m = SEG_META[MODE].find(d => d.key === key);
+    const val = displayVal(key, displayState);
+    return (focusedSegKey === key && digitBuffer)
+        ? digitBuffer.padStart(m?.width ?? 2, '0')
+        : pad(val, m?.width ?? 2);
+}
+
 function render() {
     isRendering = true;
     const displayState = toDisplayState(state, activeFormat);
@@ -209,24 +233,42 @@ function render() {
     const fieldEl = widget.querySelector('.ti-field-inner');
     if (!fieldEl) { isRendering = false; return; }
 
-    let html = '';
-    for (const item of items) {
-        if (item.type === 'sep') {
-            html += `<span class="ti-sep${item.cls ? ' ' + item.cls : ''}">${item.text}</span>`;
-        } else {
-            const key = item.key;
-            const m = SEG_META[MODE].find(d => d.key === key);
-            const val = displayVal(key, displayState);
-            const focused = focusedSegKey === key ? ' active' : '';
-            const displayText = (focusedSegKey === key && digitBuffer)
-                ? digitBuffer.padStart(m?.width ?? 2, '0')
-                : pad(val, m?.width ?? 2);
-            html += `<span class="ti-seg${focused}" data-key="${key}" tabindex="${INTERACTIVE ? 0 : -1}">${displayText}</span>`;
-        }
-    }
-    fieldEl.innerHTML = html;
+    const sig = itemsSignature(items);
 
-    // Re-attach focus to active segment
+    if (sig === lastRenderedSig) {
+        // Same segments/separators as last render (the overwhelmingly common
+        // case — a wheel tick, arrow key or digit keystroke just changes a
+        // value or which segment is focused). Patch the existing spans in
+        // place instead of tearing down and rebuilding the whole field: this
+        // avoids a full reflow per tick and — crucially — never destroys the
+        // currently-focused element, so the browser doesn't blur/refocus on
+        // every single event.
+        for (const item of items) {
+            if (item.type !== 'seg') continue;
+            const el = fieldEl.querySelector(`.ti-seg[data-key="${item.key}"]`);
+            if (!el) continue;
+            const text = segmentText(item.key, displayState);
+            if (el.textContent !== text) el.textContent = text;
+            el.classList.toggle('active', focusedSegKey === item.key);
+        }
+    } else {
+        let html = '';
+        for (const item of items) {
+            if (item.type === 'sep') {
+                html += `<span class="ti-sep${item.cls ? ' ' + item.cls : ''}">${item.text}</span>`;
+            } else {
+                const focused = focusedSegKey === item.key ? ' active' : '';
+                const text = segmentText(item.key, displayState);
+                html += `<span class="ti-seg${focused}" data-key="${item.key}" tabindex="${INTERACTIVE ? 0 : -1}">${text}</span>`;
+            }
+        }
+        fieldEl.innerHTML = html;
+        lastRenderedSig = sig;
+    }
+
+    // Re-attach focus to the active segment. No-op when it's already
+    // focused — the common case on the patch path above, since the DOM
+    // node's identity (and thus its focus) is preserved across ticks.
     if (focusedSegKey) {
         const el = fieldEl.querySelector(`[data-key="${focusedSegKey}"]`);
         if (el && document.activeElement !== el) el.focus({preventScroll: true});
@@ -273,6 +315,34 @@ function commitAndNormalize() {
     commit();
 }
 
+function updateDisplayBadge() {
+    const badge = widget.querySelector('.ti-display-value');
+    if (badge) badge.textContent = formatState(state, activeFormat);
+}
+
+function enterEditMode() {
+    if (!INTERACTIVE || isEditing) return;
+    isEditing = true;
+    widget.dataset.editing = 'true';
+    const firstKey = META[0]?.key;
+    if (firstKey) {
+        focusedSegKey = firstKey;
+        digitBuffer = '';
+        render();
+    }
+}
+
+function exitEditMode() {
+    if (!isEditing) return;
+    if (focusedSegKey) applyDigitBuffer(focusedSegKey);
+    focusedSegKey = null;
+    digitBuffer = '';
+    normalize(state);
+    isEditing = false;
+    widget.dataset.editing = 'false';
+    commit();
+}
+
 function commit() {
     isInternalCommit = true;
     props.value = JSON.stringify(state);
@@ -280,6 +350,7 @@ function commit() {
     trigger('input');
     trigger('change');
     render();
+    updateDisplayBadge();
 }
 
 // ---- Keyboard ----
@@ -324,6 +395,9 @@ widget.addEventListener('keydown', e => {
         e.preventDefault();
         applyDigitBuffer(key);
         commitAndNormalize();
+    } else if (e.key === 'Escape') {
+        e.preventDefault();
+        exitEditMode();
     } else if (e.key === 'Backspace') {
         e.preventDefault();
         digitBuffer = digitBuffer.slice(0, -1);
@@ -363,14 +437,28 @@ widget.addEventListener('focusin', e => {
 
 widget.addEventListener('focusout', e => {
     if (isRendering) return;  // DOM rebuild caused this, don't commit
-    const seg = e.relatedTarget?.closest('.ti-seg');
-    if (!seg || seg.closest('.ti-widget') !== widget) {
-        applyDigitBuffer(focusedSegKey);
-        commitAndNormalize();
-        focusedSegKey = null;
-        render();
+    const nextFocused = e.relatedTarget;
+
+    if (nextFocused && widget.contains(nextFocused)) {
+        // Focus stayed inside the widget (e.g. moved to a button)
+        const seg = nextFocused.closest('.ti-seg');
+        if (!seg) {
+            // Moved to a button — commit buffer but stay in edit mode
+            applyDigitBuffer(focusedSegKey);
+            commitAndNormalize();
+            focusedSegKey = null;
+            render();
+        }
+        // If it's a segment, focusin will handle the transition
+        return;
     }
+
+    // Focus left the widget entirely — exit edit mode
+    exitEditMode();
 });
+
+// Click on display badge → enter edit mode
+widget.querySelector('.ti-display').addEventListener('click', () => enterEditMode());
 
 // Click anywhere in the field (not on a segment/button) → focus first segment
 widget.querySelector('.ti-field').addEventListener('click', e => {
@@ -384,15 +472,95 @@ widget.querySelector('.ti-field').addEventListener('click', e => {
 });
 
 // ---- Mouse wheel ----
+//
+// deltaY magnitude-per-notch has no portable baseline (varies by browser/OS/
+// driver) — the standard reference pattern for wheel-scrollable numeric
+// inputs (e.g. jQuery UI's spinner widget) reacts to the event's sign only,
+// flat +/-1 per dispatched event, for exactly that reason.
+//
+// TEMP EXPERIMENT — coalesced events (verified: summed, not dropped — Firefox
+// APZ queues wheel events behind a content round-trip when a non-passive
+// listener is present, see TODO.md) are the confirmed root cause of missed
+// ticks, so scaling by deltaY magnitude recovers the correct total. There's
+// no cross-hardware standard for a single notch's deltaY though — a real
+// standard (v120) exists at the OS/driver layer, but browsers convert it to
+// CSS pixels using their own internal, unexposed factor before JS ever sees
+// it, so the observable pixel-per-notch value is specific to this browser/
+// OS/mouse combination (confirmed: an earlier hardcoded 102 broke on a
+// second physical mouse). Self-calibrate per session instead, tracking the
+// running minimum observed |deltaY| as the current best guess at "one
+// notch" — the same approach the long-established jQuery Mousewheel plugin
+// uses (its `lowestDelta`). Reset after a short idle gap, also matching
+// that plugin: it does this to handle switching input devices mid-session,
+// but it has the convenient side effect of bounding how long a bad
+// calibration (e.g. a noisy sample smaller than the true unit) can persist
+// — it self-heals on the next distinct scroll gesture rather than staying
+// wrong for the rest of the session. (Preferred over tracking the GCD of
+// observations: GCD is corrupted by a sample landing on *either* side of
+// the true unit, min-tracking only by one landing *below* it, so min is the
+// less noise-sensitive of the two — and unlike GCD it doesn't self-heal
+// from a bad first sample without the idle-reset backstopping it anyway, so
+// there's no real cost to skipping GCD's one advantage here.)
+// Seeded at 100 — the well-documented middle of the typical 100-120px
+// per-notch range for standard mice (100 ≈ common Chrome-reported value,
+// 120 = the actual WHEEL_DELTA Windows constant) — purely so the very first
+// tick of a session, before any real sample exists, still behaves
+// reasonably. Trackpads/free-spin wheels have no fixed notch at all and
+// will just calibrate down toward their much smaller per-sample size.
+// NOT a general fix — remove or generalize once evaluated.
+
+const WHEEL_IDLE_RESET_MS = 200;  // matches jQuery Mousewheel's own reset window
+
+let wheelUnitEstimate = null;  // null until the first real sample is observed (or after an idle reset)
+let wheelResetTimeout = null;
+
+// TEMP DEBUG — instrumentation for tracking down "missed" wheel ticks.
+// Logs every wheel event this listener receives, including ones we end up
+// ignoring, with a sequence number and time-since-last-event so the actual
+// browser dispatch rate can be compared against physical scroll notches by
+// eye/ear while testing. Remove once diagnosed.
+let __wheelDebugCount = 0;
+let __wheelDebugLastTs = null;
 
 widget.addEventListener('wheel', e => {
+    __wheelDebugCount++;
+    const now = performance.now();
+    const sinceLast = __wheelDebugLastTs !== null ? (now - __wheelDebugLastTs).toFixed(1) : '-';
+    __wheelDebugLastTs = now;
+
     const seg = e.target.closest('.ti-seg');
-    if (!seg || !INTERACTIVE) return;
+    const targetDesc = `${e.target.tagName.toLowerCase()}.${[...e.target.classList].join('.')}`;
+    console.debug(
+        `[TI wheel] #${__wheelDebugCount} +${sinceLast}ms deltaY=${e.deltaY} deltaMode=${e.deltaMode}`,
+        `target=${targetDesc} seg=${seg ? seg.dataset.key : 'none'} interactive=${INTERACTIVE}`,
+    );
+
+    if (!seg || !INTERACTIVE) {
+        console.debug(`[TI wheel] #${__wheelDebugCount} IGNORED (no seg under pointer, or non-interactive)`);
+        return;
+    }
     e.preventDefault();
     const key = seg.dataset.key;
     focusedSegKey = key;
     applyDigitBuffer(key);
-    applyDelta(key, e.deltaY < 0 ? 1 : -1);
+
+    // Use the best estimate available BEFORE folding this event's own
+    // magnitude in — so the very first-ever event of a session divides by
+    // the researched 100px seed (a real proportional guess) rather than by
+    // its own magnitude (which would trivially always compute as exactly
+    // +/-1, silently defeating the seed if this happened to be an
+    // undetected multi-notch burst).
+    const unit = wheelUnitEstimate || 100;
+    const steps = Math.round(e.deltaY / unit) || (e.deltaY < 0 ? 1 : -1);
+    applyDelta(key, -steps);
+
+    const mag = Math.round(Math.abs(e.deltaY));
+    if (mag > 0 && (wheelUnitEstimate === null || mag < wheelUnitEstimate)) {
+        wheelUnitEstimate = mag;
+    }
+    clearTimeout(wheelResetTimeout);
+    wheelResetTimeout = setTimeout(() => { wheelUnitEstimate = null; }, WHEEL_IDLE_RESET_MS);
+    console.debug(`[TI wheel] #${__wheelDebugCount} APPLIED key=${key} unit=${unit} steps=${-steps} -> ${state[key]}`);
 }, {passive: false});
 
 // ---- Touch drag ----
@@ -598,9 +766,26 @@ watch('value', () => {
     state = applyDefaults(newState || buildEmptyState());
     focusedSegKey = null;
     digitBuffer = '';
+    isEditing = false;
+    widget.dataset.editing = 'false';
     render();
+    updateDisplayBadge();
 });
 
 // ---- Initial render ----
 
 render();
+updateDisplayBadge();
+
+// Reserve exactly as much space in .ti-display/.ti-field as the overlaid
+// .ti-btns actually needs, instead of a fixed guess (see the padding
+// comment in style.css) — different instances have different numbers of
+// quick-fill pills/toggle/clear/copy, so a single hardcoded reserve can't
+// fit all of them. The button set is fixed at construction time (set once
+// from Python props, never changes at runtime), so this only needs to run
+// once, after the initial render/layout.
+const btnsEl = widget.querySelector('.ti-btns');
+if (btnsEl) {
+    const reserve = Math.ceil(btnsEl.getBoundingClientRect().width) + 16;  // + a little breathing room
+    widget.style.setProperty('--ti-btns-reserve', `${reserve}px`);
+}

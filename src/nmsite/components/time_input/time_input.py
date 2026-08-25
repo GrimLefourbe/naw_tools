@@ -150,6 +150,13 @@ class TimeInput(gr.HTML):
 
         btns_html = f'<div class="ti-btns">{pills_html}{toggle_html}{clear_html}{copy_html}</div>'
 
+        display_html = (
+            '<div class="ti-display">'
+            '<span class="ti-display-value"></span>'
+            '<span class="ti-display-hint" aria-hidden="true">✎</span>'
+            '</div>'
+        )
+
         return (
             f'<div class="ti-widget"'
             f' data-mode="{mode}"'
@@ -157,10 +164,14 @@ class TimeInput(gr.HTML):
             f' data-formats=\'{json.dumps(fmt_list)}\''
             f' data-quick-fills=\'{json.dumps(fill_list)}\''
             f' data-interactive="{str(interactive).lower()}"'
-            f' data-hidden-defaults=\'{json.dumps(hidden_defaults)}\'>'
+            f' data-hidden-defaults=\'{json.dumps(hidden_defaults)}\''
+            f' data-editing="false">'
             f'{label_html}'
+            f'<div class="ti-row">'
+            f'{display_html}'
             f'<div class="ti-field">'
             f'<div class="ti-field-inner"></div>'
+            f'</div>'
             f'{btns_html}'
             f'</div>'
             f'</div>'

@@ -6,14 +6,84 @@
     gap: 6px;
 }
 
+/* ── Two-state visibility ──────────────────────────────────────────────────── */
+
+/* Display badge: visible in display mode, hidden while editing */
+.ti-widget[data-editing="true"] .ti-display { display: none; }
+
+/* Editor field: hidden in display mode, visible while editing */
+.ti-widget[data-editing="false"] .ti-field { display: none; }
+
+/* Positioning context for whichever of display/field is active, so the
+   button row (see .ti-btns) can overlay it regardless of edit state */
+.ti-row {
+    position: relative;
+}
+
+/* ── Display badge ─────────────────────────────────────────────────────────── */
+
+/* .ti-display and .ti-field share the exact same padding (including the
+   right reserve for the overlaid .ti-btns) and the same justify-content:
+   center centering technique, so the content doesn't visually shift when
+   toggling between display and edit mode. The hint icon is positioned
+   absolutely so it doesn't perturb that centering.
+
+   The reserve itself is a CSS custom property (--ti-btns-reserve) set from
+   script.js to .ti-btns's actual measured width, since different instances
+   have different numbers of buttons (quick-fill pills, toggle, clear,
+   copy) — a fixed guess can't fit all of them. The 90px fallback only
+   applies before that JS runs (or if it somehow doesn't). */
+
+.ti-display {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 40px;
+    padding: 4px var(--ti-btns-reserve, 90px) 4px 12px;
+    border: var(--input-border-width, 1px) solid var(--input-border-color, var(--border-color-primary, #d1d5db));
+    border-radius: var(--input-border-radius, var(--radius-sm, 4px));
+    background: var(--input-background-fill, var(--background-fill-primary, #fff));
+    font-family: monospace;
+    font-size: 1rem;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: border-color 0.15s;
+}
+
+.ti-display:hover {
+    border-color: var(--input-border-color-focus, var(--color-accent, #f97316));
+}
+
+.ti-display-value {
+    color: var(--body-text-color, #111827);
+}
+
+.ti-display-hint {
+    position: absolute;
+    right: calc(var(--ti-btns-reserve, 90px) + 6px);  /* just left of the .ti-btns reserve, out of the centering flow */
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.8rem;
+    color: var(--body-text-color-subdued, #9ca3af);
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.ti-display:hover .ti-display-hint {
+    opacity: 1;
+}
+
+/* ── Editor field ──────────────────────────────────────────────────────────── */
+
 /* Container styled like a text field */
 .ti-field {
     display: flex;
     justify-content: center;
     align-items: center;
-    position: relative;
     min-height: 40px;
-    padding: 4px 8px;
+    padding: 4px var(--ti-btns-reserve, 90px) 4px 12px;  /* matches .ti-display's padding, see comment above */
     border: var(--input-border-width, 1px) solid var(--input-border-color, var(--border-color-primary, #d1d5db));
     border-radius: var(--input-border-radius, var(--radius-sm, 4px));
     background: var(--input-background-fill, var(--background-fill-primary, #fff));
@@ -27,7 +97,6 @@
 .ti-field-inner {
     display: flex;
     align-items: center;
-    max-width: calc(100% - 90px);
 }
 
 .ti-field:focus-within {
@@ -81,7 +150,9 @@
     padding: 2px 0 2px 1px;
 }
 
-/* Button row — absolutely positioned so segments can be truly centered */
+/* Button row — overlaid on top of whichever of the display badge / editor
+   field is showing (positioned against .ti-row, not .ti-field, so it stays
+   reachable regardless of edit state) */
 .ti-btns {
     position: absolute;
     right: 8px;
@@ -150,21 +221,25 @@
     margin-bottom: 2px;
 }
 
-/* Non-interactive (result) mode */
-.ti-widget[data-interactive="false"] .ti-field {
+/* Non-interactive (result) mode — display badge only, no editor */
+.ti-widget[data-interactive="false"] .ti-display {
+    cursor: default;
     background: var(--background-fill-secondary, #f9fafb);
     border-style: solid;
     border-color: var(--border-color-accent, #f97316);
     border-left-width: 3px;
 }
 
-.ti-widget[data-interactive="false"] .ti-seg {
-    cursor: default;
-    pointer-events: none;
+.ti-widget[data-interactive="false"] .ti-display:hover {
+    border-color: var(--border-color-accent, #f97316);
 }
 
-.ti-widget[data-interactive="false"] .ti-btn,
-.ti-widget[data-interactive="false"] .ti-pill {
+.ti-widget[data-interactive="false"] .ti-display-hint {
+    display: none;
+}
+
+.ti-widget[data-interactive="false"] .ti-btns .ti-btn,
+.ti-widget[data-interactive="false"] .ti-btns .ti-pill {
     pointer-events: none;
     opacity: 0.5;
 }
