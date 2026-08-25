@@ -7,7 +7,7 @@ const MODE = widget.dataset.mode;                          // "duration" | "cloc
 const ENABLED_KEYS = JSON.parse(widget.dataset.segments);  // ordered list of enabled segment keys
 const FORMATS = JSON.parse(widget.dataset.formats);        // available display formats
 const QUICK_FILLS = JSON.parse(widget.dataset.quickFills);
-const INTERACTIVE = widget.dataset.interactive !== 'false';
+let INTERACTIVE = widget.dataset.interactive !== 'false';
 const HIDDEN_DEFAULTS = JSON.parse(widget.dataset.hiddenDefaults || '{}');
 
 // These containers are part of the static initial template and are never
@@ -756,6 +756,24 @@ watch('value', () => {
     widget.dataset.editing = 'false';
     render();
     updateDisplayBadge();
+});
+
+// ---- watch for Python-initiated interactive updates ----
+
+watch('interactive', () => {
+    // props.interactive is only populated after an explicit gr.update(interactive=...);
+    // undefined means "not yet touched since mount" — the dataset value from the
+    // initial html_template render already reflects the constructor's `interactive` kwarg.
+    if (props.interactive === undefined) return;
+    INTERACTIVE = props.interactive !== false;
+    widget.dataset.interactive = String(INTERACTIVE);
+    if (isEditing && !INTERACTIVE) exitEditMode();
+    // The patch path in render() never regenerates each segment's tabindex
+    // attribute (it only touches text/active-class), so a change that flips
+    // only INTERACTIVE would otherwise leave stale tabindex values behind.
+    // Force the next render() onto the full-rebuild path.
+    lastRenderedSig = null;
+    render();
 });
 
 // ---- Initial render ----

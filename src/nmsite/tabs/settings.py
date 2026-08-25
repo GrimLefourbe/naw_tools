@@ -88,6 +88,9 @@ class Settings:
         with gr.Row():
             with gr.Column():
                 gr.Markdown("**A** — durée H:M:S")
+                self._ti_a_interactive = gr.Checkbox(
+                    value=True, label="Interactif", elem_id="ti_demo_a_interactive",
+                )
                 self._ti_a = TimeInput(
                     mode="duration",
                     segments=["hours", "minutes", "seconds"],
@@ -145,6 +148,13 @@ class Settings:
                 self._ti_e_out = gr.Text(label="Python", interactive=False, elem_id="ti_demo_e_out")
 
     def _configure_time_input_demo(self):
+        self._ti_a_interactive.change(
+            fn=lambda v: gr.update(interactive=v),
+            inputs=self._ti_a_interactive,
+            outputs=self._ti_a,
+            show_progress="hidden",
+        )
+
         for ti, out in [
             (self._ti_a, self._ti_a_out),
             (self._ti_b, self._ti_b_out),

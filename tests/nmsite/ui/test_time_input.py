@@ -216,3 +216,35 @@ def test_demo_e_change_emits_datetime(settings_page: Page) -> None:
     page.wait_for_timeout(500)
 
     expect(_output(page, "ti_demo_e")).to_have_value(re.compile("datetime.datetime"), timeout=5_000)
+
+
+# ── Tests: interactive toggle ────────────────────────────────────────────
+
+def test_interactive_toggle_makes_segments_read_only(settings_page: Page) -> None:
+    page = settings_page
+    _enter_edit_mode(page, "ti_demo_a")
+    seg = _seg(page, "ti_demo_a", "hours")
+    expect(seg).to_have_attribute("tabindex", "0")
+
+    page.locator("#ti_demo_a_interactive").get_by_role("checkbox").uncheck()
+    page.wait_for_timeout(200)
+
+    expect(page.locator("#ti_demo_a .ti-widget")).to_have_attribute("data-interactive", "false")
+    expect(seg).to_have_attribute("tabindex", "-1")
+
+
+def test_interactive_toggle_preserves_value(settings_page: Page) -> None:
+    page = settings_page
+    _enter_edit_mode(page, "ti_demo_a")
+    _seg(page, "ti_demo_a", "hours").click()
+    page.keyboard.press("ArrowUp")
+    # Wait for the change event to fire and update the output
+    expect(_output(page, "ti_demo_a")).to_have_value(re.compile("."), timeout=5_000)
+    before = _output(page, "ti_demo_a").input_value()
+
+    page.locator("#ti_demo_a_interactive").get_by_role("checkbox").uncheck()
+    page.wait_for_timeout(200)
+    page.locator("#ti_demo_a_interactive").get_by_role("checkbox").check()
+    page.wait_for_timeout(200)
+
+    assert _output(page, "ti_demo_a").input_value() == before
