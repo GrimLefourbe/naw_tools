@@ -1,5 +1,8 @@
 """UI tests for the TimeInput component (Settings tab demo instances)."""
 
+import datetime as dt
+import re
+
 import pytest
 from playwright.sync_api import Page, expect
 
@@ -20,15 +23,14 @@ def _seg(page: Page, elem_id: str, key: str):
 
 def _output(page: Page, elem_id: str):
     """Locate the Python-repr output textbox paired with a demo instance."""
-    # The output gr.Text is the next sibling column in the DOM (after the component column).
-    # It renders as a textarea. We identify it by its label "Python".
-    # Since Gradio adds label text in a span, we locate by the adjacent output field.
-    # Approach: find by elem_id's parent row, then find the output field.
-    # Simpler: rely on the label text "Python" within the same column group.
-    # Each demo column has exactly one gr.Text(label="Python"), so we can scope by parent.
-    component = page.locator(f"#{elem_id}")
-    parent_col = component.locator("xpath=../..").first
-    return parent_col.get_by_label("Python")
+    return page.locator(f"#{elem_id}_out").get_by_role("textbox")
+
+
+def _enter_edit_mode(page: Page, elem_id: str) -> None:
+    """Click the display badge to reveal the editable segments (segments are
+    hidden behind it until then — see .ti-widget's data-editing toggle)."""
+    page.locator(f"#{elem_id} .ti-display").click()
+    page.locator(f"#{elem_id} .ti-field").wait_for(state="visible")
 
 
 def _seg_text(page: Page, elem_id: str, key: str) -> str:
@@ -37,18 +39,31 @@ def _seg_text(page: Page, elem_id: str, key: str) -> str:
 
 # ── Tests: Rendering ─────────────────────────────────────────────────────────
 
-def test_demo_a_renders_hms_segments(settings_page: Page) -> None:
+def test_demo_a_display_badge_visible_by_default(settings_page: Page) -> None:
     page = settings_page
+    expect(page.locator("#ti_demo_a .ti-display")).to_be_visible()
+    expect(page.locator("#ti_demo_a .ti-field")).to_be_hidden()
+
+
+def test_demo_a_click_reveals_hms_segments(settings_page: Page) -> None:
+    page = settings_page
+    _enter_edit_mode(page, "ti_demo_a")
     expect(_seg(page, "ti_demo_a", "hours")).to_be_visible()
     expect(_seg(page, "ti_demo_a", "minutes")).to_be_visible()
     expect(_seg(page, "ti_demo_a", "seconds")).to_be_visible()
+    expect(page.locator("#ti_demo_a .ti-display")).to_be_hidden()
 
 
-def test_demo_b_renders_with_format_toggle(settings_page: Page) -> None:
+def test_demo_b_format_toggle_visible_without_editing(settings_page: Page) -> None:
     page = settings_page
-    # Instance B has 2 formats, so a toggle button should appear
-    toggle = page.locator("#ti_demo_b .ti-toggle")
-    expect(toggle).to_be_visible()
+    # The toolbar (including the format toggle) overlays the display badge
+    # and stays reachable regardless of edit state.
+    expect(page.locator("#ti_demo_b .ti-toggle")).to_be_visible()
+
+
+def test_demo_b_days_segment_visible_after_entering_edit_mode(settings_page: Page) -> None:
+    page = settings_page
+    _enter_edit_mode(page, "ti_demo_b")
     # Days segment is visible (AJHMS format by default)
     expect(_seg(page, "ti_demo_b", "days")).to_be_visible()
 
@@ -73,6 +88,7 @@ def test_copy_button_present_on_all_demos(settings_page: Page) -> None:
 
 def test_demo_a_arrow_up_increments_hours(settings_page: Page) -> None:
     page = settings_page
+    _enter_edit_mode(page, "ti_demo_a")
     hours_seg = _seg(page, "ti_demo_a", "hours")
     hours_seg.click()
     initial = int(hours_seg.inner_text())
@@ -82,6 +98,7 @@ def test_demo_a_arrow_up_increments_hours(settings_page: Page) -> None:
 
 def test_demo_a_arrow_down_decrements_minutes(settings_page: Page) -> None:
     page = settings_page
+    _enter_edit_mode(page, "ti_demo_a")
     # First set minutes to a known value via ArrowUp
     mins_seg = _seg(page, "ti_demo_a", "minutes")
     mins_seg.click()
@@ -96,6 +113,7 @@ def test_demo_a_arrow_down_decrements_minutes(settings_page: Page) -> None:
 
 def test_demo_a_digit_entry_two_digits(settings_page: Page) -> None:
     page = settings_page
+    _enter_edit_mode(page, "ti_demo_a")
     secs_seg = _seg(page, "ti_demo_a", "seconds")
     secs_seg.click()
     page.keyboard.press("3")
@@ -107,7 +125,7 @@ def test_demo_a_digit_entry_two_digits(settings_page: Page) -> None:
 def test_demo_a_normalization_on_large_seconds(settings_page: Page) -> None:
     """Type a large number in seconds; on Tab, normalization carries to minutes/hours."""
     page = settings_page
-    # Reset to zero first
+    _enter_edit_mode(page, "ti_demo_a")
     hours_seg = _seg(page, "ti_demo_a", "hours")
     mins_seg = _seg(page, "ti_demo_a", "minutes")
     secs_seg = _seg(page, "ti_demo_a", "seconds")
@@ -172,7 +190,6 @@ def test_demo_b_toggle_back_to_ajhms(settings_page: Page) -> None:
 
 def test_demo_d_current_time_fill_updates_segments(settings_page: Page) -> None:
     page = settings_page
-    import datetime as dt
 
     pill = page.locator("#ti_demo_d .ti-pill[data-fill='current_time']")
     pill.click()
@@ -188,32 +205,33 @@ def test_demo_d_current_time_fill_updates_segments(settings_page: Page) -> None:
 
 def test_demo_a_change_emits_timedelta(settings_page: Page) -> None:
     page = settings_page
+    _enter_edit_mode(page, "ti_demo_a")
     hours_seg = _seg(page, "ti_demo_a", "hours")
     hours_seg.click()
     page.keyboard.press("ArrowUp")
     page.keyboard.press("Tab")
 
-    # The Python repr output field should contain "timedelta"
-    out = page.locator("#ti_demo_a").locator("xpath=../..").first.get_by_label("Python")
-    expect(out).to_contain_text("timedelta", timeout=5_000)
+    # A <textarea>'s dynamically-set .value isn't part of its rendered text
+    # content, so to_have_value (not to_contain_text) is the correct check.
+    expect(_output(page, "ti_demo_a")).to_have_value(re.compile("timedelta"), timeout=5_000)
 
 
 def test_demo_d_change_emits_time(settings_page: Page) -> None:
     page = settings_page
+    _enter_edit_mode(page, "ti_demo_d")
     hours_seg = _seg(page, "ti_demo_d", "hours")
     hours_seg.click()
     page.keyboard.press("ArrowUp")
     page.keyboard.press("Tab")
 
-    out = page.locator("#ti_demo_d").locator("xpath=../..").first.get_by_label("Python")
-    expect(out).to_contain_text("datetime.time", timeout=5_000)
+    expect(_output(page, "ti_demo_d")).to_have_value(re.compile("datetime.time"), timeout=5_000)
 
 
 def test_demo_e_change_emits_datetime(settings_page: Page) -> None:
     page = settings_page
-    # Click "Maintenant" to fill demo E
+    # Click "Maintenant" to fill demo E — the toolbar is reachable without
+    # entering edit mode, so no _enter_edit_mode() call needed here.
     page.locator("#ti_demo_e .ti-pill[data-fill='now']").click()
     page.wait_for_timeout(500)
 
-    out = page.locator("#ti_demo_e").locator("xpath=../..").first.get_by_label("Python")
-    expect(out).to_contain_text("datetime.datetime", timeout=5_000)
+    expect(_output(page, "ti_demo_e")).to_have_value(re.compile("datetime.datetime"), timeout=5_000)

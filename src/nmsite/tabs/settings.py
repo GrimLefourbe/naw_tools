@@ -95,7 +95,7 @@ class Settings:
                     label="Durée",
                     elem_id="ti_demo_a",
                 )
-                self._ti_a_out = gr.Text(label="Python", interactive=False)
+                self._ti_a_out = gr.Text(label="Python", interactive=False, elem_id="ti_demo_a_out")
 
             with gr.Column():
                 gr.Markdown("**B** — durée J H M S, double format")
@@ -106,7 +106,7 @@ class Settings:
                     label="Durée",
                     elem_id="ti_demo_b",
                 )
-                self._ti_b_out = gr.Text(label="Python", interactive=False)
+                self._ti_b_out = gr.Text(label="Python", interactive=False, elem_id="ti_demo_b_out")
 
             with gr.Column():
                 gr.Markdown("**C** — durée complète AJHMS + Maintenant")
@@ -118,7 +118,7 @@ class Settings:
                     label="Durée",
                     elem_id="ti_demo_c",
                 )
-                self._ti_c_out = gr.Text(label="Python", interactive=False)
+                self._ti_c_out = gr.Text(label="Python", interactive=False, elem_id="ti_demo_c_out")
 
         with gr.Row():
             with gr.Column():
@@ -131,7 +131,7 @@ class Settings:
                     label="Heure",
                     elem_id="ti_demo_d",
                 )
-                self._ti_d_out = gr.Text(label="Python", interactive=False)
+                self._ti_d_out = gr.Text(label="Python", interactive=False, elem_id="ti_demo_d_out")
 
             with gr.Column():
                 gr.Markdown("**E** — datetime complet")
@@ -142,7 +142,7 @@ class Settings:
                     label="Date et heure",
                     elem_id="ti_demo_e",
                 )
-                self._ti_e_out = gr.Text(label="Python", interactive=False)
+                self._ti_e_out = gr.Text(label="Python", interactive=False, elem_id="ti_demo_e_out")
 
     def _configure_time_input_demo(self):
         for ti, out in [
