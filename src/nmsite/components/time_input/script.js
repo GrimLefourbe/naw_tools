@@ -148,8 +148,14 @@ function clampField(key, val, displayFmt) {
     if (MODE === 'duration') return val;
     const m = SEG_META[MODE].find(d => d.key === key);
     if (!m) return val;
-    if (m.min !== null && val < m.min) return m.max;   // wrap around
-    if (m.max !== null && val > m.max) return m.min;
+    // Wrap by the actual overshoot (modulo), not just to the opposite
+    // boundary — a multi-step delta (e.g. a fast wheel scroll) can overshoot
+    // by more than one unit and needs to land at the right value, not always
+    // snap straight to min/max.
+    if (m.min !== null && m.max !== null && (val < m.min || val > m.max)) {
+        const range = m.max - m.min + 1;
+        val = m.min + (((val - m.min) % range) + range) % range;
+    }
     return val;
 }
 
@@ -168,11 +174,15 @@ function getSegmentsForFormat(fmt) {
         return items;
     }
     if (fmt === 'HH:MM:SS') {
-        // For duration: shows aggregated hours:minutes:seconds
-        // For clock_time: same
+        // For duration: shows aggregated hours:minutes:seconds, restricted to
+        // whichever of those are actually enabled for this instance
+        // (segments config) — matching the AJHMS branch's respect for
+        // ENABLED_KEYS instead of always showing all three regardless.
+        // For clock_time: same.
         const items = [];
-        const visKeys = MODE === 'duration' ? ['hours', 'minutes', 'seconds']
-                                            : META.map(m => m.key);
+        const visKeys = MODE === 'duration'
+            ? ['hours', 'minutes', 'seconds'].filter(k => ENABLED_KEYS.includes(k))
+            : META.map(m => m.key);
         for (let i = 0; i < visKeys.length; i++) {
             if (i > 0) items.push({type: 'sep', text: ':'});
             items.push({type: 'seg', key: visKeys[i]});
@@ -430,7 +440,15 @@ widget.addEventListener('focusin', e => {
     if (isRendering) return;  // focus caused by render's own el.focus(), already handled
     const seg = e.target.closest('.ti-seg');
     if (!seg) return;
-    focusedSegKey = seg.dataset.key;
+    const newKey = seg.dataset.key;
+    if (focusedSegKey && focusedSegKey !== newKey && digitBuffer) {
+        // A digit was pending on the segment being left (clicked straight
+        // into a different segment before the auto-commit timer fired) —
+        // flush it instead of silently discarding it below.
+        applyDigitBuffer(focusedSegKey);
+        commitAndNormalize();
+    }
+    focusedSegKey = newKey;
     digitBuffer = '';
     render();
 });
@@ -649,7 +667,6 @@ function applyQuickFill(fill) {
     if (fill === 'now') {
         if (MODE === 'duration') {
             const totalSecs = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
-            const displayState = {hours: totalSecs};  // will normalize
             state = applyDefaults(fromDisplayState({hours: Math.floor(totalSecs / 3600),
                 minutes: now.getMinutes(), seconds: now.getSeconds()}, 'HH:MM:SS'));
         } else if (MODE === 'clock_time') {
@@ -729,7 +746,7 @@ function parseTimeString(s) {
         return {
             day: parseInt(dtMatch[1], 10),
             month: parseInt(dtMatch[2], 10),
-            year: parseInt(dtMatch[3] || '2000', 10),
+            year: parseInt(dtMatch[3] || '1970', 10),  // matches buildEmptyState()'s convention
             hours: parseInt(dtMatch[4], 10),
             minutes: parseInt(dtMatch[5], 10),
             seconds: parseInt(dtMatch[6] || '0', 10),
@@ -748,7 +765,9 @@ function formatState(s, fmt) {
         return META.map(m => `${d[m.key]}${LABELS[m.key]}`).join(' ');
     }
     if (fmt === 'HH:MM:SS') {
-        const keys = MODE === 'duration' ? ['hours','minutes','seconds'] : META.map(m=>m.key);
+        const keys = MODE === 'duration'
+            ? ['hours', 'minutes', 'seconds'].filter(k => ENABLED_KEYS.includes(k))
+            : META.map(m=>m.key);
         return keys.map(k => pad(d[k]||0, k==='hours' && MODE==='duration' ? 3 : 2)).join(':');
     }
     if (fmt === 'DD/MM/YYYY HH:MM:SS') {

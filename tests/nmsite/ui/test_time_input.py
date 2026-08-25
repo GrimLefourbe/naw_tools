@@ -123,41 +123,26 @@ def test_demo_a_digit_entry_two_digits(settings_page: Page) -> None:
 
 
 def test_demo_a_normalization_on_large_seconds(settings_page: Page) -> None:
-    """Type a large number in seconds; on Tab, normalization carries to minutes/hours."""
+    """Typing a value >= 60 into seconds carries the overflow into minutes,
+    immediately on the segment's 2-digit auto-commit (not deferred to Tab)."""
     page = settings_page
     _enter_edit_mode(page, "ti_demo_a")
-    hours_seg = _seg(page, "ti_demo_a", "hours")
     mins_seg = _seg(page, "ti_demo_a", "minutes")
     secs_seg = _seg(page, "ti_demo_a", "seconds")
 
-    # Click hours and set to 0
-    hours_seg.click()
-    for _ in range(10):
-        page.keyboard.press("ArrowDown")
-    page.keyboard.press("0")
-    page.keyboard.press("0")
+    # Fresh page load -> every segment starts at 0.
+    expect(mins_seg).to_have_text("00")
+    expect(secs_seg).to_have_text("00")
 
-    # Set minutes to 0
-    mins_seg.click()
-    page.keyboard.press("0")
-    page.keyboard.press("0")
-
-    # Type 9000 in seconds (four digits, auto-commits at 2), then Tab to normalize
+    # Typing a 2-digit value >= 60 into seconds auto-commits immediately
+    # (no Tab needed) and normalize() carries the overflow into minutes:
+    # 90 seconds -> 1 minute, 30 seconds.
     secs_seg.click()
     page.keyboard.press("9")
     page.keyboard.press("0")
-    # first two digits auto-commit (90); cursor may advance — re-focus seconds
-    secs_seg.click()
-    page.keyboard.press("0")
-    page.keyboard.press("0")
-    page.keyboard.press("Tab")
 
-    # 9000 seconds = 2h 30m 0s (but only H/M/S segments exist in demo A)
-    # Normalization: 90s → 1m30s, then further carry. With 9000s total carry:
-    # Actually we typed 90 then 00, which sets seconds to 90 then 0. This test
-    # is better done by setting a state directly via Python, which isn't possible
-    # in this UI-only test. Instead verify the commit+normalize path works at all:
-    expect(secs_seg).to_be_visible()  # component still alive after Tab
+    expect(mins_seg).to_have_text("01")
+    expect(secs_seg).to_have_text("30")
 
 
 # ── Tests: Format toggle (Demo B) ────────────────────────────────────────────

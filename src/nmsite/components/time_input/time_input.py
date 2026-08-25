@@ -6,6 +6,7 @@ import typing as t
 from pathlib import Path
 
 import gradio as gr
+import nawminator as nm
 
 from nmsite.interface import _merge_elem_classes
 
@@ -93,8 +94,19 @@ class TimeInput(gr.HTML):
         valid_fills = _MODE_FILLS[mode]
         fill_list = [f for f in (quick_fills or []) if f in valid_fills]
 
-        # Hidden segment defaults
+        # Hidden segment defaults — must not overlap visible segments, or
+        # preprocess()/postprocess() disagree on whether the default or the
+        # user's own (possibly zero) value wins, silently clobbering an
+        # explicit 0 on the way to Python. Enforce the contract this
+        # parameter is documented for (hidden segments only) rather than
+        # leaving that ambiguous.
         hidden_defaults = dict(defaults or {})
+        overlap = set(hidden_defaults) & set(seg_keys)
+        if overlap:
+            raise ValueError(
+                f"defaults key(s) {sorted(overlap)} overlap visible segments {seg_keys!r} — "
+                "defaults are only for segments NOT in `segments` (hidden from the user)."
+            )
 
         self._mode = mode
         self._seg_keys = seg_keys
@@ -194,13 +206,13 @@ class TimeInput(gr.HTML):
 
         try:
             if self._mode == "duration":
-                total_seconds = (
-                    (s.get("years", 0) * 365 + s.get("days", 0)) * 86400
-                    + s.get("hours", 0) * 3600
-                    + s.get("minutes", 0) * 60
-                    + s.get("seconds", 0)
+                return nm.utils.ajhms_parts_to_timedelta(
+                    years=s.get("years", 0),
+                    days=s.get("days", 0),
+                    hours=s.get("hours", 0),
+                    minutes=s.get("minutes", 0),
+                    seconds=s.get("seconds", 0),
                 )
-                return dt.timedelta(seconds=total_seconds)
 
             if self._mode == "clock_time":
                 return dt.time(
@@ -231,12 +243,7 @@ class TimeInput(gr.HTML):
         if value is None:
             s = self._empty_state()
         elif self._mode == "duration" and isinstance(value, dt.timedelta):
-            total_seconds = int(value.total_seconds())
-            years, rem = divmod(total_seconds, 365 * 86400)
-            days, rem = divmod(rem, 86400)
-            hours, rem = divmod(rem, 3600)
-            minutes, seconds = divmod(rem, 60)
-            s = {"years": years, "days": days, "hours": hours, "minutes": minutes, "seconds": seconds}
+            s = nm.utils.timedelta_to_ajhms_parts(value)
         elif self._mode == "clock_time" and isinstance(value, dt.time):
             s = {"hours": value.hour, "minutes": value.minute, "seconds": value.second}
         elif self._mode == "datetime" and isinstance(value, dt.datetime):
