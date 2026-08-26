@@ -1,0 +1,26 @@
+import gradio as gr
+
+from nmsite.config import Config
+from nmsite.tabs.settings import Settings
+
+
+def _config(**overrides) -> Config:
+    values = dict(title="T", subtitle="T", hero_enabled=False, base_url="https://example.com")
+    values.update(overrides)
+    return Config(**values)
+
+
+def _elem_ids(demo: gr.Blocks) -> set[str]:
+    return {eid for c in demo.blocks.values() if (eid := getattr(c, "elem_id", None))}
+
+
+def test_dev_config_shows_time_input_demo():
+    with gr.Blocks() as demo:
+        Settings(demo, _config(dev=True))
+    assert "ti_demo_a" in _elem_ids(demo)
+
+
+def test_non_dev_config_hides_time_input_demo():
+    with gr.Blocks() as demo:
+        Settings(demo, _config(dev=False))
+    assert "ti_demo_a" not in _elem_ids(demo)

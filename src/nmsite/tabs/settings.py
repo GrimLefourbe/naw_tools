@@ -21,18 +21,38 @@ load_from_browser_storage = f"""(data, metadata) => {{
 save_to_browser_storage = f"""(data, metadata) => {{
     console.log("Saving", data);
     console.log("Saving", metadata);
-    localStorage.setItem('{LOCALSTORAGE_KEY}_data', JSON.stringify(data)); 
-    localStorage.setItem('{LOCALSTORAGE_KEY}_metadata', JSON.stringify(metadata)); 
-    return [data,metadata]; 
+    localStorage.setItem('{LOCALSTORAGE_KEY}_data', JSON.stringify(data));
+    localStorage.setItem('{LOCALSTORAGE_KEY}_metadata', JSON.stringify(metadata));
+    return [data,metadata];
+}}"""
+
+# Persisted the same way as data/metadata above (hand-rolled localStorage JS,
+# not gr.BrowserState's native restore) — native restore doesn't survive this
+# app's gr.Tab(render=False) + later .render() structure (every tab, including
+# Réglages, is built that way in app.py), so it silently loses the value on
+# reload. Kept as its own key rather than folded into the metadata dict above
+# so that "Effacer les données" (which resets metadata_state) doesn't also
+# reset this unrelated preference.
+TIME_INPUT_STORAGE_KEY = "nawminator_time_input_enabled"
+load_time_input_enabled = f"""(enabled, checked) => {{
+    let stored = localStorage.getItem('{TIME_INPUT_STORAGE_KEY}');
+    let value = stored !== null ? JSON.parse(stored) : enabled;
+    return [value, value];
+}}"""
+save_time_input_enabled = f"""(enabled) => {{
+    localStorage.setItem('{TIME_INPUT_STORAGE_KEY}', JSON.stringify(enabled));
+    return enabled;
 }}"""
 
 def settings_tab(config: nmsite.config.Config, demo: gr.Blocks):
-    settings = Settings(demo)
+    settings = Settings(demo, config)
     return settings
 
 class Settings:
-    def __init__(self, demo: gr.Blocks):
+    def __init__(self, demo: gr.Blocks, config: nmsite.config.Config):
+        self._config = config
         self.data_state, self.metadata_state = self._clear_data()
+        self.time_input_enabled_state = gr.State(False)
         self.post_load = demo.load(
             self.load,
             inputs=[self.data_state, self.metadata_state],
@@ -41,6 +61,13 @@ class Settings:
         )
         self._create_layout()
         self._configure_triggers()
+        demo.load(
+            fn=lambda enabled, checked: (enabled, checked),
+            inputs=[self.time_input_enabled_state, self.time_input_toggle],
+            outputs=[self.time_input_enabled_state, self.time_input_toggle],
+            js=load_time_input_enabled,
+            show_progress="hidden",
+        )
 
     def _clear_data(self):
         return gr.DataFrame(pd.DataFrame(columns=["player_name", "colo_name", "alliance", "x", "y", "tdc"]), visible=False), gr.BrowserState({"version": 1})
@@ -52,7 +79,7 @@ class Settings:
 
     def _create_layout(self):
         self.data_input = gr.Textbox(
-            label="Copiez les données depuis la page joueur ici.", 
+            label="Copiez les données depuis la page joueur ici.",
             info="" \
             "1. Allez sur la page Joueurs, mettez le tdc minimum à 1 et le tdc maximum à un très grand nombre (ajoutez plein de 0) puis appuyez sur filtrer.\n" \
             "2.a Option A Code Source:\n" \
@@ -71,9 +98,15 @@ class Settings:
         # self.player_name_input = gr.Textbox(
         #     label="Votre pseudo", interactive=True
         # )
-        self._create_time_input_demo()
+        self.time_input_toggle = gr.Checkbox(
+            value=False,
+            label="Utiliser le nouveau sélecteur de temps (bêta)",
+            elem_id="settings_time_input_toggle",
+        )
+        if self._config.dev:
+            self._create_time_input_demo()
 
-    
+
     def _on_data_load(self, data: pd.DataFrame):
         logger.debug(f"Loading data {data}")
         return data, gr.Accordion(label=f"{data.shape[0]} joueurs chargés")
@@ -179,7 +212,7 @@ class Settings:
             inputs=self.data_state,
             outputs=[self.result_df, self.loaded_accordion]
         )
-     
+
         self.clear_data_btn.click(
             self._clear_data,
             outputs=[self.data_state, self.metadata_state],
@@ -191,7 +224,16 @@ class Settings:
             outputs=self.data_state,
         )
 
-        self._configure_time_input_demo()
+        self.time_input_toggle.change(
+            fn=lambda enabled: enabled,
+            inputs=self.time_input_toggle,
+            outputs=self.time_input_enabled_state,
+            js=save_time_input_enabled,
+            show_progress="hidden",
+        )
+
+        if self._config.dev:
+            self._configure_time_input_demo()
 
 
 

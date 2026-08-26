@@ -1,3 +1,4 @@
+import functools
 import gradio as gr
 import pandas as pd
 import datetime as dt
@@ -5,7 +6,7 @@ import typing as t
 import nawminator as nm
 
 from nmsite.tabs.settings import Settings
-from nmsite.components import SegmentedControl
+from nmsite.components import SegmentedControl, TimeInput
 
 
 _TARGETS = ["VA", "Arrivée", "Départ"]
@@ -31,7 +32,6 @@ def _times_to_secs(start: str, arrival: str) -> float | None:
     return secs + 86400 if secs < 0 else secs
 
 
-
 def _apply_time_defaults(target, start, arrival):
     if target == "Arrivée" and not (start and start.strip()):
         start = "00:00:00"
@@ -43,6 +43,47 @@ def _apply_time_defaults(target, start, arrival):
 def _shift_time(t: dt.time, secs: float) -> str:
     base = dt.datetime(2000, 1, 1, t.hour, t.minute, t.second)
     return (base + dt.timedelta(seconds=secs)).time().strftime("%H:%M:%S")
+
+
+# --- TimeInput opt-in: the old fields (str) stay the canonical values that
+# _compute/_interactivity_to_* work with; these convert to/from the native
+# Python types the TimeInput siblings use, so those internals stay untouched.
+
+
+def _duration_str_to_td(s: str) -> dt.timedelta:
+    return nm.utils.parse_ajhms(s)
+
+
+def _duration_td_to_str(td: dt.timedelta | None) -> str:
+    return nm.utils.timedelta_to_ajhms(td) if td is not None else "0S"
+
+
+def _time_obj_to_str(t: dt.time | None) -> str:
+    return t.strftime("%H:%M:%S") if t is not None else ""
+
+
+def _mirror_to_new(duration: str, start: str, arrival: str, skip: str | None = None):
+    """Snapshot the old (canonical) fields into the new TimeInput siblings —
+    chained after every _compute call so the hidden pair stays truthful
+    whenever the toggle is flipped back on.
+
+    `skip` names the one new field ("duration"/"start"/"arrival") to leave
+    untouched: when this chain was triggered by editing that very field
+    directly, its value already matches what we'd mirror back (_compute
+    only ever reads the field currently being edited as an anchor here, it
+    never rewrites it — see the *_new.input() handlers below). Re-sending it
+    anyway round-trips to the server and back as a value update TimeInput
+    can't tell apart from a genuine external change, so it reacts the same
+    way it would to someone else changing the field: exits edit mode and
+    drops focus (see script.js's `watch('value', ...)`) — after every
+    single wheel tick or arrow press, kicking the user out of the field
+    they're mid-edit on.
+    """
+    return (
+        gr.skip() if skip == "duration" else _duration_str_to_td(duration),
+        gr.skip() if skip == "start" else _parse_time(start),
+        gr.skip() if skip == "arrival" else _parse_time(arrival),
+    )
 
 
 def _compute(target, x1, y1, x2, y2, va, duration, start, arrival):
@@ -68,43 +109,80 @@ def _compute(target, x1, y1, x2, y2, va, duration, start, arrival):
     return va, duration, start, arrival
 
 
-def durees_tab(settings: Settings):
-    return DureesTab(settings)
+def durees_tab(settings: Settings, tab: gr.Tab):
+    return DureesTab(settings, tab)
+
 
 class DureesTab:
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, tab: gr.Tab) -> None:
         self._set_layout(settings)
-        self._configure_triggers(settings)
+        self._configure_triggers(settings, tab)
+
+    # Each field below has an old + new (TimeInput) sibling that always share
+    # the same interactive/elem_classes state — value_fields interleaves them
+    # as (va, duration, duration_new, start, start_new, arrival, arrival_new).
+    @staticmethod
+    def _toggle_visibility(enabled: bool):
+        """Show/hide each old/new field pair together."""
+        return (
+            gr.update(visible=not enabled),
+            gr.update(visible=enabled),
+            gr.update(visible=not enabled),
+            gr.update(visible=enabled),
+            gr.update(visible=not enabled),
+            gr.update(visible=enabled),
+        )
 
     @staticmethod
     def _interactivity_to_va():
-        return (gr.update(interactive=False, elem_classes=["result-field"]),
-                gr.update(interactive=True,  elem_classes=[]),
-                gr.update(interactive=True,  elem_classes=[]),
-                gr.update(interactive=True,  elem_classes=[]))
+        return (
+            gr.update(interactive=False, elem_classes=["result-field"]),
+            gr.update(interactive=True, elem_classes=[]),
+            gr.update(interactive=True, elem_classes=[]),
+            gr.update(interactive=True, elem_classes=[]),
+            gr.update(interactive=True, elem_classes=[]),
+            gr.update(interactive=True, elem_classes=[]),
+            gr.update(interactive=True, elem_classes=[]),
+        )
 
     @staticmethod
     def _interactivity_to_arrivee():
-        return (gr.update(interactive=True,  elem_classes=[]),
-                gr.update(interactive=False, elem_classes=["result-field"]),
-                gr.update(interactive=True,  elem_classes=[]),
-                gr.update(interactive=False, elem_classes=["result-field"]))
+        return (
+            gr.update(interactive=True, elem_classes=[]),
+            gr.update(interactive=False, elem_classes=["result-field"]),
+            gr.update(interactive=False, elem_classes=["result-field"]),
+            gr.update(interactive=True, elem_classes=[]),
+            gr.update(interactive=True, elem_classes=[]),
+            gr.update(interactive=False, elem_classes=["result-field"]),
+            gr.update(interactive=False, elem_classes=["result-field"]),
+        )
 
     @staticmethod
     def _interactivity_to_depart():
-        return (gr.update(interactive=True,  elem_classes=[]),
-                gr.update(interactive=False, elem_classes=["result-field"]),
-                gr.update(interactive=False, elem_classes=["result-field"]),
-                gr.update(interactive=True,  elem_classes=[]))
+        return (
+            gr.update(interactive=True, elem_classes=[]),
+            gr.update(interactive=False, elem_classes=["result-field"]),
+            gr.update(interactive=False, elem_classes=["result-field"]),
+            gr.update(interactive=False, elem_classes=["result-field"]),
+            gr.update(interactive=False, elem_classes=["result-field"]),
+            gr.update(interactive=True, elem_classes=[]),
+            gr.update(interactive=True, elem_classes=[]),
+        )
+
+    @classmethod
+    def _interactivity_for(cls, target: str):
+        return {
+            "VA": cls._interactivity_to_va,
+            "Arrivée": cls._interactivity_to_arrivee,
+            "Départ": cls._interactivity_to_depart,
+        }[target]()
 
     def _set_layout(self, settings: Settings):
         self._target_state = gr.State("Arrivée")
         args: dict[str, t.Any] = {"container": False}
         with gr.Row(equal_height=True):
             with gr.Column(min_width=100), gr.Group():
-                gr.Markdown(
-                    "<div style='text-align:center; font-weight:bold; font-size:18px;'>Source</div>"
-                )
+                gr.Markdown("<div style='text-align:center; font-weight:bold; font-size:18px;'>Source</div>")
                 self._src_player_select = gr.Dropdown(container=False, visible=False, elem_id="durees_src_player")
                 with gr.Row():
                     gr.Text("x", min_width=30, **args)
@@ -122,9 +200,7 @@ class DureesTab:
                 )
 
             with gr.Column(min_width=100), gr.Group():
-                gr.Markdown(
-                    "<div style='text-align:center; font-weight:bold; font-size:18px;'>Cible</div>"
-                )
+                gr.Markdown("<div style='text-align:center; font-weight:bold; font-size:18px;'>Cible</div>")
                 self._tgt_player_select = gr.Dropdown(container=False, visible=False, elem_id="durees_tgt_player")
                 with gr.Row():
                     gr.Text("x", min_width=30, **args)
@@ -137,14 +213,49 @@ class DureesTab:
             with gr.Column(min_width=200):
                 self._va = gr.Number(value=0, label="Vitesse d'Attaque", elem_id="durees_va")
             with gr.Column(min_width=200):
-                self._duration = gr.Text("0s", label="Durée", interactive=False, elem_classes=["result-field"], elem_id="durees_duration")
+                self._duration = gr.Text(
+                    "0s", label="Durée", interactive=False, elem_classes=["result-field"], elem_id="durees_duration"
+                )
+                self._duration_new = TimeInput(
+                    mode="duration",
+                    label="Durée",
+                    interactive=False,
+                    elem_id="durees_duration_new",
+                    visible=False,
+                )
         with gr.Row():
             with gr.Column(min_width=200):
-                self._start_time = gr.Textbox(value="00:00:00", label="Heure de départ", placeholder="HH:MM:SS", elem_id="durees_start_time")
+                self._start_time = gr.Textbox(
+                    value="00:00:00", label="Heure de départ", placeholder="HH:MM:SS", elem_id="durees_start_time"
+                )
+                self._start_time_new = TimeInput(
+                    mode="clock_time",
+                    segments=["hours", "minutes", "seconds"],
+                    formats=["HH:MM:SS"],
+                    label="Heure de départ",
+                    elem_id="durees_start_time_new",
+                    visible=False,
+                )
             with gr.Column(min_width=200):
-                self._arrival_time = gr.Textbox(value="", label="Heure d'arrivée", placeholder="HH:MM:SS", interactive=False, elem_classes=["result-field"], elem_id="durees_arrival_time")
+                self._arrival_time = gr.Textbox(
+                    value="",
+                    label="Heure d'arrivée",
+                    placeholder="HH:MM:SS",
+                    interactive=False,
+                    elem_classes=["result-field"],
+                    elem_id="durees_arrival_time",
+                )
+                self._arrival_time_new = TimeInput(
+                    mode="clock_time",
+                    segments=["hours", "minutes", "seconds"],
+                    formats=["HH:MM:SS"],
+                    label="Heure d'arrivée",
+                    interactive=False,
+                    elem_id="durees_arrival_time_new",
+                    visible=False,
+                )
 
-    def _configure_triggers(self, settings: Settings):
+    def _configure_triggers(self, settings: Settings, tab: gr.Tab):
         @settings.data_state.change(
             inputs=settings.data_state,
             outputs=[self._src_player_select, self._tgt_player_select],
@@ -158,8 +269,19 @@ class DureesTab:
             update = gr.update(visible=True, choices=player_names)
             return update, update
 
-        all_inputs = [self._target_state, self._from_x, self._from_y, self._to_x, self._to_y, self._va, self._duration, self._start_time, self._arrival_time]
+        all_inputs = [
+            self._target_state,
+            self._from_x,
+            self._from_y,
+            self._to_x,
+            self._to_y,
+            self._va,
+            self._duration,
+            self._start_time,
+            self._arrival_time,
+        ]
         all_outputs = [self._va, self._duration, self._start_time, self._arrival_time]
+        new_fields = [self._duration_new, self._start_time_new, self._arrival_time_new]
 
         self._src_player_select.input(
             lambda x: (0, 0) if x is None else tuple(int(v) for v in x.split(":")),
@@ -170,6 +292,11 @@ class DureesTab:
             fn=_compute,
             inputs=all_inputs,
             outputs=all_outputs,
+            show_progress="hidden",
+        ).then(
+            fn=_mirror_to_new,
+            inputs=[self._duration, self._start_time, self._arrival_time],
+            outputs=new_fields,
             show_progress="hidden",
         )
 
@@ -183,13 +310,57 @@ class DureesTab:
             inputs=all_inputs,
             outputs=all_outputs,
             show_progress="hidden",
+        ).then(
+            fn=_mirror_to_new,
+            inputs=[self._duration, self._start_time, self._arrival_time],
+            outputs=new_fields,
+            show_progress="hidden",
         )
 
-        value_fields = [self._va, self._duration, self._start_time, self._arrival_time]
+        value_fields = [
+            self._va,
+            self._duration,
+            self._duration_new,
+            self._start_time,
+            self._start_time_new,
+            self._arrival_time,
+            self._arrival_time_new,
+        ]
 
-        self._target_sel.on_choice("VA")(self._interactivity_to_va,       outputs=value_fields, js=True, show_progress="hidden")
-        self._target_sel.on_choice("Arrivée")(self._interactivity_to_arrivee, outputs=value_fields, js=True, show_progress="hidden")
-        self._target_sel.on_choice("Départ")(self._interactivity_to_depart,   outputs=value_fields, js=True, show_progress="hidden")
+        visibility_outputs = [
+            self._duration,
+            self._duration_new,
+            self._start_time,
+            self._start_time_new,
+            self._arrival_time,
+            self._arrival_time_new,
+        ]
+
+        # js=True gives instant client-side feedback for the old (plain
+        # Gradio) fields, but its transpiled JS doesn't know how to toggle
+        # interactive state on a custom gr.HTML component — TimeInput's own
+        # reactive interactive-prop handling (proven by the Settings-tab
+        # demo's checkbox) only fires on a real server round trip. Trying a
+        # second listener on the same select_<choice> event didn't work (it
+        # never fired — the per-choice event only supports one listener), so
+        # the generic `select` event carries a second, non-js pass instead,
+        # to apply the same interactivity to the *_new fields too.
+        self._target_sel.on_choice("VA")(
+            self._interactivity_to_va, outputs=value_fields, js=True, show_progress="hidden"
+        )
+        self._target_sel.on_choice("Arrivée")(
+            self._interactivity_to_arrivee, outputs=value_fields, js=True, show_progress="hidden"
+        )
+        self._target_sel.on_choice("Départ")(
+            self._interactivity_to_depart, outputs=value_fields, js=True, show_progress="hidden"
+        )
+
+        self._target_sel.select(
+            fn=self._interactivity_for,
+            inputs=[self._target_sel],
+            outputs=value_fields,
+            show_progress="hidden",
+        )
 
         self._target_sel.input(
             fn=lambda target: target,
@@ -206,17 +377,99 @@ class DureesTab:
             inputs=all_inputs,
             outputs=all_outputs,
             show_progress="hidden",
+        ).then(
+            fn=_mirror_to_new,
+            inputs=[self._duration, self._start_time, self._arrival_time],
+            outputs=new_fields,
+            show_progress="hidden",
         )
 
         gr.on(
             triggers=[
-                self._from_x.input, self._from_y.input,
-                self._to_x.input, self._to_y.input,
-                self._va.input, self._duration.input,
-                self._start_time.input, self._arrival_time.input,
+                self._from_x.input,
+                self._from_y.input,
+                self._to_x.input,
+                self._to_y.input,
+                self._va.input,
+                self._duration.input,
+                self._start_time.input,
+                self._arrival_time.input,
             ],
             fn=_compute,
             inputs=all_inputs,
             outputs=all_outputs,
             show_progress="hidden",
+        ).then(
+            fn=_mirror_to_new,
+            inputs=[self._duration, self._start_time, self._arrival_time],
+            outputs=new_fields,
+            show_progress="hidden",
+        )
+
+        # Opt-in TimeInput: editing a new field syncs its value into the old
+        # (canonical) field first, then runs the same _compute/_mirror chain
+        # as editing the old field directly would.
+        self._start_time_new.input(
+            fn=_time_obj_to_str,
+            inputs=self._start_time_new,
+            outputs=self._start_time,
+            show_progress="hidden",
+        ).then(
+            fn=_compute,
+            inputs=all_inputs,
+            outputs=all_outputs,
+            show_progress="hidden",
+        ).then(
+            fn=functools.partial(_mirror_to_new, skip="start"),
+            inputs=[self._duration, self._start_time, self._arrival_time],
+            outputs=new_fields,
+            show_progress="hidden",
+        )
+
+        self._arrival_time_new.input(
+            fn=_time_obj_to_str,
+            inputs=self._arrival_time_new,
+            outputs=self._arrival_time,
+            show_progress="hidden",
+        ).then(
+            fn=_compute,
+            inputs=all_inputs,
+            outputs=all_outputs,
+            show_progress="hidden",
+        ).then(
+            fn=functools.partial(_mirror_to_new, skip="arrival"),
+            inputs=[self._duration, self._start_time, self._arrival_time],
+            outputs=new_fields,
+            show_progress="hidden",
+        )
+
+        self._duration_new.input(
+            fn=_duration_td_to_str,
+            inputs=self._duration_new,
+            outputs=self._duration,
+            show_progress="hidden",
+        ).then(
+            fn=_compute,
+            inputs=all_inputs,
+            outputs=all_outputs,
+            show_progress="hidden",
+        ).then(
+            fn=functools.partial(_mirror_to_new, skip="duration"),
+            inputs=[self._duration, self._start_time, self._arrival_time],
+            outputs=new_fields,
+            show_progress="hidden",
+        )
+
+        # Re-applied on tab.select() (fired every time the user switches into
+        # this tab), not on the cross-tab state's own .change() — an update
+        # to a field's `visible` prop triggered from another tab's event
+        # (e.g. the Réglages checkbox) reliably reveals a hidden field but
+        # unreliably re-hides a visible one, silently leaving stale fields
+        # on screen. select() runs in this tab's own context instead.
+        tab.select(
+            fn=self._toggle_visibility,
+            inputs=settings.time_input_enabled_state,
+            outputs=visibility_outputs,
+            show_progress="hidden",
+            queue=False,
         )
