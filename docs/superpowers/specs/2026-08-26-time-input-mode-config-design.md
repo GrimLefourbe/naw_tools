@@ -102,6 +102,11 @@ as a unit) but splits internally:
   editable fields are `TimeInput`, so the `js=True` per-choice fast path
   would never reach any of them — no point registering it).
 
+  The echo guard only applies to the duration/start/arrival trio. `_va`
+  stays a plain `gr.Number` in every mode — it has no edit-mode concept to
+  knock a user out of, so `compute`'s unchanged echo back into it is
+  harmless and needs no `gr.skip()`.
+
 - **`durees_tab(settings, tab, config)`** — factory:
   ```python
   _MODES = {"legacy": DureesLegacy, "hybrid": DureesHybrid, "experimental": DureesExperimental}
