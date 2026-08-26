@@ -29,6 +29,8 @@
 
 - [ ] **Durées UI test coupled to real parser** — `test_player_dropdown_fills_coordinates` (`tests/nmsite/ui/test_durees.py`) loads `players_fixture.html` and runs it through the real `joueurs_source_code_pat` parser just to populate the player dropdown. Any parser/format change (e.g. the NAW joueurs-page format change) breaks this test even though it has nothing to do with parsing logic. Decouple by mocking/stubbing the player list instead of routing through the real HTML fixture.
 
+- [ ] **TimeInput tests target a Settings-tab-only demo harness (`ti_demo_a`..`e`), not the real fields.** Flagged by the user 2026-08-26 while scoping the legacy/hybrid/experimental config split: components that exist purely to be tested against shouldn't live inside the actual app, and tests exercising the real Durées/Synchro tabs should assert against the real fields they use in production, not a parallel demo instance. `tests/nmsite/ui/test_time_input.py` currently only covers `ti_demo_a`..`e` (gated by `Config.dev`); the wrap-around-carry and toolbar-button-visibility tests added there (2026-08-26) are examples of coverage that should eventually move to exercise `durees_*_new`/`synchro_time_input_new` directly instead. **Must be resolved before closing `feature/time-input-component`.**
+
 ## App / architecture
 
 - [x] Upgrade Gradio 5 → 6 — **done** but with known regressions (see below).
