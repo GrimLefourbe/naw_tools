@@ -182,6 +182,77 @@ def test_demo_d_current_time_fill_updates_segments(settings_page: Page) -> None:
     assert abs(hours_text - now.hour) <= 1, f"Hours {hours_text} too far from now {now.hour}"
 
 
+# ── Tests: Wrap-around carry, bounded modes (Demo D — clock_time) ───────────
+
+def test_demo_d_scroll_up_past_max_wraps_and_carries(settings_page: Page) -> None:
+    """Incrementing a bounded segment (clock_time/datetime, unlike duration)
+    past its max must wrap to its min AND carry 1 into the next segment —
+    scrolling seconds up from 59 goes to 00 and bumps minutes, not just wrap
+    seconds in place."""
+    page = settings_page
+    _enter_edit_mode(page, "ti_demo_d")
+    mins_seg = _seg(page, "ti_demo_d", "minutes")
+    secs_seg = _seg(page, "ti_demo_d", "seconds")
+    expect(mins_seg).to_have_text("00")
+    expect(secs_seg).to_have_text("00")
+
+    secs_seg.click()
+    page.keyboard.press("5")
+    page.keyboard.press("9")
+    expect(secs_seg).to_have_text("59")
+
+    secs_seg.click()
+    page.keyboard.press("ArrowUp")
+
+    expect(secs_seg).to_have_text("00")
+    expect(mins_seg).to_have_text("01")
+
+
+def test_demo_d_scroll_down_past_min_wraps_and_borrows(settings_page: Page) -> None:
+    """Symmetric case: decrementing a bounded segment below its min wraps to
+    its max and borrows 1 from the next segment."""
+    page = settings_page
+    _enter_edit_mode(page, "ti_demo_d")
+    mins_seg = _seg(page, "ti_demo_d", "minutes")
+    secs_seg = _seg(page, "ti_demo_d", "seconds")
+
+    mins_seg.click()
+    page.keyboard.press("0")
+    page.keyboard.press("1")
+    expect(mins_seg).to_have_text("01")
+    expect(secs_seg).to_have_text("00")
+
+    secs_seg.click()
+    page.keyboard.press("ArrowDown")
+
+    expect(secs_seg).to_have_text("59")
+    expect(mins_seg).to_have_text("00")
+
+
+def test_demo_e_datetime_day_carries_into_month(settings_page: Page) -> None:
+    """Same wrap-and-carry contract, exercised on datetime's day→month pair
+    (not just clock_time's seconds→minutes) — a fresh page load starts at
+    day=01/month=01, so wrapping day down from there must borrow from
+    month."""
+    page = settings_page
+    # Demo E's 3 quick-fill pills + copy + clear make for a wide .ti-btns
+    # overlay that covers the default (centered) click point on .ti-display
+    # — click its left edge instead, which the reserved right-padding always
+    # keeps clear (see --ti-btns-reserve in style.css).
+    page.locator("#ti_demo_e .ti-display").click(position={"x": 5, "y": 5})
+    page.locator("#ti_demo_e .ti-field").wait_for(state="visible")
+    day_seg = _seg(page, "ti_demo_e", "day")
+    month_seg = _seg(page, "ti_demo_e", "month")
+    expect(day_seg).to_have_text("01")
+    expect(month_seg).to_have_text("01")
+
+    day_seg.click()
+    page.keyboard.press("ArrowDown")
+
+    expect(day_seg).to_have_text("31")
+    expect(month_seg).to_have_text("12")
+
+
 # ── Tests: Python value output ────────────────────────────────────────────────
 
 def test_demo_a_change_emits_timedelta(settings_page: Page) -> None:
@@ -248,3 +319,50 @@ def test_interactive_toggle_preserves_value(settings_page: Page) -> None:
     page.wait_for_timeout(200)
 
     assert _output(page, "ti_demo_a").input_value() == before
+
+
+def test_interactive_toggle_hides_clear_button(settings_page: Page) -> None:
+    """Demo A only has copy + clear (single format, no quick-fills) — clear
+    must disappear once the field goes read-only; it can't do anything useful
+    there."""
+    page = settings_page
+    expect(page.locator("#ti_demo_a .ti-clear")).to_be_visible()
+
+    page.locator("#ti_demo_a_interactive").get_by_role("checkbox").uncheck()
+    page.wait_for_timeout(200)
+
+    expect(page.locator("#ti_demo_a .ti-clear")).to_be_hidden()
+
+
+def test_interactive_toggle_keeps_copy_button_visible_and_working(settings_page: Page) -> None:
+    page = settings_page
+    page.locator("#ti_demo_a_interactive").get_by_role("checkbox").uncheck()
+    page.wait_for_timeout(200)
+
+    copy_btn = page.locator("#ti_demo_a .ti-copy")
+    expect(copy_btn).to_be_visible()
+    copy_btn.click()
+    expect(copy_btn).to_have_text("✓", timeout=2_000)
+
+
+def test_interactive_toggle_hides_toggle_button(settings_page: Page) -> None:
+    """Demo B's own interactive state can't be flipped from the demo UI, so
+    exercise the format-toggle button through the real Durées tab instead,
+    where durees_duration_new (2 formats: HH:MM:SS/AJHMS) starts read-only in
+    the default (Arrivée) mode."""
+    page = settings_page
+    page.get_by_role("tab", name="Durées").click()
+    toggle = page.locator("#settings_time_input_toggle input[type='checkbox']")
+    page.get_by_role("tab", name="Réglages").click()
+    toggle.wait_for(state="visible")
+    page.wait_for_timeout(500)
+    if not toggle.is_checked():
+        toggle.check()
+    page.get_by_role("tab", name="Durées").click()
+    expect(page.locator("#durees_start_time_new")).to_be_visible(timeout=5_000)
+
+    # Default mode (Arrivée): duration is read-only.
+    duration_widget = page.locator("#durees_duration_new .ti-widget")
+    expect(duration_widget).to_have_attribute("data-interactive", "false")
+    expect(page.locator("#durees_duration_new .ti-toggle")).to_be_hidden()
+    expect(page.locator("#durees_duration_new .ti-copy")).to_be_visible()

@@ -143,6 +143,38 @@ function clampField(key, val, displayFmt) {
     return val;
 }
 
+// Order (smallest→largest) used to carry overflow/underflow between
+// adjacent bounded segments — scrolling seconds past 59 wraps it to 0 AND
+// bumps minutes by 1 (and so on up the chain), symmetric to duration's own
+// normalize(). Duration's segments are unbounded (normalize() handles that
+// case instead); this only applies to clock_time/datetime's fixed-range
+// fields, which clampField alone used to just wrap in place without
+// touching the next segment.
+const CARRY_ORDER = ['seconds', 'minutes', 'hours', 'day', 'month', 'year'];
+
+function carryBounded(s) {
+    for (let i = 0; i < CARRY_ORDER.length - 1; i++) {
+        const key = CARRY_ORDER[i];
+        const next = CARRY_ORDER[i + 1];
+        // Mirrors normalize()'s own rule: only carry between a pair that's
+        // actually adjacent and enabled — a disabled/missing next segment
+        // just leaves this one to clampField's in-place wrap below.
+        if (!ENABLED_KEYS.includes(key) || !ENABLED_KEYS.includes(next)) continue;
+        const m = META.find(d => d.key === key);
+        if (!m || m.min === null || m.max === null) continue;
+        const range = m.max - m.min + 1;
+        if (s[key] > m.max) {
+            const steps = Math.floor((s[key] - m.min) / range);
+            s[next] = (s[next] ?? 0) + steps;
+            s[key] -= steps * range;
+        } else if (s[key] < m.min) {
+            const steps = Math.ceil((m.min - s[key]) / range);
+            s[next] = (s[next] ?? 0) - steps;
+            s[key] += steps * range;
+        }
+    }
+}
+
 // ---- Format-specific layout ----
 
 // Shared between getSegmentsForFormat and formatState — kept as one
@@ -303,10 +335,15 @@ function getDisplayMeta(key) {
 
 function applyDelta(key, delta) {
     const displayState = toDisplayState(state, activeFormat);
-    const m = getDisplayMeta(key);
-    let newVal = (displayState[key] ?? 0) + delta;
-    newVal = clampField(key, newVal, activeFormat);
-    displayState[key] = newVal;
+    displayState[key] = (displayState[key] ?? 0) + delta;
+    // Bounded modes (clock_time/datetime) carry the overflow/underflow into
+    // the next segment before wrapping key itself in place; duration's own
+    // fields are unbounded and normalize() (called below regardless — a
+    // no-op outside duration mode) handles carrying for them instead.
+    carryBounded(displayState);
+    for (const k of Object.keys(displayState)) {
+        displayState[k] = clampField(k, displayState[k], activeFormat);
+    }
     state = applyDefaults(fromDisplayState(displayState, activeFormat));
     normalize(state);
     commit();
@@ -618,6 +655,20 @@ widget.addEventListener('touchend', () => {
 // ---- Format toggle ----
 
 widget.addEventListener('click', e => {
+    // Copy button stays live when read-only — it's the one toolbar action
+    // that doesn't mutate the field, so it's also the one CSS keeps visible
+    // (see .ti-widget[data-interactive="false"] in style.css). Handled
+    // before the INTERACTIVE gate below, which covers the mutating buttons.
+    const copyBtn = e.target.closest('.ti-copy');
+    if (copyBtn) {
+        const text = formatState(state, activeFormat);
+        navigator.clipboard?.writeText(text).then(() => {
+            copyBtn.textContent = '✓';
+            setTimeout(() => { copyBtn.textContent = '⎘'; }, 1200);
+        }).catch(() => {});
+        return;
+    }
+
     if (!INTERACTIVE) return;
 
     // Format toggle button
@@ -634,18 +685,6 @@ widget.addEventListener('click', e => {
         activeFormat = nextFmt;
         toggleBtn.textContent = activeFormat;
         commit();
-        return;
-    }
-
-    // Copy button — matches the checkmark-feedback pattern used by the
-    // ArmyInputHTML/LevelsInputComponent copy buttons.
-    const copyBtn = e.target.closest('.ti-copy');
-    if (copyBtn) {
-        const text = formatState(state, activeFormat);
-        navigator.clipboard?.writeText(text).then(() => {
-            copyBtn.textContent = '✓';
-            setTimeout(() => { copyBtn.textContent = '⎘'; }, 1200);
-        }).catch(() => {});
         return;
     }
 

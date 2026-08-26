@@ -229,10 +229,12 @@
     display: none;
 }
 
-.ti-widget[data-interactive="false"] .ti-btns .ti-btn,
+/* Read-only: only copy stays useful (there's still a value to grab) —
+   toggle/clear/quick-fills all mutate the field, so hide them entirely
+   rather than leave disabled-looking buttons that do nothing. */
+.ti-widget[data-interactive="false"] .ti-btns .ti-btn:not(.ti-copy),
 .ti-widget[data-interactive="false"] .ti-btns .ti-pill {
-    pointer-events: none;
-    opacity: 0.5;
+    display: none;
 }
 
 /* Clear/reset button */

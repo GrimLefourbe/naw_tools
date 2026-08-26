@@ -79,7 +79,13 @@ class TimeInput(gr.HTML):
         segments: Which segment fields to show (subset of the mode's keys). None = all.
         formats: Display formats the user can toggle between. None = all valid for mode.
         quick_fills: Quick-fill buttons to show ("now", "today", "current_time").
-        value: Initial Python value. Type must match the mode.
+        value: Initial Python value (type must match the mode), or a
+            zero-arg callable returning one — resolved the same way
+            gr.DateTime resolves a callable value: called once for the
+            initial render, and re-called on every page load/reconnect
+            (see Component.attach_load_event), so e.g.
+            ``value=lambda: dt.datetime.now()`` stays fresh across reloads
+            instead of freezing at server-startup time.
         defaults: Fixed values for hidden segments (not in ``segments``). Dict of key→int.
             These are included in every Python value returned, invisible to the user.
         label: Optional label text shown above the field.
@@ -92,7 +98,7 @@ class TimeInput(gr.HTML):
         segments: list[str] | None = None,
         formats: list[str] | None = None,
         quick_fills: list[str] | None = None,
-        value: dt.timedelta | dt.time | dt.datetime | None = None,
+        value: dt.timedelta | dt.time | dt.datetime | t.Callable[[], dt.timedelta | dt.time | dt.datetime | None] | None = None,
         defaults: dict[str, int] | None = None,
         label: str | None = None,
         interactive: bool = True,
@@ -150,8 +156,6 @@ class TimeInput(gr.HTML):
         kwargs.setdefault("apply_default_css", False)
         kwargs.setdefault("padding", False)
 
-        initial_json = self.postprocess(value)
-
         def parse_pasted_text(text: str) -> dict[str, int] | None:
             """Parse pasted clipboard text into segment values. Tries AJHMS,
             HH:MM:SS/HH:MM, then DD/MM/YYYY HH:MM:SS/DD/MM HH:MM:SS, same as
@@ -191,7 +195,7 @@ class TimeInput(gr.HTML):
             return None
 
         super().__init__(
-            value=initial_json,
+            value=value,
             html_template=self._build_template(
                 mode, seg_keys, seg_meta_list, fmt_list, fill_list, hidden_defaults, interactive, label
             ),
