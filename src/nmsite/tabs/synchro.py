@@ -140,12 +140,15 @@ class SynchroTab:
         else:
             depart_inputs.append(gr.State(None))
 
+        enabled_input = settings.time_input_enabled_state if mode == "hybrid" else gr.State(False)
+
         self.synchro_button.click(
             fn=functools.partial(calc_synchros, base_url=self.config.base_url, mode=mode),
             inputs=[
                 settings.data_state,
                 self.va_input,
                 *depart_inputs,
+                enabled_input,
                 self.player_select,
                 self.target_alliance,
             ],
@@ -189,12 +192,16 @@ def calc_synchros(
     va: int,
     depart: dt.datetime | None,
     depart_new: dt.datetime | None,
+    enabled: bool,
     target_coords: str,
     target_allis: list[str],
     base_url: str,
     mode: str,
 ):
-    depart = depart_new if mode in ("hybrid", "experimental") and depart_new is not None else depart
+    if mode == "experimental":
+        depart = depart_new
+    elif mode == "hybrid" and enabled:
+        depart = depart_new
     assert depart is not None, "Heure de départ manquante"
     base_pos = [int(i) for i in target_coords.split(":")]
     player = data[(data[["x", "y"]] == base_pos).all(axis=1)].iloc[0]

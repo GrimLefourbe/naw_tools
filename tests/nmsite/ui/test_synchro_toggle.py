@@ -39,6 +39,10 @@ def _old_time_input(page: Page):
     return page.locator("#synchro_time_input")
 
 
+def _old_time_input_field(page: Page):
+    return _old_time_input(page).get_by_role("textbox")
+
+
 def _new_time_input(page: Page):
     return page.locator("#synchro_time_input_new")
 
@@ -115,5 +119,59 @@ def test_toggle_on_new_time_input_drives_synchro_computation(gradio_server: str,
 
     secs = nm.formulas.duree_attaque(5, 148, 4, 156, va=0)
     expected_horaire = (dt.datetime(1970, 1, 1, 0, 5, 0) + dt.timedelta(seconds=secs)).time().strftime("%H:%M:%S")
+
+    expect(page.get_by_role("button", name=expected_horaire)).to_be_visible(timeout=10_000)
+
+
+def test_toggle_off_old_time_input_drives_synchro_computation(gradio_server: str, page: Page) -> None:
+    """Regression: with the toggle OFF (default), calc_synchros must use the
+    visible old gr.DateTime field's value, not the hidden TimeInput's stale
+    `now()` default. This is the exact path a dropped time_input_enabled_state
+    silently broke — the hidden field's default is always non-None, so a naive
+    "use depart_new if not None" check picks it regardless of the toggle."""
+    page.goto(gradio_server)
+    _load_fixture_data(page)
+    # Force a real round-trip through the settings tab (the same mechanism
+    # _enable_time_input_toggle uses) rather than a fixed sleep before ever
+    # switching to Synchro — Synchro is a gr.Tab(render=False) block, and its
+    # settings.data_state.change handler (queued by _load_fixture_data above)
+    # targets components that don't exist client-side until the tab is first
+    # rendered; switching tabs before that queued event has actually landed
+    # races the render and can leave Synchro stuck (see the project's
+    # "Gradio 6 unrendered tabs" note). Waiting on a checkbox's own
+    # check/uncheck round trip reliably drains the queue first since Gradio
+    # processes a session's events in submission order. End back at the
+    # default (unchecked) state this test exercises.
+    _enable_time_input_toggle(page)
+    toggle = page.locator("#settings_time_input_toggle input[type='checkbox']")
+    toggle.uncheck()
+    expect(toggle).not_to_be_checked()
+
+    page.get_by_role("tab", name="Synchro").click()
+    page.locator("#synchro_time_input").wait_for(state="visible")
+    expect(_old_time_input(page)).to_be_visible()
+    expect(_new_time_input(page)).to_be_hidden()
+
+    page.get_by_label("Joueur à synchro").click()
+    page.get_by_role("option").filter(has_text="Grim").click()
+
+    page.get_by_label("Alliances Cibles").click()
+    page.get_by_role("option").filter(has_text="SDS").click()
+    page.keyboard.press("Escape")
+    page.get_by_text("SDS", exact=True).wait_for(state="visible")
+
+    # Fill the old gr.DateTime field with an explicit, deterministic datetime
+    # far from "now" — if the toggle-off path is broken and calc_synchros
+    # silently falls back to the hidden TimeInput's now() default instead,
+    # the resulting Horaire won't match this value.
+    field = _old_time_input_field(page)
+    field.fill("2020-01-01 00:05:00")
+    field.press("Tab")
+    page.wait_for_timeout(300)
+
+    page.get_by_role("button", name="Calcule!").click()
+
+    secs = nm.formulas.duree_attaque(5, 148, 4, 156, va=0)
+    expected_horaire = (dt.datetime(2020, 1, 1, 0, 5, 0) + dt.timedelta(seconds=secs)).time().strftime("%H:%M:%S")
 
     expect(page.get_by_role("button", name=expected_horaire)).to_be_visible(timeout=10_000)
