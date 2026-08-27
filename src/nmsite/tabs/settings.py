@@ -52,7 +52,8 @@ class Settings:
     def __init__(self, demo: gr.Blocks, config: nmsite.config.Config):
         self._config = config
         self.data_state, self.metadata_state = self._clear_data()
-        self.time_input_enabled_state = gr.State(False)
+        if self._config.time_input_mode == "hybrid":
+            self.time_input_enabled_state = gr.State(False)
         self.post_load = demo.load(
             self.load,
             inputs=[self.data_state, self.metadata_state],
@@ -61,13 +62,14 @@ class Settings:
         )
         self._create_layout()
         self._configure_triggers()
-        demo.load(
-            fn=lambda enabled, checked: (enabled, checked),
-            inputs=[self.time_input_enabled_state, self.time_input_toggle],
-            outputs=[self.time_input_enabled_state, self.time_input_toggle],
-            js=load_time_input_enabled,
-            show_progress="hidden",
-        )
+        if self._config.time_input_mode == "hybrid":
+            demo.load(
+                fn=lambda enabled, checked: (enabled, checked),
+                inputs=[self.time_input_enabled_state, self.time_input_toggle],
+                outputs=[self.time_input_enabled_state, self.time_input_toggle],
+                js=load_time_input_enabled,
+                show_progress="hidden",
+            )
 
     def _clear_data(self):
         return gr.DataFrame(pd.DataFrame(columns=["player_name", "colo_name", "alliance", "x", "y", "tdc"]), visible=False), gr.BrowserState({"version": 1})
@@ -98,11 +100,12 @@ class Settings:
         # self.player_name_input = gr.Textbox(
         #     label="Votre pseudo", interactive=True
         # )
-        self.time_input_toggle = gr.Checkbox(
-            value=False,
-            label="Utiliser le nouveau sélecteur de temps (bêta)",
-            elem_id="settings_time_input_toggle",
-        )
+        if self._config.time_input_mode == "hybrid":
+            self.time_input_toggle = gr.Checkbox(
+                value=False,
+                label="Utiliser le nouveau sélecteur de temps (bêta)",
+                elem_id="settings_time_input_toggle",
+            )
         if self._config.dev:
             self._create_time_input_demo()
 
@@ -224,13 +227,14 @@ class Settings:
             outputs=self.data_state,
         )
 
-        self.time_input_toggle.change(
-            fn=lambda enabled: enabled,
-            inputs=self.time_input_toggle,
-            outputs=self.time_input_enabled_state,
-            js=save_time_input_enabled,
-            show_progress="hidden",
-        )
+        if self._config.time_input_mode == "hybrid":
+            self.time_input_toggle.change(
+                fn=lambda enabled: enabled,
+                inputs=self.time_input_toggle,
+                outputs=self.time_input_enabled_state,
+                js=save_time_input_enabled,
+                show_progress="hidden",
+            )
 
         if self._config.dev:
             self._configure_time_input_demo()

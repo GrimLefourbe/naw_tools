@@ -24,3 +24,21 @@ def test_non_dev_config_hides_time_input_demo():
     with gr.Blocks() as demo:
         Settings(demo, _config(dev=False))
     assert "ti_demo_a" not in _elem_ids(demo)
+
+
+def test_hybrid_mode_shows_time_input_toggle():
+    with gr.Blocks() as demo:
+        Settings(demo, _config(time_input_mode="hybrid"))
+    assert "settings_time_input_toggle" in _elem_ids(demo)
+
+
+def test_legacy_mode_hides_time_input_toggle():
+    with gr.Blocks() as demo:
+        Settings(demo, _config(time_input_mode="legacy"))
+    assert "settings_time_input_toggle" not in _elem_ids(demo)
+
+
+def test_experimental_mode_hides_time_input_toggle():
+    with gr.Blocks() as demo:
+        Settings(demo, _config(time_input_mode="experimental"))
+    assert "settings_time_input_toggle" not in _elem_ids(demo)
