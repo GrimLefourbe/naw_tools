@@ -9,114 +9,117 @@ from nmsite.tabs.settings import Settings
 from nmsite.components import SegmentedControl, TimeInput
 
 
-_TARGETS = ["VA", "Arrivée", "Départ"]
+class DureesCore:
+    """Mode-agnostic pure logic shared by DureesLegacy/DureesHybrid/
+    DureesExperimental. No Gradio components, no instance state — every
+    mode calls these the exact same way."""
 
+    TARGETS = ["VA", "Arrivée", "Départ"]
 
-def _parse_time(s: str) -> dt.time | None:
-    if not s or not s.strip():
-        return None
-    try:
-        return dt.datetime.strptime(s.strip(), "%H:%M:%S").time()
-    except ValueError:
-        return None
+    @staticmethod
+    def parse_time(s: str) -> dt.time | None:
+        if not s or not s.strip():
+            return None
+        try:
+            return dt.datetime.strptime(s.strip(), "%H:%M:%S").time()
+        except ValueError:
+            return None
 
+    @staticmethod
+    def times_to_secs(start: str, arrival: str) -> float | None:
+        t_start = DureesCore.parse_time(start)
+        t_arrival = DureesCore.parse_time(arrival)
+        if t_start is None or t_arrival is None:
+            return None
+        secs_start = t_start.hour * 3600 + t_start.minute * 60 + t_start.second
+        secs_arrival = t_arrival.hour * 3600 + t_arrival.minute * 60 + t_arrival.second
+        secs = secs_arrival - secs_start
+        return secs + 86400 if secs < 0 else secs
 
-def _times_to_secs(start: str, arrival: str) -> float | None:
-    t_start = _parse_time(start)
-    t_arrival = _parse_time(arrival)
-    if t_start is None or t_arrival is None:
-        return None
-    secs_start = t_start.hour * 3600 + t_start.minute * 60 + t_start.second
-    secs_arrival = t_arrival.hour * 3600 + t_arrival.minute * 60 + t_arrival.second
-    secs = secs_arrival - secs_start
-    return secs + 86400 if secs < 0 else secs
+    @staticmethod
+    def apply_time_defaults(target, start, arrival):
+        if target == "Arrivée" and not (start and start.strip()):
+            start = "00:00:00"
+        elif target == "Départ" and not (arrival and arrival.strip()):
+            arrival = "00:00:00"
+        return start, arrival
 
+    @staticmethod
+    def shift_time(t: dt.time, secs: float) -> str:
+        base = dt.datetime(2000, 1, 1, t.hour, t.minute, t.second)
+        return (base + dt.timedelta(seconds=secs)).time().strftime("%H:%M:%S")
 
-def _apply_time_defaults(target, start, arrival):
-    if target == "Arrivée" and not (start and start.strip()):
-        start = "00:00:00"
-    elif target == "Départ" and not (arrival and arrival.strip()):
-        arrival = "00:00:00"
-    return start, arrival
+    @staticmethod
+    def compute(target, x1, y1, x2, y2, va, duration, start, arrival):
+        if target == "VA":
+            secs = DureesCore.times_to_secs(start, arrival)
+            if secs is None:
+                secs = nm.utils.parse_ajhms(duration).total_seconds()
+            base_d = nm.formulas.duree_attaque(x1, y1, x2, y2)
+            new_va = nm.formulas.from_va(secs / base_d)
+            new_duration = nm.utils.timedelta_to_ajhms(dt.timedelta(seconds=secs))
+            return new_va, new_duration, start, arrival
 
-
-def _shift_time(t: dt.time, secs: float) -> str:
-    base = dt.datetime(2000, 1, 1, t.hour, t.minute, t.second)
-    return (base + dt.timedelta(seconds=secs)).time().strftime("%H:%M:%S")
-
-
-# --- TimeInput opt-in: the old fields (str) stay the canonical values that
-# _compute/_interactivity_to_* work with; these convert to/from the native
-# Python types the TimeInput siblings use, so those internals stay untouched.
-
-
-def _duration_str_to_td(s: str) -> dt.timedelta:
-    return nm.utils.parse_ajhms(s)
-
-
-def _duration_td_to_str(td: dt.timedelta | None) -> str:
-    return nm.utils.timedelta_to_ajhms(td) if td is not None else "0S"
-
-
-def _time_obj_to_str(t: dt.time | None) -> str:
-    return t.strftime("%H:%M:%S") if t is not None else ""
-
-
-def _mirror_to_new(duration: str, start: str, arrival: str, skip: str | None = None):
-    """Snapshot the old (canonical) fields into the new TimeInput siblings —
-    chained after every _compute call so the hidden pair stays truthful
-    whenever the toggle is flipped back on.
-
-    `skip` names the one new field ("duration"/"start"/"arrival") to leave
-    untouched: when this chain was triggered by editing that very field
-    directly, its value already matches what we'd mirror back (_compute
-    only ever reads the field currently being edited as an anchor here, it
-    never rewrites it — see the *_new.input() handlers below). Re-sending it
-    anyway round-trips to the server and back as a value update TimeInput
-    can't tell apart from a genuine external change, so it reacts the same
-    way it would to someone else changing the field: exits edit mode and
-    drops focus (see script.js's `watch('value', ...)`) — after every
-    single wheel tick or arrow press, kicking the user out of the field
-    they're mid-edit on.
-    """
-    return (
-        gr.skip() if skip == "duration" else _duration_str_to_td(duration),
-        gr.skip() if skip == "start" else _parse_time(start),
-        gr.skip() if skip == "arrival" else _parse_time(arrival),
-    )
-
-
-def _compute(target, x1, y1, x2, y2, va, duration, start, arrival):
-    if target == "VA":
-        secs = _times_to_secs(start, arrival)
-        if secs is None:
-            secs = nm.utils.parse_ajhms(duration).total_seconds()
-        base_d = nm.formulas.duree_attaque(x1, y1, x2, y2)
-        new_va = nm.formulas.from_va(secs / base_d)
+        anchor_str = start if target == "Arrivée" else arrival
+        parsed = DureesCore.parse_time(anchor_str)
+        if parsed is None:
+            return va, duration, start, arrival
+        secs = nm.formulas.duree_attaque(x1, y1, x2, y2, va)
         new_duration = nm.utils.timedelta_to_ajhms(dt.timedelta(seconds=secs))
-        return new_va, new_duration, start, arrival
-
-    anchor_str = start if target == "Arrivée" else arrival
-    parsed = _parse_time(anchor_str)
-    if parsed is None:
+        if target == "Arrivée":
+            return va, new_duration, start, DureesCore.shift_time(parsed, secs)
+        if target == "Départ":
+            return va, new_duration, DureesCore.shift_time(parsed, -secs), arrival
         return va, duration, start, arrival
-    secs = nm.formulas.duree_attaque(x1, y1, x2, y2, va)
-    new_duration = nm.utils.timedelta_to_ajhms(dt.timedelta(seconds=secs))
-    if target == "Arrivée":
-        return va, new_duration, start, _shift_time(parsed, secs)
-    if target == "Départ":
-        return va, new_duration, _shift_time(parsed, -secs), arrival
-    return va, duration, start, arrival
+
+    @staticmethod
+    def duration_str_to_td(s: str) -> dt.timedelta:
+        return nm.utils.parse_ajhms(s)
+
+    @staticmethod
+    def duration_td_to_str(td: dt.timedelta | None) -> str:
+        return nm.utils.timedelta_to_ajhms(td) if td is not None else "0S"
+
+    @staticmethod
+    def time_obj_to_str(t: dt.time | None) -> str:
+        return t.strftime("%H:%M:%S") if t is not None else ""
 
 
 def durees_tab(settings: Settings, tab: gr.Tab):
-    return DureesTab(settings, tab)
+    return DureesHybrid(settings, tab)
 
 
-class DureesTab:
+class DureesHybrid:
+    """Dual-mount: both the old plain-text fields and the new TimeInput
+    fields exist, paired by visibility, behind the Réglages opt-in toggle."""
+
     def __init__(self, settings: Settings, tab: gr.Tab) -> None:
         self._set_layout(settings)
         self._configure_triggers(settings, tab)
+
+    @staticmethod
+    def _mirror_to_new(duration: str, start: str, arrival: str, skip: str | None = None):
+        """Snapshot the old (canonical) fields into the new TimeInput siblings —
+        chained after every compute call so the hidden pair stays truthful
+        whenever the toggle is flipped back on.
+
+        `skip` names the one new field ("duration"/"start"/"arrival") to leave
+        untouched: when this chain was triggered by editing that very field
+        directly, its value already matches what we'd mirror back (compute
+        only ever reads the field currently being edited as an anchor here, it
+        never rewrites it — see the *_new.input() handlers below). Re-sending it
+        anyway round-trips to the server and back as a value update TimeInput
+        can't tell apart from a genuine external change, so it reacts the same
+        way it would to someone else changing the field: exits edit mode and
+        drops focus (see script.js's `watch('value', ...)`) — after every
+        single wheel tick or arrow press, kicking the user out of the field
+        they're mid-edit on.
+        """
+        return (
+            gr.skip() if skip == "duration" else DureesCore.duration_str_to_td(duration),
+            gr.skip() if skip == "start" else DureesCore.parse_time(start),
+            gr.skip() if skip == "arrival" else DureesCore.parse_time(arrival),
+        )
 
     # Each field below has an old + new (TimeInput) sibling that always share
     # the same interactive/elem_classes state — value_fields interleaves them
@@ -193,7 +196,7 @@ class DureesTab:
 
             with gr.Column(scale=0, min_width=90):
                 self._target_sel = SegmentedControl(
-                    choices=_TARGETS,
+                    choices=DureesCore.TARGETS,
                     value="Arrivée",
                     elem_id="durees_target",
                     container=False,
@@ -289,12 +292,12 @@ class DureesTab:
             outputs=[self._from_x, self._from_y],
             show_progress="hidden",
         ).then(
-            fn=_compute,
+            fn=DureesCore.compute,
             inputs=all_inputs,
             outputs=all_outputs,
             show_progress="hidden",
         ).then(
-            fn=_mirror_to_new,
+            fn=self._mirror_to_new,
             inputs=[self._duration, self._start_time, self._arrival_time],
             outputs=new_fields,
             show_progress="hidden",
@@ -306,12 +309,12 @@ class DureesTab:
             outputs=[self._to_x, self._to_y],
             show_progress="hidden",
         ).then(
-            fn=_compute,
+            fn=DureesCore.compute,
             inputs=all_inputs,
             outputs=all_outputs,
             show_progress="hidden",
         ).then(
-            fn=_mirror_to_new,
+            fn=self._mirror_to_new,
             inputs=[self._duration, self._start_time, self._arrival_time],
             outputs=new_fields,
             show_progress="hidden",
@@ -368,17 +371,17 @@ class DureesTab:
             outputs=[self._target_state],
             show_progress="hidden",
         ).then(
-            fn=_apply_time_defaults,
+            fn=DureesCore.apply_time_defaults,
             inputs=[self._target_state, self._start_time, self._arrival_time],
             outputs=[self._start_time, self._arrival_time],
             show_progress="hidden",
         ).then(
-            fn=_compute,
+            fn=DureesCore.compute,
             inputs=all_inputs,
             outputs=all_outputs,
             show_progress="hidden",
         ).then(
-            fn=_mirror_to_new,
+            fn=self._mirror_to_new,
             inputs=[self._duration, self._start_time, self._arrival_time],
             outputs=new_fields,
             show_progress="hidden",
@@ -395,12 +398,12 @@ class DureesTab:
                 self._start_time.input,
                 self._arrival_time.input,
             ],
-            fn=_compute,
+            fn=DureesCore.compute,
             inputs=all_inputs,
             outputs=all_outputs,
             show_progress="hidden",
         ).then(
-            fn=_mirror_to_new,
+            fn=self._mirror_to_new,
             inputs=[self._duration, self._start_time, self._arrival_time],
             outputs=new_fields,
             show_progress="hidden",
@@ -410,51 +413,51 @@ class DureesTab:
         # (canonical) field first, then runs the same _compute/_mirror chain
         # as editing the old field directly would.
         self._start_time_new.input(
-            fn=_time_obj_to_str,
+            fn=DureesCore.time_obj_to_str,
             inputs=self._start_time_new,
             outputs=self._start_time,
             show_progress="hidden",
         ).then(
-            fn=_compute,
+            fn=DureesCore.compute,
             inputs=all_inputs,
             outputs=all_outputs,
             show_progress="hidden",
         ).then(
-            fn=functools.partial(_mirror_to_new, skip="start"),
+            fn=functools.partial(self._mirror_to_new, skip="start"),
             inputs=[self._duration, self._start_time, self._arrival_time],
             outputs=new_fields,
             show_progress="hidden",
         )
 
         self._arrival_time_new.input(
-            fn=_time_obj_to_str,
+            fn=DureesCore.time_obj_to_str,
             inputs=self._arrival_time_new,
             outputs=self._arrival_time,
             show_progress="hidden",
         ).then(
-            fn=_compute,
+            fn=DureesCore.compute,
             inputs=all_inputs,
             outputs=all_outputs,
             show_progress="hidden",
         ).then(
-            fn=functools.partial(_mirror_to_new, skip="arrival"),
+            fn=functools.partial(self._mirror_to_new, skip="arrival"),
             inputs=[self._duration, self._start_time, self._arrival_time],
             outputs=new_fields,
             show_progress="hidden",
         )
 
         self._duration_new.input(
-            fn=_duration_td_to_str,
+            fn=DureesCore.duration_td_to_str,
             inputs=self._duration_new,
             outputs=self._duration,
             show_progress="hidden",
         ).then(
-            fn=_compute,
+            fn=DureesCore.compute,
             inputs=all_inputs,
             outputs=all_outputs,
             show_progress="hidden",
         ).then(
-            fn=functools.partial(_mirror_to_new, skip="duration"),
+            fn=functools.partial(self._mirror_to_new, skip="duration"),
             inputs=[self._duration, self._start_time, self._arrival_time],
             outputs=new_fields,
             show_progress="hidden",
