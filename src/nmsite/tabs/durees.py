@@ -90,10 +90,7 @@ def durees_tab(settings: Settings, tab: gr.Tab, config: Config):
     mode_classes = {
         "legacy": DureesLegacy,
         "hybrid": DureesHybrid,
-        # TODO(2026-08-26): temporary alias — swap to DureesExperimental
-        # once it exists (next task). Keeps DEV (time_input_mode=
-        # "experimental") bootable in the meantime.
-        "experimental": DureesHybrid,
+        "experimental": DureesExperimental,
     }
     return mode_classes[config.time_input_mode](settings, tab)
 
@@ -657,4 +654,232 @@ class DureesHybrid:
             outputs=visibility_outputs,
             show_progress="hidden",
             queue=False,
+        )
+
+
+class DureesExperimental:
+    """TimeInput only — no old plain-text siblings, no mirror chain, no
+    visibility toggling. Each duration/start/arrival field talks to
+    DureesCore.compute through a small native<->str adapter that also
+    guards against echoing a field's own recomputed value back into itself
+    (see _compute_native's `skip` — same principle as DureesHybrid's
+    _mirror_to_new skip=, applied directly to compute's own outputs since
+    there's no separate mirror step here)."""
+
+    def __init__(self, settings: Settings, tab: gr.Tab) -> None:
+        self._set_layout(settings)
+        self._configure_triggers(settings)
+
+    @staticmethod
+    def _interactivity_to_va():
+        return (
+            gr.update(interactive=False, elem_classes=["result-field"]),
+            gr.update(interactive=True, elem_classes=[]),
+            gr.update(interactive=True, elem_classes=[]),
+            gr.update(interactive=True, elem_classes=[]),
+        )
+
+    @staticmethod
+    def _interactivity_to_arrivee():
+        return (
+            gr.update(interactive=True, elem_classes=[]),
+            gr.update(interactive=False, elem_classes=["result-field"]),
+            gr.update(interactive=True, elem_classes=[]),
+            gr.update(interactive=False, elem_classes=["result-field"]),
+        )
+
+    @staticmethod
+    def _interactivity_to_depart():
+        return (
+            gr.update(interactive=True, elem_classes=[]),
+            gr.update(interactive=False, elem_classes=["result-field"]),
+            gr.update(interactive=False, elem_classes=["result-field"]),
+            gr.update(interactive=True, elem_classes=[]),
+        )
+
+    @classmethod
+    def _interactivity_for(cls, target: str):
+        return {
+            "VA": cls._interactivity_to_va,
+            "Arrivée": cls._interactivity_to_arrivee,
+            "Départ": cls._interactivity_to_depart,
+        }[target]()
+
+    def _set_layout(self, settings: Settings):
+        self._target_state = gr.State("Arrivée")
+        args: dict[str, t.Any] = {"container": False}
+        with gr.Row(equal_height=True):
+            with gr.Column(min_width=100), gr.Group():
+                gr.Markdown("<div style='text-align:center; font-weight:bold; font-size:18px;'>Source</div>")
+                self._src_player_select = gr.Dropdown(container=False, visible=False, elem_id="durees_src_player")
+                with gr.Row():
+                    gr.Text("x", min_width=30, **args)
+                    self._from_x = gr.Number(value=0, scale=0, min_width=70, elem_id="durees_from_x", **args)
+                with gr.Row():
+                    gr.Text("y", min_width=30, **args)
+                    self._from_y = gr.Number(value=0, scale=0, min_width=70, elem_id="durees_from_y", **args)
+
+            with gr.Column(scale=0, min_width=90):
+                self._target_sel = SegmentedControl(
+                    choices=DureesCore.TARGETS,
+                    value="Arrivée",
+                    elem_id="durees_target",
+                    container=False,
+                )
+
+            with gr.Column(min_width=100), gr.Group():
+                gr.Markdown("<div style='text-align:center; font-weight:bold; font-size:18px;'>Cible</div>")
+                self._tgt_player_select = gr.Dropdown(container=False, visible=False, elem_id="durees_tgt_player")
+                with gr.Row():
+                    gr.Text("x", min_width=30, **args)
+                    self._to_x = gr.Number(value=0, scale=0, min_width=70, elem_id="durees_to_x", **args)
+                with gr.Row():
+                    gr.Text("y", min_width=30, **args)
+                    self._to_y = gr.Number(value=0, scale=0, min_width=70, elem_id="durees_to_y", **args)
+
+        with gr.Row():
+            with gr.Column(min_width=200):
+                self._va = gr.Number(value=0, label="Vitesse d'Attaque", elem_id="durees_va")
+            with gr.Column(min_width=200):
+                self._duration = TimeInput(
+                    mode="duration",
+                    label="Durée",
+                    interactive=False,
+                    elem_id="durees_duration",
+                )
+        with gr.Row():
+            with gr.Column(min_width=200):
+                self._start_time = TimeInput(
+                    mode="clock_time",
+                    segments=["hours", "minutes", "seconds"],
+                    formats=["HH:MM:SS"],
+                    label="Heure de départ",
+                    elem_id="durees_start_time",
+                )
+            with gr.Column(min_width=200):
+                self._arrival_time = TimeInput(
+                    mode="clock_time",
+                    segments=["hours", "minutes", "seconds"],
+                    formats=["HH:MM:SS"],
+                    label="Heure d'arrivée",
+                    interactive=False,
+                    elem_id="durees_arrival_time",
+                )
+
+    @staticmethod
+    def _compute_native(target, x1, y1, x2, y2, va, duration_td, start_time, arrival_time, skip=None):
+        duration_str = DureesCore.duration_td_to_str(duration_td)
+        start_str = DureesCore.time_obj_to_str(start_time)
+        arrival_str = DureesCore.time_obj_to_str(arrival_time)
+        new_va, new_duration_str, new_start_str, new_arrival_str = DureesCore.compute(
+            target, x1, y1, x2, y2, va, duration_str, start_str, arrival_str
+        )
+        return (
+            new_va,
+            gr.skip() if skip == "duration" else DureesCore.duration_str_to_td(new_duration_str),
+            gr.skip() if skip == "start" else DureesCore.parse_time(new_start_str),
+            gr.skip() if skip == "arrival" else DureesCore.parse_time(new_arrival_str),
+        )
+
+    @staticmethod
+    def _apply_time_defaults_native(target, start_time, arrival_time):
+        start_str = DureesCore.time_obj_to_str(start_time)
+        arrival_str = DureesCore.time_obj_to_str(arrival_time)
+        new_start_str, new_arrival_str = DureesCore.apply_time_defaults(target, start_str, arrival_str)
+        return DureesCore.parse_time(new_start_str), DureesCore.parse_time(new_arrival_str)
+
+    def _configure_triggers(self, settings: Settings):
+        @settings.data_state.change(
+            inputs=settings.data_state,
+            outputs=[self._src_player_select, self._tgt_player_select],
+            show_progress="hidden",
+        )
+        def get_colo_names(data: pd.DataFrame):
+            player_names = sorted(
+                (f"{player}: {colo}[{x}:{y}]", f"{x}:{y}")
+                for player, colo, x, y in data[["player_name", "colo_name", "x", "y"]].itertuples(index=False)
+            )
+            update = gr.update(visible=True, choices=player_names)
+            return update, update
+
+        all_inputs = [
+            self._target_state,
+            self._from_x,
+            self._from_y,
+            self._to_x,
+            self._to_y,
+            self._va,
+            self._duration,
+            self._start_time,
+            self._arrival_time,
+        ]
+        all_outputs = [self._va, self._duration, self._start_time, self._arrival_time]
+
+        self._src_player_select.input(
+            lambda x: (0, 0) if x is None else tuple(int(v) for v in x.split(":")),
+            inputs=self._src_player_select,
+            outputs=[self._from_x, self._from_y],
+            show_progress="hidden",
+        ).then(fn=self._compute_native, inputs=all_inputs, outputs=all_outputs, show_progress="hidden")
+
+        self._tgt_player_select.input(
+            lambda x: (0, 0) if x is None else tuple(int(v) for v in x.split(":")),
+            inputs=self._tgt_player_select,
+            outputs=[self._to_x, self._to_y],
+            show_progress="hidden",
+        ).then(fn=self._compute_native, inputs=all_inputs, outputs=all_outputs, show_progress="hidden")
+
+        value_fields = [self._va, self._duration, self._start_time, self._arrival_time]
+
+        # No js=True fast path: every editable field here is a custom
+        # TimeInput component, which js=True's transpiled fast path can't
+        # reach (same finding as DureesHybrid's *_new fields) — it would
+        # never do anything useful, so skip straight to the one real pass.
+        self._target_sel.select(
+            fn=self._interactivity_for,
+            inputs=[self._target_sel],
+            outputs=value_fields,
+            show_progress="hidden",
+        )
+
+        self._target_sel.input(
+            fn=lambda target: target,
+            inputs=[self._target_sel],
+            outputs=[self._target_state],
+            show_progress="hidden",
+        ).then(
+            fn=self._apply_time_defaults_native,
+            inputs=[self._target_state, self._start_time, self._arrival_time],
+            outputs=[self._start_time, self._arrival_time],
+            show_progress="hidden",
+        ).then(fn=self._compute_native, inputs=all_inputs, outputs=all_outputs, show_progress="hidden")
+
+        gr.on(
+            triggers=[self._from_x.input, self._from_y.input, self._to_x.input, self._to_y.input, self._va.input],
+            fn=self._compute_native,
+            inputs=all_inputs,
+            outputs=all_outputs,
+            show_progress="hidden",
+        )
+
+        # Editing duration/start/arrival directly: skip= keeps _compute_native
+        # from echoing the field's own (unchanged) recomputed value back into
+        # itself — see the class docstring and DureesHybrid's _mirror_to_new.
+        self._duration.input(
+            fn=functools.partial(self._compute_native, skip="duration"),
+            inputs=all_inputs,
+            outputs=all_outputs,
+            show_progress="hidden",
+        )
+        self._start_time.input(
+            fn=functools.partial(self._compute_native, skip="start"),
+            inputs=all_inputs,
+            outputs=all_outputs,
+            show_progress="hidden",
+        )
+        self._arrival_time.input(
+            fn=functools.partial(self._compute_native, skip="arrival"),
+            inputs=all_inputs,
+            outputs=all_outputs,
+            show_progress="hidden",
         )
