@@ -60,20 +60,24 @@ class SynchroTab:
             self.target_alliance = gr.Dropdown(label="Alliances Cibles", multiselect=True)
         with gr.Row():
             with gr.Column():
-                self.time_input = gr.DateTime(
-                    label="Heure de départ",
-                    value=lambda: dt.datetime.now(),
-                    type="datetime",  # type: ignore
-                    elem_id="synchro_time_input",
-                )
-                self.time_input_new = TimeInput(
-                    mode="datetime",
-                    quick_fills=["now"],
-                    value=lambda: dt.datetime.now(),  # type: ignore
-                    label="Heure de départ",
-                    elem_id="synchro_time_input_new",
-                    visible=False,
-                )
+                mode = self.config.time_input_mode
+                if mode in ("legacy", "hybrid"):
+                    self.time_input = gr.DateTime(
+                        label="Heure de départ",
+                        value=lambda: dt.datetime.now(),
+                        type="datetime",  # type: ignore
+                        elem_id="synchro_time_input",
+                        visible=(mode == "legacy"),
+                    )
+                if mode in ("hybrid", "experimental"):
+                    self.time_input_new = TimeInput(
+                        mode="datetime",
+                        quick_fills=["now"],
+                        value=lambda: dt.datetime.now(),  # type: ignore
+                        label="Heure de départ",
+                        elem_id="synchro_time_input" if mode == "experimental" else "synchro_time_input_new",
+                        visible=(mode == "experimental"),
+                    )
             self.va_input = gr.Number(label="Vitesse d'attaque", value=0, minimum=0)
         self.synchro_button = gr.Button("Calcule!")
         with gr.Group():
@@ -98,6 +102,8 @@ class SynchroTab:
         )
 
     def configure_triggers(self, settings: Settings):
+        mode = self.config.time_input_mode
+
         self.data_input_btn.click(
             nmsite.tabs.settings.parse_data,
             inputs=self.data_input,
@@ -116,21 +122,30 @@ class SynchroTab:
             outputs=[self.result_df, self.player_select, self.target_alliance, self.loaded_accordion],
         )
 
-        settings.time_input_enabled_state.change(
-            fn=lambda enabled: (gr.update(visible=not enabled), gr.update(visible=enabled)),
-            inputs=settings.time_input_enabled_state,
-            outputs=[self.time_input, self.time_input_new],
-            show_progress="hidden",
-        )
+        if self.config.time_input_mode == "hybrid":
+            settings.time_input_enabled_state.change(
+                fn=lambda enabled: (gr.update(visible=not enabled), gr.update(visible=enabled)),
+                inputs=settings.time_input_enabled_state,
+                outputs=[self.time_input, self.time_input_new],
+                show_progress="hidden",
+            )
+
+        depart_inputs: list = []
+        if mode in ("legacy", "hybrid"):
+            depart_inputs.append(self.time_input)
+        else:
+            depart_inputs.append(gr.State(None))
+        if mode in ("hybrid", "experimental"):
+            depart_inputs.append(self.time_input_new)
+        else:
+            depart_inputs.append(gr.State(None))
 
         self.synchro_button.click(
-            fn=functools.partial(calc_synchros, base_url=self.config.base_url),
+            fn=functools.partial(calc_synchros, base_url=self.config.base_url, mode=mode),
             inputs=[
                 settings.data_state,
                 self.va_input,
-                self.time_input,
-                self.time_input_new,
-                settings.time_input_enabled_state,
+                *depart_inputs,
                 self.player_select,
                 self.target_alliance,
             ],
@@ -174,12 +189,12 @@ def calc_synchros(
     va: int,
     depart: dt.datetime | None,
     depart_new: dt.datetime | None,
-    time_input_enabled: bool,
     target_coords: str,
     target_allis: list[str],
     base_url: str,
+    mode: str,
 ):
-    depart = depart_new if time_input_enabled else depart
+    depart = depart_new if mode in ("hybrid", "experimental") and depart_new is not None else depart
     assert depart is not None, "Heure de départ manquante"
     base_pos = [int(i) for i in target_coords.split(":")]
     player = data[(data[["x", "y"]] == base_pos).all(axis=1)].iloc[0]
