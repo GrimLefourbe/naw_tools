@@ -67,7 +67,6 @@ class SynchroTab:
                         value=lambda: dt.datetime.now(),
                         type="datetime",  # type: ignore
                         elem_id="synchro_time_input",
-                        visible=(mode == "legacy"),
                     )
                 if mode in ("hybrid", "experimental"):
                     self.time_input_new = TimeInput(
@@ -122,7 +121,7 @@ class SynchroTab:
             outputs=[self.result_df, self.player_select, self.target_alliance, self.loaded_accordion],
         )
 
-        if self.config.time_input_mode == "hybrid":
+        if mode == "hybrid":
             settings.time_input_enabled_state.change(
                 fn=lambda enabled: (gr.update(visible=not enabled), gr.update(visible=enabled)),
                 inputs=settings.time_input_enabled_state,
