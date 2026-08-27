@@ -3,7 +3,7 @@
 import pytest
 from playwright.sync_api import Page, expect
 
-pytestmark = pytest.mark.ui
+pytestmark = [pytest.mark.ui, pytest.mark.parametrize("gradio_server", ["hybrid"], indirect=True)]
 
 
 @pytest.fixture()

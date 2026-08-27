@@ -7,7 +7,7 @@ import nawminator as nm
 import pytest
 from playwright.sync_api import Page, expect
 
-pytestmark = pytest.mark.ui
+pytestmark = [pytest.mark.ui, pytest.mark.parametrize("gradio_server", ["hybrid"], indirect=True)]
 
 # Two players, same alliance, tdc within calc_synchros's 0.5x-3x range of each
 # other (unlike players_fixture.html's real data, which has no such pair —

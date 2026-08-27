@@ -7,7 +7,7 @@ from playwright.sync_api import Page, expect
 
 _PLAYERS_FIXTURE = (pathlib.Path(__file__).parent / "players_fixture.html").read_text()
 
-pytestmark = pytest.mark.ui
+pytestmark = [pytest.mark.ui, pytest.mark.parametrize("gradio_server", ["hybrid"], indirect=True)]
 
 
 @pytest.fixture()
