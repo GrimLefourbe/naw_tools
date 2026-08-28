@@ -79,6 +79,9 @@ class DureesModeSpec:
                                           # value_fields[1]/[3]/[5] for Hybrid. Used to read current values into
                                           # all_inputs; the *_new siblings are outputs only, never inputs.
     compute: Callable                    # (target, x1,y1,x2,y2,va, *canonical_values, skip=None) -> tuple matching value_fields
+    apply_time_defaults: Callable        # (target, start, arrival) -> (start, arrival), same value type as canonical_fields[1]/[2].
+                                          # DureesCore.apply_time_defaults directly for Legacy/Hybrid (string canonical
+                                          # fields); Experimental needs a str<->native adapter, same shape as `compute`'s.
     editable_fields: list[EditableField] # duration/start/arrival entry points
     interactivity_fns: tuple[Callable, Callable, Callable]  # VA/Arrivée/Départ — zero-arg js=True statics, literal per SegmentedControl's transpiler constraint
     needs_select_dispatch: bool          # True when a value_field is a custom component (interactive can't be set via js=True's fast path)
@@ -141,7 +144,7 @@ class Durees:
         # 4. target-selector chain
         _, start, arrival = spec.canonical_fields
         self._target_sel.input(
-            fn=DureesCore.apply_time_defaults, inputs=[self._target_sel, start, arrival], outputs=[start, arrival],
+            fn=spec.apply_time_defaults, inputs=[self._target_sel, start, arrival], outputs=[start, arrival],
             show_progress="hidden",
         ).then(fn=spec.compute, inputs=all_inputs, outputs=spec.value_fields, show_progress="hidden")
 
@@ -160,7 +163,8 @@ this section commits to.)
 
 - **`_legacy_spec(settings)`**: `value_fields` = `[va, duration, start, arrival]`
   (plain `gr.Number`/`gr.Text`/`gr.Textbox`). `compute` = `DureesCore.compute`
-  directly (string-based, no adapter needed). `editable_fields`: 3 entries,
+  directly (string-based, no adapter needed). `apply_time_defaults` =
+  `DureesCore.apply_time_defaults` directly (string fields). `editable_fields`: 3 entries,
   `skip=None` each (no self-echo hazard), no `pre_step`. `interactivity_fns`
   = the existing 4-field literal statics (already shared with Experimental
   today — stays shared, now living as a module-level pair of functions both
@@ -168,7 +172,8 @@ this section commits to.)
 
 - **`_experimental_spec(settings)`**: `value_fields` = `[va, duration, start,
   arrival]` (all `TimeInput`). `compute` = the native↔str adapter (today's
-  `DureesExperimental._compute_native`). `editable_fields`: 3 entries with
+  `DureesExperimental._compute_native`). `apply_time_defaults` = the
+  native↔str adapter (today's `_apply_time_defaults_native`). `editable_fields`: 3 entries with
   `skip="duration"/"start"/"arrival"`, no `pre_step` (TimeInput is edited
   directly, no old-field sibling to sync from). `interactivity_fns` = same
   4-field statics as Legacy. `needs_select_dispatch=True` (custom
@@ -176,7 +181,9 @@ this section commits to.)
 
 - **`_hybrid_spec(settings)`**: `value_fields` = `[va, duration,
   duration_new, start, start_new, arrival, arrival_new]`. `compute` =
-  today's `_compute_and_mirror`. `editable_fields`: 6 entries — 3 for the
+  today's `_compute_and_mirror`. `apply_time_defaults` =
+  `DureesCore.apply_time_defaults` directly (canonical fields are the old,
+  string-based components — same as Legacy). `editable_fields`: 6 entries — 3 for the
   old fields (`skip=None`, no pre_step) + 3 for the `*_new` fields
   (`skip="duration"/"start"/"arrival"`, `pre_step` = the sync-into-old
   conversion). `interactivity_fns` = the existing 7-field literal statics.
