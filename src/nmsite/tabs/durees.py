@@ -3,6 +3,7 @@ import gradio as gr
 import pandas as pd
 import datetime as dt
 import typing as t
+from dataclasses import dataclass
 import nawminator as nm
 
 from nmsite.config import Config
@@ -144,6 +145,13 @@ class DureesCore:
             "Départ": cls._interactivity_to_depart,
         }[target]()
 
+    @staticmethod
+    def dispatch_interactivity(fns: tuple, target: str):
+        """Generic version of interactivity_for: takes the mode's own
+        3-tuple of interactivity functions instead of assuming DureesCore's
+        own 4-field ones, so it works for Hybrid's 7-field versions too."""
+        return dict(zip(DureesCore.TARGETS, fns))[target]()
+
 
 def _build_coord_row() -> tuple[gr.Dropdown, gr.Number, gr.Number, SegmentedControl, gr.Dropdown, gr.Number, gr.Number]:
     """Source / target-selector / Cible layout — byte-for-byte identical
@@ -183,24 +191,59 @@ def _build_coord_row() -> tuple[gr.Dropdown, gr.Number, gr.Number, SegmentedCont
 
 
 def durees_tab(settings: Settings, tab: gr.Tab, config: Config):
+    if config.time_input_mode == "legacy":
+        return Durees(settings, tab, _legacy_spec)
     mode_classes = {
-        "legacy": DureesLegacy,
         "hybrid": DureesHybrid,
         "experimental": DureesExperimental,
     }
     return mode_classes[config.time_input_mode](settings, tab)
 
 
-class DureesLegacy:
-    """No TimeInput at all — the pre-TimeInput implementation, ported over
-    DureesCore. Zero TimeInput overhead: no dual-mount, no mirror chain, no
-    visibility toggling, no tab.select() handler."""
+@dataclass
+class EditableField:
+    """One user-editable entry point (duration/start/arrival) that should
+    re-run compute when edited. Hybrid has two of these per concept (old +
+    new); Legacy/Experimental have exactly one each."""
 
-    def __init__(self, settings: Settings, tab: gr.Tab) -> None:
-        self._set_layout(settings)
-        self._configure_triggers(settings)
+    trigger: t.Callable
+    skip: str | None
+    pre_step: tuple[t.Callable, gr.Component, gr.Component] | None = None
 
-    def _set_layout(self, settings: Settings):
+
+@dataclass
+class DureesModeSpec:
+    """Everything the Durees engine needs from one mode. value_fields'
+    order is the single source of truth for what `compute` must return and
+    what interactivity/`.select()` dispatch write to. canonical_fields
+    resolves the one place value_fields alone is ambiguous: all_inputs
+    needs exactly one component per concept to read a current value from,
+    and Hybrid has two (old + new) per concept where Legacy/Experimental
+    have one."""
+
+    va_field: gr.Component
+    value_fields: list[gr.Component]
+    canonical_fields: tuple[gr.Component, gr.Component, gr.Component]
+    compute: t.Callable
+    apply_time_defaults: t.Callable
+    editable_fields: list[EditableField]
+    interactivity_fns: tuple[t.Callable, t.Callable, t.Callable]
+    needs_select_dispatch: bool
+    extra_wiring: t.Callable[["Durees", Settings, gr.Tab], None] | None = None
+
+
+class Durees:
+    """Shared wiring engine for all three Durées modes. Owns the coord row
+    and the full trigger/event graph shape; each mode supplies a
+    DureesModeSpec (built via `spec_builder`) for everything that varies."""
+
+    def __init__(self, settings: Settings, tab: gr.Tab, spec_builder: t.Callable[[Settings], DureesModeSpec]) -> None:
+        # spec_builder, not a pre-built spec: the coord row must render
+        # before the va/duration/start/arrival rows (visual order), but both
+        # are built by entering gr.Row()/gr.Column() while this Blocks
+        # context is active — so build the coord row first, then run the
+        # spec builder (which does its own gr.Row() building) immediately
+        # after.
         (
             self._src_player_select,
             self._from_x,
@@ -210,30 +253,12 @@ class DureesLegacy:
             self._to_x,
             self._to_y,
         ) = _build_coord_row()
+        self._spec = spec_builder(settings)
+        self._configure_triggers(settings, tab)
 
-        with gr.Row():
-            with gr.Column(min_width=200):
-                self._va = gr.Number(value=0, label="Vitesse d'Attaque", elem_id="durees_va")
-            with gr.Column(min_width=200):
-                self._duration = gr.Text(
-                    "0s", label="Durée", interactive=False, elem_classes=["result-field"], elem_id="durees_duration"
-                )
-        with gr.Row():
-            with gr.Column(min_width=200):
-                self._start_time = gr.Textbox(
-                    value="00:00:00", label="Heure de départ", placeholder="HH:MM:SS", elem_id="durees_start_time"
-                )
-            with gr.Column(min_width=200):
-                self._arrival_time = gr.Textbox(
-                    value="",
-                    label="Heure d'arrivée",
-                    placeholder="HH:MM:SS",
-                    interactive=False,
-                    elem_classes=["result-field"],
-                    elem_id="durees_arrival_time",
-                )
+    def _configure_triggers(self, settings: Settings, tab: gr.Tab):
+        spec = self._spec
 
-    def _configure_triggers(self, settings: Settings):
         settings.data_state.change(
             fn=DureesCore.player_choices,
             inputs=settings.data_state,
@@ -247,45 +272,23 @@ class DureesLegacy:
             self._from_y,
             self._to_x,
             self._to_y,
-            self._va,
-            self._duration,
-            self._start_time,
-            self._arrival_time,
+            spec.va_field,
+            *spec.canonical_fields,
         ]
-        all_outputs = [self._va, self._duration, self._start_time, self._arrival_time]
 
         self._src_player_select.input(
             DureesCore.parse_xy,
             inputs=self._src_player_select,
             outputs=[self._from_x, self._from_y],
             show_progress="hidden",
-        ).then(fn=DureesCore.compute, inputs=all_inputs, outputs=all_outputs, show_progress="hidden")
+        ).then(fn=spec.compute, inputs=all_inputs, outputs=spec.value_fields, show_progress="hidden")
 
         self._tgt_player_select.input(
             DureesCore.parse_xy,
             inputs=self._tgt_player_select,
             outputs=[self._to_x, self._to_y],
             show_progress="hidden",
-        ).then(fn=DureesCore.compute, inputs=all_inputs, outputs=all_outputs, show_progress="hidden")
-
-        value_fields = [self._va, self._duration, self._start_time, self._arrival_time]
-
-        self._target_sel.on_choice("VA")(
-            DureesCore._interactivity_to_va, outputs=value_fields, js=True, show_progress="hidden"
-        )
-        self._target_sel.on_choice("Arrivée")(
-            DureesCore._interactivity_to_arrivee, outputs=value_fields, js=True, show_progress="hidden"
-        )
-        self._target_sel.on_choice("Départ")(
-            DureesCore._interactivity_to_depart, outputs=value_fields, js=True, show_progress="hidden"
-        )
-
-        self._target_sel.input(
-            fn=DureesCore.apply_time_defaults,
-            inputs=[self._target_sel, self._start_time, self._arrival_time],
-            outputs=[self._start_time, self._arrival_time],
-            show_progress="hidden",
-        ).then(fn=DureesCore.compute, inputs=all_inputs, outputs=all_outputs, show_progress="hidden")
+        ).then(fn=spec.compute, inputs=all_inputs, outputs=spec.value_fields, show_progress="hidden")
 
         gr.on(
             triggers=[
@@ -293,16 +296,89 @@ class DureesLegacy:
                 self._from_y.input,
                 self._to_x.input,
                 self._to_y.input,
-                self._va.input,
-                self._duration.input,
-                self._start_time.input,
-                self._arrival_time.input,
+                spec.va_field.input,
             ],
-            fn=DureesCore.compute,
+            fn=spec.compute,
             inputs=all_inputs,
-            outputs=all_outputs,
+            outputs=spec.value_fields,
             show_progress="hidden",
         )
+
+        for ef in spec.editable_fields:
+            chain = ef.trigger
+            if ef.pre_step:
+                pre_fn, pre_src, pre_dst = ef.pre_step
+                chain = chain(fn=pre_fn, inputs=pre_src, outputs=pre_dst, show_progress="hidden").then
+            compute_fn = functools.partial(spec.compute, skip=ef.skip) if ef.skip else spec.compute
+            chain(fn=compute_fn, inputs=all_inputs, outputs=spec.value_fields, show_progress="hidden")
+
+        for choice, fn in zip(DureesCore.TARGETS, spec.interactivity_fns):
+            self._target_sel.on_choice(choice)(fn, outputs=spec.value_fields, js=True, show_progress="hidden")
+
+        if spec.needs_select_dispatch:
+            self._target_sel.select(
+                fn=functools.partial(DureesCore.dispatch_interactivity, spec.interactivity_fns),
+                inputs=[self._target_sel],
+                outputs=spec.value_fields,
+                show_progress="hidden",
+            )
+
+        _, start, arrival = spec.canonical_fields
+        self._target_sel.input(
+            fn=spec.apply_time_defaults,
+            inputs=[self._target_sel, start, arrival],
+            outputs=[start, arrival],
+            show_progress="hidden",
+        ).then(fn=spec.compute, inputs=all_inputs, outputs=spec.value_fields, show_progress="hidden")
+
+        if spec.extra_wiring:
+            spec.extra_wiring(self, settings, tab)
+
+
+def _legacy_spec(settings: Settings) -> DureesModeSpec:
+    """No TimeInput at all — the pre-TimeInput implementation. Zero
+    TimeInput overhead: no dual-mount, no mirror chain, no visibility
+    toggling, no extra_wiring."""
+    with gr.Row():
+        with gr.Column(min_width=200):
+            va = gr.Number(value=0, label="Vitesse d'Attaque", elem_id="durees_va")
+        with gr.Column(min_width=200):
+            duration = gr.Text(
+                "0s", label="Durée", interactive=False, elem_classes=["result-field"], elem_id="durees_duration"
+            )
+    with gr.Row():
+        with gr.Column(min_width=200):
+            start = gr.Textbox(
+                value="00:00:00", label="Heure de départ", placeholder="HH:MM:SS", elem_id="durees_start_time"
+            )
+        with gr.Column(min_width=200):
+            arrival = gr.Textbox(
+                value="",
+                label="Heure d'arrivée",
+                placeholder="HH:MM:SS",
+                interactive=False,
+                elem_classes=["result-field"],
+                elem_id="durees_arrival_time",
+            )
+
+    return DureesModeSpec(
+        va_field=va,
+        value_fields=[va, duration, start, arrival],
+        canonical_fields=(duration, start, arrival),
+        compute=DureesCore.compute,
+        apply_time_defaults=DureesCore.apply_time_defaults,
+        editable_fields=[
+            EditableField(trigger=duration.input, skip=None),
+            EditableField(trigger=start.input, skip=None),
+            EditableField(trigger=arrival.input, skip=None),
+        ],
+        interactivity_fns=(
+            DureesCore._interactivity_to_va,
+            DureesCore._interactivity_to_arrivee,
+            DureesCore._interactivity_to_depart,
+        ),
+        needs_select_dispatch=False,
+    )
 
 
 class DureesHybrid:
