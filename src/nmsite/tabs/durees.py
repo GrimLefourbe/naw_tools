@@ -12,9 +12,13 @@ from nmsite.components import SegmentedControl, TimeInput
 
 
 class DureesCore:
-    """Mode-agnostic pure logic shared by all three mode specs
+    """Mode-agnostic pure *time computation* shared by all three mode specs
     (_legacy_spec/_hybrid_spec/_experimental_spec) via the Durees engine.
-    No component state — every mode calls these the exact same way."""
+    Every method here works on native dt.time/dt.timedelta values — no
+    string parsing/formatting. A field that's a plain gr.Textbox in some
+    mode (Legacy, Hybrid's old fields) is a string only in that mode's own
+    UI layer; converting to/from that string is that spec's job (see
+    _parse_canonical/_apply_time_defaults_str), not DureesCore's."""
 
     TARGETS = ["VA", "Arrivée", "Départ"]
 
@@ -28,50 +32,47 @@ class DureesCore:
             return None
 
     @staticmethod
-    def times_to_secs(start: str, arrival: str) -> float | None:
-        t_start = DureesCore.parse_time(start)
-        t_arrival = DureesCore.parse_time(arrival)
-        if t_start is None or t_arrival is None:
+    def times_to_secs(start: dt.time | None, arrival: dt.time | None) -> float | None:
+        if start is None or arrival is None:
             return None
-        secs_start = t_start.hour * 3600 + t_start.minute * 60 + t_start.second
-        secs_arrival = t_arrival.hour * 3600 + t_arrival.minute * 60 + t_arrival.second
+        secs_start = start.hour * 3600 + start.minute * 60 + start.second
+        secs_arrival = arrival.hour * 3600 + arrival.minute * 60 + arrival.second
         secs = secs_arrival - secs_start
         return secs + 86400 if secs < 0 else secs
 
     @staticmethod
-    def apply_time_defaults(target, start, arrival):
-        if target == "Arrivée" and not (start and start.strip()):
-            start = "00:00:00"
-        elif target == "Départ" and not (arrival and arrival.strip()):
-            arrival = "00:00:00"
+    def apply_time_defaults(target, start: dt.time | None, arrival: dt.time | None):
+        if target == "Arrivée" and start is None:
+            start = dt.time(0, 0, 0)
+        elif target == "Départ" and arrival is None:
+            arrival = dt.time(0, 0, 0)
         return start, arrival
 
     @staticmethod
-    def shift_time(t: dt.time, secs: float) -> str:
+    def shift_time(t: dt.time, secs: float) -> dt.time:
         base = dt.datetime(2000, 1, 1, t.hour, t.minute, t.second)
-        return (base + dt.timedelta(seconds=secs)).time().strftime("%H:%M:%S")
+        return (base + dt.timedelta(seconds=secs)).time()
 
     @staticmethod
-    def compute(target, x1, y1, x2, y2, va, duration, start, arrival):
+    def compute(target, x1, y1, x2, y2, va, duration: dt.timedelta, start: dt.time | None, arrival: dt.time | None):
         if target == "VA":
             secs = DureesCore.times_to_secs(start, arrival)
             if secs is None:
-                secs = nm.utils.parse_ajhms(duration).total_seconds()
+                secs = duration.total_seconds()
             base_d = nm.formulas.duree_attaque(x1, y1, x2, y2)
             new_va = nm.formulas.from_va(secs / base_d)
-            new_duration = nm.utils.timedelta_to_ajhms(dt.timedelta(seconds=secs))
+            new_duration = dt.timedelta(seconds=secs)
             return new_va, new_duration, start, arrival
 
-        anchor_str = start if target == "Arrivée" else arrival
-        parsed = DureesCore.parse_time(anchor_str)
-        if parsed is None:
+        anchor = start if target == "Arrivée" else arrival
+        if anchor is None:
             return va, duration, start, arrival
         secs = nm.formulas.duree_attaque(x1, y1, x2, y2, va)
-        new_duration = nm.utils.timedelta_to_ajhms(dt.timedelta(seconds=secs))
+        new_duration = dt.timedelta(seconds=secs)
         if target == "Arrivée":
-            return va, new_duration, start, DureesCore.shift_time(parsed, secs)
+            return va, new_duration, start, DureesCore.shift_time(anchor, secs)
         else:  # "Départ" — TARGETS only has these three, "VA" already returned above
-            return va, new_duration, DureesCore.shift_time(parsed, -secs), arrival
+            return va, new_duration, DureesCore.shift_time(anchor, -secs), arrival
 
     @staticmethod
     def duration_str_to_td(s: str) -> dt.timedelta:
@@ -182,6 +183,21 @@ def _build_coord_row() -> tuple[gr.Dropdown, gr.Number, gr.Number, SegmentedCont
     return src_player_select, from_x, from_y, target_sel, tgt_player_select, to_x, to_y
 
 
+def _skip_output(compute: t.Callable, index: int, *args):
+    """Wrap a compute function so its output at `index` becomes gr.skip()
+    instead of whatever it actually computed. This is the shared echo-guard
+    mechanism for EditableField.skip_index (see Durees._configure_triggers)
+    — kept out of every mode's own compute function since it's pure Gradio
+    UI plumbing, not time computation: when a chain was triggered by editing
+    the field at `index` directly, that field's own recomputed value would
+    just echo back what's already there, and a custom component (TimeInput)
+    can't tell that echo apart from a genuine external change — it reacts by
+    exiting edit mode and dropping focus, which would happen after every
+    single wheel tick or arrow press otherwise."""
+    result = compute(*args)
+    return tuple(gr.skip() if i == index else v for i, v in enumerate(result))
+
+
 def durees_tab(settings: Settings, tab: gr.Tab, config: Config) -> "Durees":
     spec_builders = {
         "legacy": _legacy_spec,
@@ -198,7 +214,7 @@ class EditableField:
     new); Legacy/Experimental have exactly one each."""
 
     trigger: t.Callable
-    skip: str | None
+    skip_index: int | None
     pre_step: tuple[t.Callable, gr.Component, gr.Component] | None = None
 
 
@@ -206,11 +222,11 @@ class EditableField:
 class DureesModeSpec:
     """Everything the Durees engine needs from one mode. value_fields'
     order is the single source of truth for what `compute` must return and
-    what interactivity/`.select()` dispatch write to. canonical_fields
-    resolves the one place value_fields alone is ambiguous: all_inputs
-    needs exactly one component per concept to read a current value from,
-    and Hybrid has two (old + new) per concept where Legacy/Experimental
-    have one."""
+    what interactivity/`.select()` dispatch write to — it's also what
+    EditableField.skip_index indexes into. canonical_fields resolves the
+    one place value_fields alone is ambiguous: all_inputs needs exactly one
+    component per concept to read a current value from, and Hybrid has two
+    (old + new) per concept where Legacy/Experimental have one."""
 
     va_field: gr.Component
     value_fields: list[gr.Component]
@@ -300,7 +316,11 @@ class Durees:
             if ef.pre_step:
                 pre_fn, pre_src, pre_dst = ef.pre_step
                 chain = chain(fn=pre_fn, inputs=pre_src, outputs=pre_dst, show_progress="hidden").then
-            compute_fn = functools.partial(spec.compute, skip=ef.skip) if ef.skip else spec.compute
+            compute_fn = (
+                functools.partial(_skip_output, spec.compute, ef.skip_index)
+                if ef.skip_index is not None
+                else spec.compute
+            )
             chain(fn=compute_fn, inputs=all_inputs, outputs=spec.value_fields, show_progress="hidden")
 
         for choice, fn in zip(DureesCore.TARGETS, spec.interactivity_fns):
@@ -324,6 +344,31 @@ class Durees:
 
         if spec.extra_wiring:
             spec.extra_wiring(self, settings, tab)
+
+
+def _parse_canonical(
+    duration_str: str, start_str: str, arrival_str: str
+) -> tuple[dt.timedelta, dt.time | None, dt.time | None]:
+    """String -> native conversion for the canonical duration/start/arrival
+    fields — shared by Legacy and Hybrid, whose canonical fields are plain
+    strings (gr.Textbox). Experimental's TimeInput fields are already
+    native and never need this."""
+    return (
+        DureesCore.duration_str_to_td(duration_str),
+        DureesCore.parse_time(start_str),
+        DureesCore.parse_time(arrival_str),
+    )
+
+
+def _apply_time_defaults_str(target, start_str: str, arrival_str: str) -> tuple[str, str]:
+    """String-boundary adapter for DureesCore.apply_time_defaults — shared
+    by Legacy and Hybrid, whose canonical duration/start/arrival fields are
+    plain strings (gr.Textbox). Experimental's TimeInput fields are already
+    native and pass DureesCore.apply_time_defaults straight through."""
+    start_t = DureesCore.parse_time(start_str)
+    arrival_t = DureesCore.parse_time(arrival_str)
+    new_start_t, new_arrival_t = DureesCore.apply_time_defaults(target, start_t, arrival_t)
+    return DureesCore.time_obj_to_str(new_start_t), DureesCore.time_obj_to_str(new_arrival_t)
 
 
 def _legacy_spec(settings: Settings) -> DureesModeSpec:
@@ -352,16 +397,28 @@ def _legacy_spec(settings: Settings) -> DureesModeSpec:
                 elem_id="durees_arrival_time",
             )
 
+    def compute_str(target, x1, y1, x2, y2, va, duration_str, start_str, arrival_str):
+        duration_td, start_t, arrival_t = _parse_canonical(duration_str, start_str, arrival_str)
+        new_va, new_duration_td, new_start_t, new_arrival_t = DureesCore.compute(
+            target, x1, y1, x2, y2, va, duration_td, start_t, arrival_t
+        )
+        return (
+            new_va,
+            DureesCore.duration_td_to_str(new_duration_td),
+            DureesCore.time_obj_to_str(new_start_t),
+            DureesCore.time_obj_to_str(new_arrival_t),
+        )
+
     return DureesModeSpec(
         va_field=va,
         value_fields=[va, duration, start, arrival],
         canonical_fields=(duration, start, arrival),
-        compute=DureesCore.compute,
-        apply_time_defaults=DureesCore.apply_time_defaults,
+        compute=compute_str,
+        apply_time_defaults=_apply_time_defaults_str,
         editable_fields=[
-            EditableField(trigger=duration.input, skip=None),
-            EditableField(trigger=start.input, skip=None),
-            EditableField(trigger=arrival.input, skip=None),
+            EditableField(trigger=duration.input, skip_index=None),
+            EditableField(trigger=start.input, skip_index=None),
+            EditableField(trigger=arrival.input, skip_index=None),
         ],
         interactivity_fns=(
             DureesCore._interactivity_to_va,
@@ -460,29 +517,26 @@ def _hybrid_spec(settings: Settings) -> DureesModeSpec:
                 visible=False,
             )
 
-    def compute_and_mirror(target, x1, y1, x2, y2, va, duration, start, arrival, skip=None):
-        """Run DureesCore.compute and write its result into both the old
-        (canonical) fields and their TimeInput siblings in a single server
-        round trip — the old fields are always overwritten (echoing a plain
-        gr.Textbox back into itself is harmless), but `skip` names the one
-        TimeInput sibling ("duration"/"start"/"arrival") to leave untouched:
-        when this chain was triggered by editing that very field directly,
-        its value already matches what we'd write back, and TimeInput can't
-        tell that server echo apart from a genuine external change — its
-        `watch('value', ...)` (script.js) reacts to either by exiting edit
-        mode and dropping focus, which would happen after every single wheel
-        tick or arrow press otherwise."""
-        new_va, new_duration, new_start, new_arrival = DureesCore.compute(
-            target, x1, y1, x2, y2, va, duration, start, arrival
+    def compute_and_mirror(target, x1, y1, x2, y2, va, duration_str, start_str, arrival_str):
+        """Run DureesCore.compute (native) once and derive both the old
+        (string) fields and their TimeInput (native) siblings from that
+        single result — no re-parsing a string this function just formatted.
+        The old fields are always written back (echoing a plain gr.Textbox
+        back into itself is harmless); the *_new echo-guard is the engine's
+        job now (see EditableField.skip_index / _skip_output), not this
+        function's — it always returns the real computed native value."""
+        duration_td, start_t, arrival_t = _parse_canonical(duration_str, start_str, arrival_str)
+        new_va, new_duration_td, new_start_t, new_arrival_t = DureesCore.compute(
+            target, x1, y1, x2, y2, va, duration_td, start_t, arrival_t
         )
         return (
             new_va,
-            new_duration,
-            gr.skip() if skip == "duration" else DureesCore.duration_str_to_td(new_duration),
-            new_start,
-            gr.skip() if skip == "start" else DureesCore.parse_time(new_start),
-            new_arrival,
-            gr.skip() if skip == "arrival" else DureesCore.parse_time(new_arrival),
+            DureesCore.duration_td_to_str(new_duration_td),
+            new_duration_td,
+            DureesCore.time_obj_to_str(new_start_t),
+            new_start_t,
+            DureesCore.time_obj_to_str(new_arrival_t),
+            new_arrival_t,
         )
 
     def toggle_visibility(enabled: bool):
@@ -504,29 +558,31 @@ def _hybrid_spec(settings: Settings) -> DureesModeSpec:
             queue=False,
         )
 
+    value_fields = [va, duration, duration_new, start, start_new, arrival, arrival_new]
+
     return DureesModeSpec(
         va_field=va,
-        value_fields=[va, duration, duration_new, start, start_new, arrival, arrival_new],
+        value_fields=value_fields,
         canonical_fields=(duration, start, arrival),
         compute=compute_and_mirror,
-        apply_time_defaults=DureesCore.apply_time_defaults,
+        apply_time_defaults=_apply_time_defaults_str,
         editable_fields=[
-            EditableField(trigger=duration.input, skip=None),
-            EditableField(trigger=start.input, skip=None),
-            EditableField(trigger=arrival.input, skip=None),
+            EditableField(trigger=duration.input, skip_index=None),
+            EditableField(trigger=start.input, skip_index=None),
+            EditableField(trigger=arrival.input, skip_index=None),
             EditableField(
                 trigger=duration_new.input,
-                skip="duration",
+                skip_index=value_fields.index(duration_new),
                 pre_step=(DureesCore.duration_td_to_str, duration_new, duration),
             ),
             EditableField(
                 trigger=start_new.input,
-                skip="start",
+                skip_index=value_fields.index(start_new),
                 pre_step=(DureesCore.time_obj_to_str, start_new, start),
             ),
             EditableField(
                 trigger=arrival_new.input,
-                skip="arrival",
+                skip_index=value_fields.index(arrival_new),
                 pre_step=(DureesCore.time_obj_to_str, arrival_new, arrival),
             ),
         ],
@@ -542,8 +598,9 @@ def _hybrid_spec(settings: Settings) -> DureesModeSpec:
 
 def _experimental_spec(settings: Settings) -> DureesModeSpec:
     """TimeInput only — no old plain-text siblings, no mirror chain, no
-    visibility toggling. compute/apply_time_defaults wrap DureesCore's
-    string-based core with a native<->str adapter."""
+    visibility toggling. TimeInput's values are already native, so this
+    talks to DureesCore.compute/apply_time_defaults directly — no adapter,
+    no string boundary to cross at all."""
     with gr.Row():
         with gr.Column(min_width=200):
             va = gr.Number(value=0, label="Vitesse d'Attaque", elem_id="durees_va")
@@ -568,36 +625,18 @@ def _experimental_spec(settings: Settings) -> DureesModeSpec:
                 elem_id="durees_arrival_time",
             )
 
-    def compute_native(target, x1, y1, x2, y2, va, duration_td, start_time, arrival_time, skip=None):
-        duration_str = DureesCore.duration_td_to_str(duration_td)
-        start_str = DureesCore.time_obj_to_str(start_time)
-        arrival_str = DureesCore.time_obj_to_str(arrival_time)
-        new_va, new_duration_str, new_start_str, new_arrival_str = DureesCore.compute(
-            target, x1, y1, x2, y2, va, duration_str, start_str, arrival_str
-        )
-        return (
-            new_va,
-            gr.skip() if skip == "duration" else DureesCore.duration_str_to_td(new_duration_str),
-            gr.skip() if skip == "start" else DureesCore.parse_time(new_start_str),
-            gr.skip() if skip == "arrival" else DureesCore.parse_time(new_arrival_str),
-        )
-
-    def apply_time_defaults_native(target, start_time, arrival_time):
-        start_str = DureesCore.time_obj_to_str(start_time)
-        arrival_str = DureesCore.time_obj_to_str(arrival_time)
-        new_start_str, new_arrival_str = DureesCore.apply_time_defaults(target, start_str, arrival_str)
-        return DureesCore.parse_time(new_start_str), DureesCore.parse_time(new_arrival_str)
+    value_fields = [va, duration, start, arrival]
 
     return DureesModeSpec(
         va_field=va,
-        value_fields=[va, duration, start, arrival],
+        value_fields=value_fields,
         canonical_fields=(duration, start, arrival),
-        compute=compute_native,
-        apply_time_defaults=apply_time_defaults_native,
+        compute=DureesCore.compute,
+        apply_time_defaults=DureesCore.apply_time_defaults,
         editable_fields=[
-            EditableField(trigger=duration.input, skip="duration"),
-            EditableField(trigger=start.input, skip="start"),
-            EditableField(trigger=arrival.input, skip="arrival"),
+            EditableField(trigger=duration.input, skip_index=value_fields.index(duration)),
+            EditableField(trigger=start.input, skip_index=value_fields.index(start)),
+            EditableField(trigger=arrival.input, skip_index=value_fields.index(arrival)),
         ],
         interactivity_fns=(
             DureesCore._interactivity_to_va,
