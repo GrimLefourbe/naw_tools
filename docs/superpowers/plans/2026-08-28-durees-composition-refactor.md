@@ -438,7 +438,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 Update `durees_tab()` to its final form:
 
 ```python
-def durees_tab(settings: Settings, tab: gr.Tab, config: Config) -> Durees:
+def durees_tab(settings: Settings, tab: gr.Tab, config: Config) -> "Durees":
     spec_builders = {
         "legacy": _legacy_spec,
         "hybrid": _hybrid_spec,
