@@ -12,9 +12,9 @@ from nmsite.components import SegmentedControl, TimeInput
 
 
 class DureesCore:
-    """Mode-agnostic pure logic shared by DureesLegacy/DureesHybrid/
-    DureesExperimental. No component state — every mode calls these the
-    exact same way."""
+    """Mode-agnostic pure logic shared by all three mode specs
+    (_legacy_spec/_hybrid_spec/_experimental_spec) via the Durees engine.
+    No component state — every mode calls these the exact same way."""
 
     TARGETS = ["VA", "Arrivée", "Départ"]
 
@@ -108,7 +108,7 @@ class DureesCore:
     # SegmentedControl.on_choice(..., js=True)'s Python->JS transpiler needs
     # zero-arg statics returning literal gr.update(...) values, not a dict
     # indexed at call time (see project_segmented_control_events memory).
-    # DureesHybrid keeps its own 7-field versions since its dual-mount layout
+    # _hybrid_spec keeps its own 7-field versions since its dual-mount layout
     # isn't this shape.
     @staticmethod
     def _interactivity_to_va():
