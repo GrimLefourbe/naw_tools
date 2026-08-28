@@ -100,17 +100,16 @@ concept where the others have one.
 
 ```python
 class Durees:
-    def __init__(self, settings: Settings, tab: gr.Tab, spec: DureesModeSpec):
-        self._spec = spec
-        self._set_layout(settings)
-        self._configure_triggers(settings, tab)
-
-    def _set_layout(self, settings: Settings):
+    def __init__(self, settings: Settings, tab: gr.Tab, spec_builder: Callable[[Settings], DureesModeSpec]):
+        # spec_builder, not a pre-built spec: the coord row must render before
+        # the va/duration/start/arrival rows (visual order), but both are
+        # built by entering gr.Row()/gr.Column() while this Blocks context is
+        # active — so the coord row has to be built first, then the spec
+        # builder runs (and does its own gr.Row() building) immediately after.
         (self._src_player_select, self._from_x, self._from_y,
          self._target_sel, self._tgt_player_select, self._to_x, self._to_y) = _build_coord_row()
-        # spec already built value_fields during its own construction (it
-        # needs the gr.Blocks context active, same as _build_coord_row) —
-        # Durees just references them, doesn't build them.
+        self._spec = spec_builder(settings)
+        self._configure_triggers(settings, tab)
 
     def _configure_triggers(self, settings: Settings, tab: gr.Tab):
         spec = self._spec
@@ -196,7 +195,7 @@ this section commits to.)
 ```python
 def durees_tab(settings: Settings, tab: gr.Tab, config: Config) -> Durees:
     spec_builders = {"legacy": _legacy_spec, "hybrid": _hybrid_spec, "experimental": _experimental_spec}
-    return Durees(settings, tab, spec_builders[config.time_input_mode](settings))
+    return Durees(settings, tab, spec_builders[config.time_input_mode])
 ```
 
 Same external contract as today (`durees_tab(settings, tab, config)`,
