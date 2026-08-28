@@ -303,9 +303,25 @@ class Durees:
                 self._from_y.input,
                 self._to_x.input,
                 self._to_y.input,
-                spec.va_field.input,
             ],
             fn=spec.compute,
+            inputs=all_inputs,
+            outputs=spec.value_fields,
+            show_progress="hidden",
+        )
+
+        # VA gets its own skip-guarded entry rather than joining the
+        # coordinate group above: DureesCore.compute's non-VA-target
+        # branches return `va` completely unchanged, so echoing it straight
+        # back into the field being typed into is a pure no-op value-wise —
+        # and, per _skip_output's docstring, that echo can still corrupt
+        # mid-keystroke edits by racing a stale round trip against what's
+        # since been typed. x/y edits still need the full write (va IS
+        # genuinely recomputed when target="VA"), so they stay in the group
+        # above.
+        va_index = spec.value_fields.index(spec.va_field)
+        spec.va_field.input(
+            fn=functools.partial(_skip_output, spec.compute, va_index),
             inputs=all_inputs,
             outputs=spec.value_fields,
             show_progress="hidden",
