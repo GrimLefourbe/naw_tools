@@ -96,7 +96,7 @@ with gr.Blocks(title=f"{config.title} - {config.subtitle}", fill_width=True) as 
     if config.tabs == "all" or "durees" in config.tabs:
         with gr.Tab("Durées", render=False) as durees_tab:
             from nmsite.tabs import durees
-            durees.durees_tab(settings)
+            durees.durees_tab(settings, durees_tab, config)
             tabs["durees"] = durees_tab
 
     match config.tabs:

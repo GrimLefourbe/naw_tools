@@ -7,7 +7,7 @@ from playwright.sync_api import Page, expect
 
 _PLAYERS_FIXTURE = (pathlib.Path(__file__).parent / "players_fixture.html").read_text()
 
-pytestmark = pytest.mark.ui
+pytestmark = [pytest.mark.ui, pytest.mark.parametrize("gradio_server", ["hybrid"], indirect=True)]
 
 
 @pytest.fixture()
@@ -127,6 +127,29 @@ def test_arrivee_mode_va_changes_duration(durees_page: Page) -> None:
 
     expect(_duration(page)).to_have_value(_expected_duration(secs10), timeout=10_000)
     expect(_arrival_time(page)).to_have_value(_expected_arrival(secs10), timeout=10_000)
+
+
+def test_va_edit_does_not_echo_back_and_overwrite_mid_keystroke(durees_page: Page) -> None:
+    """Regression: DureesCore.compute's Arrivée/Départ branches return `va`
+    completely unchanged, so writing that result back into the very field
+    being typed into is a pure echo — but a *stale* echo landing after a
+    second keystroke has already changed the field can still clobber it back
+    down (same bug class as TODO.md's "typing into a time field gets
+    randomly overwritten mid-keystroke", just never noticed as applying to
+    VA specifically). Typing "5" then "0" back-to-back (no wait in between,
+    so the first digit's round trip is still in flight when the second
+    fires) must settle on "50", not get clobbered back to "5" by the first
+    digit's late-arriving echo."""
+    page = durees_page
+    va = _va(page)
+    va.click()
+    page.keyboard.press("Control+a")
+    va.press("5")
+    va.press("0")
+    # Give both round trips time to land before asserting the final value —
+    # this is exactly the window a stale echo of "5" used to win the race.
+    page.wait_for_timeout(2_000)
+    expect(va).to_have_value("50", timeout=5_000)
 
 
 def test_player_dropdown_fills_coordinates(gradio_server: str, page: Page) -> None:

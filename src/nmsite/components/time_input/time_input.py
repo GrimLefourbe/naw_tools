@@ -1,0 +1,357 @@
+__all__ = ["TimeInput"]
+
+import json
+import re
+import datetime as dt
+import typing as t
+from pathlib import Path
+
+import gradio as gr
+import nawminator as nm
+
+from nmsite.interface import _merge_elem_classes
+
+_CSS = (Path(__file__).parent / "style.css").read_text()
+_JS  = (Path(__file__).parent / "script.js").read_text()
+
+# Full per-segment metadata per mode (key, min, max [None=unbounded], display
+# width) — the single source of truth for segment identity/order/bounds.
+# Serialized to JS via the `data-seg-meta` attribute (see _build_template)
+# instead of being re-declared independently there: Python owns this
+# configuration end to end, JS just renders/wires what it's given.
+_SEG_META: dict[str, list[dict[str, int | str | None]]] = {
+    "duration": [
+        {"key": "years",   "min": 0, "max": None, "width": 2},
+        {"key": "days",    "min": 0, "max": None, "width": 3},
+        {"key": "hours",   "min": 0, "max": None, "width": 2},
+        {"key": "minutes", "min": 0, "max": None, "width": 2},
+        {"key": "seconds", "min": 0, "max": None, "width": 2},
+    ],
+    "clock_time": [
+        {"key": "hours",   "min": 0, "max": 23, "width": 2},
+        {"key": "minutes", "min": 0, "max": 59, "width": 2},
+        {"key": "seconds", "min": 0, "max": 59, "width": 2},
+    ],
+    "datetime": [
+        {"key": "year",    "min": 1970, "max": 9999, "width": 4},
+        {"key": "month",   "min": 1,    "max": 12,   "width": 2},
+        {"key": "day",     "min": 1,    "max": 31,   "width": 2},
+        {"key": "hours",   "min": 0,    "max": 23,   "width": 2},
+        {"key": "minutes", "min": 0,    "max": 59,   "width": 2},
+        {"key": "seconds", "min": 0,    "max": 59,   "width": 2},
+    ],
+}
+
+# Valid segment keys per mode, derived from _SEG_META (not a second
+# independently-maintained list).
+_MODE_KEYS: dict[str, list[str]] = {mode: [s["key"] for s in segs] for mode, segs in _SEG_META.items()}
+
+# Default display formats per mode
+_MODE_FORMATS: dict[str, list[str]] = {
+    "duration":   ["HH:MM:SS", "AJHMS"],
+    "clock_time": ["HH:MM:SS"],
+    "datetime":   ["DD/MM/YYYY HH:MM:SS"],
+}
+
+# Valid quick-fill keys per mode
+_MODE_FILLS: dict[str, set[str]] = {
+    "duration":   {"now"},
+    "clock_time": {"now", "current_time"},
+    "datetime":   {"now", "today", "current_time"},
+}
+
+_FILL_LABELS: dict[str, str] = {
+    "now":          "Maintenant",
+    "today":        "Aujourd'hui",
+    "current_time": "Heure actuelle",
+}
+
+
+class TimeInput(gr.HTML):
+    """Scrollable time/duration/datetime picker as a gr.HTML subclass.
+
+    Displays segments (hours, minutes, seconds, etc.) as individually scrollable
+    spans inside a text-field-like container. Supports AJHMS and HH:MM:SS display
+    formats for durations, copy/paste, touch drag, and optional quick-fill buttons.
+
+    Args:
+        mode: "duration" → timedelta; "clock_time" → dt.time; "datetime" → dt.datetime.
+        segments: Which segment fields to show (subset of the mode's keys). None = all.
+        formats: Display formats the user can toggle between. None = all valid for mode.
+        quick_fills: Quick-fill buttons to show ("now", "today", "current_time").
+        value: Initial Python value (type must match the mode), or a
+            zero-arg callable returning one — resolved the same way
+            gr.DateTime resolves a callable value: called once for the
+            initial render, and re-called on every page load/reconnect
+            (see Component.attach_load_event), so e.g.
+            ``value=lambda: dt.datetime.now()`` stays fresh across reloads
+            instead of freezing at server-startup time.
+        defaults: Fixed values for hidden segments (not in ``segments``). Dict of key→int.
+            These are included in every Python value returned, invisible to the user.
+        label: Optional label text shown above the field.
+        interactive: When False the component is read-only (result field styling).
+    """
+
+    def __init__(
+        self,
+        mode: t.Literal["duration", "clock_time", "datetime"] = "duration",
+        segments: list[str] | None = None,
+        formats: list[str] | None = None,
+        quick_fills: list[str] | None = None,
+        value: dt.timedelta | dt.time | dt.datetime | t.Callable[[], dt.timedelta | dt.time | dt.datetime | None] | None = None,
+        defaults: dict[str, int] | None = None,
+        label: str | None = None,
+        interactive: bool = True,
+        **kwargs,
+    ):
+        if mode not in _MODE_KEYS:
+            raise ValueError(f"mode must be one of {list(_MODE_KEYS)}, got {mode!r}")
+
+        all_keys = _MODE_KEYS[mode]
+
+        # Segments to display
+        seg_keys = segments if segments is not None else all_keys
+        for k in seg_keys:
+            if k not in all_keys:
+                raise ValueError(f"Segment {k!r} not valid for mode {mode!r}. Valid: {all_keys}")
+
+        # Full metadata (min/max/width) for just the enabled segments, in
+        # seg_keys order — sent to JS via data-seg-meta so it doesn't need
+        # its own independent copy of this configuration.
+        seg_meta_by_key = {s["key"]: s for s in _SEG_META[mode]}
+        seg_meta_list = [seg_meta_by_key[k] for k in seg_keys]
+
+        # Display formats
+        valid_formats = _MODE_FORMATS[mode]
+        fmt_list = formats if formats is not None else valid_formats
+        for f in fmt_list:
+            if f not in valid_formats:
+                raise ValueError(f"Format {f!r} not valid for mode {mode!r}. Valid: {valid_formats}")
+
+        # Quick-fill buttons (silently drop invalid ones)
+        valid_fills = _MODE_FILLS[mode]
+        fill_list = [f for f in (quick_fills or []) if f in valid_fills]
+
+        # Hidden segment defaults — must not overlap visible segments, or
+        # preprocess()/postprocess() disagree on whether the default or the
+        # user's own (possibly zero) value wins, silently clobbering an
+        # explicit 0 on the way to Python. Enforce the contract this
+        # parameter is documented for (hidden segments only) rather than
+        # leaving that ambiguous.
+        hidden_defaults = dict(defaults or {})
+        overlap = set(hidden_defaults) & set(seg_keys)
+        if overlap:
+            raise ValueError(
+                f"defaults key(s) {sorted(overlap)} overlap visible segments {seg_keys!r} — "
+                "defaults are only for segments NOT in `segments` (hidden from the user)."
+            )
+
+        self._mode = mode
+        self._seg_keys = seg_keys
+        self._hidden_defaults = hidden_defaults
+
+        _merge_elem_classes(kwargs, "ti-outer")
+        # container=True gets us Gradio's standard bordered/padded block
+        # chrome for free — the same card native siblings (gr.Number,
+        # gr.Textbox) render in the same row/column — so the widget doesn't
+        # float bare against the page background. show_label stays False:
+        # the widget draws its own label (.ti-label, inside html_template)
+        # rather than Gradio's own label chip, which carries an unwanted
+        # "raw HTML" icon for a plain gr.HTML subclass.
+        kwargs.setdefault("container", True)
+        kwargs.setdefault("show_label", False)
+        kwargs.setdefault("apply_default_css", False)
+        kwargs.setdefault("padding", False)
+
+        def parse_pasted_text(text: str) -> dict[str, int] | None:
+            """Parse pasted clipboard text into segment values. Tries AJHMS,
+            HH:MM:SS/HH:MM, then DD/MM/YYYY HH:MM:SS/DD/MM HH:MM:SS, same as
+            the pre-server_functions JS parser did — reused here so paste
+            parsing has one canonical implementation (nawminator.utils'
+            NAW-formatted-int-aware AJHMS grammar) instead of a second,
+            independently-maintained regex living in the JS layer."""
+            text = text.strip()
+
+            # AJHMS: e.g. "2A 3J 4H 30M 15S". parse_ajhms silently returns a
+            # zero timedelta when nothing matches, so gate on an actual
+            # number+unit-letter appearing before trusting its result.
+            if re.search(r"\d[\d ]*\s*[AJHMSajhms]", text):
+                return nm.utils.timedelta_to_ajhms_parts(nm.utils.parse_ajhms(text))
+
+            # HH:MM:SS or HH:MM
+            m = re.match(r"^(\d+):(\d+)(?::(\d+))?$", text)
+            if m:
+                return {
+                    "hours": int(m.group(1)),
+                    "minutes": int(m.group(2)),
+                    "seconds": int(m.group(3) or 0),
+                }
+
+            # DD/MM/YYYY HH:MM:SS or DD/MM HH:MM:SS
+            m = re.match(r"^(\d{1,2})/(\d{1,2})(?:/(\d{4}))?\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$", text)
+            if m:
+                return {
+                    "day": int(m.group(1)),
+                    "month": int(m.group(2)),
+                    "year": int(m.group(3) or 1970),
+                    "hours": int(m.group(4)),
+                    "minutes": int(m.group(5)),
+                    "seconds": int(m.group(6) or 0),
+                }
+
+            return None
+
+        super().__init__(
+            value=value,
+            html_template=self._build_template(
+                mode, seg_keys, seg_meta_list, fmt_list, fill_list, hidden_defaults, interactive, label
+            ),
+            css_template=_CSS,
+            js_on_load=_JS,
+            server_functions=[parse_pasted_text],
+            **kwargs,
+        )
+
+    @staticmethod
+    def _build_template(
+        mode: str,
+        seg_keys: list[str],
+        seg_meta_list: list[dict[str, int | str | None]],
+        fmt_list: list[str],
+        fill_list: list[str],
+        hidden_defaults: dict[str, int],
+        interactive: bool,
+        label: str | None,
+    ) -> str:
+        label_html = f'<span class="ti-label">{label}</span>' if label else ""
+
+        # Format toggle button (only if >1 format)
+        toggle_html = (
+            f'<button class="ti-btn ti-toggle" type="button">{fmt_list[0]}</button>'
+            if len(fmt_list) > 1 else ""
+        )
+
+        # Copy button (always present)
+        copy_html = '<button class="ti-btn ti-copy" type="button" title="Copier">⎘</button>'
+
+        # Clear/reset button (always present)
+        clear_html = '<button class="ti-btn ti-clear" type="button" title="Réinitialiser">✕</button>'
+
+        # Quick-fill pills — text content is left empty here: script.js fills
+        # in the live value the pill will actually set (e.g. "18:36") rather
+        # than a static word, on mount and every minute after. The original
+        # French wording moves to a `title` tooltip instead of being dropped.
+        pills_html = "".join(
+            f'<button class="ti-pill" data-fill="{f}" type="button" title="{_FILL_LABELS[f]}"></button>'
+            for f in fill_list
+        )
+
+        btns_html = f'<div class="ti-btns">{pills_html}{toggle_html}{clear_html}{copy_html}</div>'
+
+        display_html = (
+            '<div class="ti-display">'
+            '<span class="ti-display-value"></span>'
+            '<span class="ti-display-hint" aria-hidden="true">✎</span>'
+            '</div>'
+        )
+
+        return (
+            f'<div class="ti-widget"'
+            f' data-mode="{mode}"'
+            f' data-segments=\'{json.dumps(seg_keys)}\''
+            f' data-seg-meta=\'{json.dumps(seg_meta_list)}\''
+            f' data-formats=\'{json.dumps(fmt_list)}\''
+            f' data-quick-fills=\'{json.dumps(fill_list)}\''
+            f' data-interactive="{str(interactive).lower()}"'
+            f' data-hidden-defaults=\'{json.dumps(hidden_defaults)}\''
+            f' data-editing="false">'
+            f'{label_html}'
+            f'<div class="ti-row">'
+            f'{display_html}'
+            f'<div class="ti-field">'
+            f'<div class="ti-field-inner"></div>'
+            f'</div>'
+            f'{btns_html}'
+            f'</div>'
+            f'</div>'
+        )
+
+    # --- preprocess: JS state dict → Python type ---
+
+    def preprocess(self, payload) -> dt.timedelta | dt.time | dt.datetime | None:
+        if payload is None:
+            return None
+        try:
+            s = json.loads(str(payload)) if isinstance(payload, str) else payload
+        except (json.JSONDecodeError, TypeError):
+            return None
+
+        # Merge hidden defaults
+        for k, v in self._hidden_defaults.items():
+            if k not in s or s[k] == 0:
+                s[k] = v
+
+        try:
+            if self._mode == "duration":
+                return nm.utils.ajhms_parts_to_timedelta(
+                    years=s.get("years", 0),
+                    days=s.get("days", 0),
+                    hours=s.get("hours", 0),
+                    minutes=s.get("minutes", 0),
+                    seconds=s.get("seconds", 0),
+                )
+
+            if self._mode == "clock_time":
+                return dt.time(
+                    hour=s.get("hours", 0),
+                    minute=s.get("minutes", 0),
+                    second=s.get("seconds", 0),
+                )
+
+            if self._mode == "datetime":
+                return dt.datetime(
+                    year=s.get("year", 1970),
+                    month=s.get("month", 1),
+                    day=s.get("day", 1),
+                    hour=s.get("hours", 0),
+                    minute=s.get("minutes", 0),
+                    second=s.get("seconds", 0),
+                )
+        except (ValueError, OverflowError):
+            return None
+
+        return None
+
+    # --- postprocess: Python type → JS state JSON string ---
+
+    def postprocess(self, value: dt.timedelta | dt.time | dt.datetime | None) -> str:
+        s: dict[str, int]
+
+        if value is None:
+            s = self._empty_state()
+        elif self._mode == "duration" and isinstance(value, dt.timedelta):
+            s = nm.utils.timedelta_to_ajhms_parts(value)
+        elif self._mode == "clock_time" and isinstance(value, dt.time):
+            s = {"hours": value.hour, "minutes": value.minute, "seconds": value.second}
+        elif self._mode == "datetime" and isinstance(value, dt.datetime):
+            s = {
+                "year": value.year, "month": value.month, "day": value.day,
+                "hours": value.hour, "minutes": value.minute, "seconds": value.second,
+            }
+        else:
+            s = self._empty_state()
+
+        # Merge hidden defaults for hidden segments
+        for k, v in self._hidden_defaults.items():
+            s.setdefault(k, v)
+
+        return json.dumps(s)
+
+    def _empty_state(self) -> dict[str, int]:
+        # Hidden defaults are merged once, by postprocess()'s own merge loop
+        # right after this returns — no need to duplicate that here too.
+        if self._mode == "duration":
+            return {"years": 0, "days": 0, "hours": 0, "minutes": 0, "seconds": 0}
+        elif self._mode == "clock_time":
+            return {"hours": 0, "minutes": 0, "seconds": 0}
+        return {"year": 1970, "month": 1, "day": 1, "hours": 0, "minutes": 0, "seconds": 0}

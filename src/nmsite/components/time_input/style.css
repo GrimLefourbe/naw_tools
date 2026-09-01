@@ -1,0 +1,254 @@
+/* TimeInput component styles */
+
+.ti-widget {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* ── Two-state visibility ──────────────────────────────────────────────────── */
+
+/* Display badge: visible in display mode, hidden while editing */
+.ti-widget[data-editing="true"] .ti-display { display: none; }
+
+/* Editor field: hidden in display mode, visible while editing */
+.ti-widget[data-editing="false"] .ti-field { display: none; }
+
+/* Positioning context for whichever of display/field is active, so the
+   button row (see .ti-btns) can overlay it regardless of edit state */
+.ti-row {
+    position: relative;
+}
+
+/* ── Display badge ─────────────────────────────────────────────────────────── */
+
+/* .ti-display and .ti-field share the exact same padding (including the
+   right reserve for the overlaid .ti-btns) and the same justify-content:
+   center centering technique, so the content doesn't visually shift when
+   toggling between display and edit mode. The hint icon is positioned
+   absolutely so it doesn't perturb that centering.
+
+   The reserve itself is a CSS custom property (--ti-btns-reserve) set from
+   script.js to .ti-btns's actual measured width, since different instances
+   have different numbers of buttons (quick-fill pills, toggle, clear,
+   copy) — a fixed guess can't fit all of them. The 90px fallback only
+   applies before that JS runs (or if it somehow doesn't). */
+
+.ti-display,
+.ti-field {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 40px;
+    padding: 4px var(--ti-btns-reserve, 90px) 4px 12px;
+    border: var(--input-border-width, 1px) solid var(--input-border-color, var(--border-color-primary, #d1d5db));
+    border-radius: var(--input-border-radius, var(--radius-sm, 4px));
+    background: var(--input-background-fill, var(--background-fill-primary, #fff));
+    font-family: monospace;
+    font-size: 1rem;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.ti-display {
+    position: relative;
+    cursor: pointer;
+    transition: border-color 0.15s;
+}
+
+.ti-display:hover {
+    border-color: var(--input-border-color-focus, var(--color-accent, #f97316));
+}
+
+.ti-display-value {
+    color: var(--body-text-color, #111827);
+}
+
+.ti-display-hint {
+    position: absolute;
+    right: calc(var(--ti-btns-reserve, 90px) + 6px);  /* just left of the .ti-btns reserve, out of the centering flow */
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.8rem;
+    color: var(--body-text-color-subdued, #9ca3af);
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.ti-display:hover .ti-display-hint {
+    opacity: 1;
+}
+
+/* ── Editor field ──────────────────────────────────────────────────────────── */
+
+/* Container styled like a text field (shared declarations with .ti-display above) */
+.ti-field {
+    cursor: default;
+}
+
+.ti-field-inner {
+    display: flex;
+    align-items: center;
+}
+
+.ti-field:focus-within {
+    border-color: var(--input-border-color-focus, var(--color-accent, #f97316));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent, #f97316) 20%, transparent);
+    outline: none;
+}
+
+/* Interactive segment span */
+.ti-seg {
+    display: inline-block;
+    padding: 2px 3px;
+    min-width: 1.8ch;
+    text-align: center;
+    border-radius: 3px;
+    cursor: ns-resize;
+    color: var(--body-text-color, #111827);
+    transition: background 0.1s;
+    touch-action: none;
+    outline: none;
+}
+
+.ti-seg:hover {
+    background: color-mix(in srgb, var(--color-accent, #f97316) 12%, transparent);
+}
+
+.ti-seg:focus,
+.ti-seg.active {
+    background: color-mix(in srgb, var(--color-accent, #f97316) 25%, transparent);
+}
+
+.ti-seg[data-disabled="true"] {
+    cursor: default;
+    color: var(--body-text-color-subdued, #6b7280);
+    pointer-events: none;
+}
+
+/* Separator spans */
+.ti-sep {
+    display: inline-block;
+    color: var(--body-text-color-subdued, #6b7280);
+    padding: 2px 1px;
+    min-width: 0.6ch;
+    text-align: center;
+}
+
+/* AJHMS unit labels (H, M, S etc.) */
+.ti-sep.ti-unit {
+    font-size: 0.85em;
+    color: var(--body-text-color-subdued, #6b7280);
+    padding: 2px 0 2px 1px;
+}
+
+/* Button row — overlaid on top of whichever of the display badge / editor
+   field is showing (positioned against .ti-row, not .ti-field, so it stays
+   reachable regardless of edit state) */
+.ti-btns {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* Small action buttons (copy, format toggle, clear) — same base look and
+   hover treatment as ArmyInputHTML's .ai-btn / LevelsInputComponent's
+   .li-btn (variable names, border-radius token, color-mix hover), sized
+   down (padding/font-size/line-height) for this component's more compact
+   overlay toolbar. */
+.ti-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 6px;
+    border: 1px solid var(--border-color-primary);
+    border-radius: var(--radius-sm, 4px);
+    background: var(--input-background-fill);
+    color: var(--body-text-color);
+    font-size: 0.72rem;
+    cursor: pointer;
+    white-space: nowrap;
+    line-height: 1.4;
+    transition: background 0.1s;
+    font-family: inherit;
+}
+
+.ti-btn:hover {
+    background: color-mix(in srgb, var(--color-accent) 15%, var(--background-fill-secondary));
+}
+
+/* Quick-fill pills — same font-size as .ti-btn's icon buttons (was larger,
+   0.7rem vs 0.72rem font-size but ~1.5 line-height vs 1.4 and looser
+   padding, which reads as noticeably bigger next to the single-glyph icon
+   buttons beside it) and tightened padding to match, so a label like
+   "Aujourd'hui"/"Heure actuelle" doesn't eat into the .ti-btns-reserve
+   space (and the value display it's carved out of) more than it has to. */
+.ti-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 6px;
+    border: 1px solid var(--border-color-primary, #d1d5db);
+    border-radius: 12px;
+    background: var(--background-fill-secondary, #f9fafb);
+    color: var(--body-text-color, #374151);
+    font-size: 0.65rem;
+    cursor: pointer;
+    white-space: nowrap;
+    line-height: 1.4;
+    transition: background 0.1s, border-color 0.1s;
+    font-family: inherit;
+}
+
+.ti-pill:hover {
+    background: color-mix(in srgb, var(--color-accent, #f97316) 10%, transparent);
+    border-color: var(--color-accent, #f97316);
+}
+
+/* Label above the field */
+.ti-label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--body-text-color, #374151);
+    display: block;
+    margin-bottom: 2px;
+}
+
+/* Non-interactive (result) mode — display badge only, no editor */
+.ti-widget[data-interactive="false"] .ti-display {
+    cursor: default;
+    background: var(--background-fill-secondary, #f9fafb);
+    border-style: solid;
+    border-color: var(--border-color-accent, #f97316);
+    border-left-width: 3px;
+}
+
+.ti-widget[data-interactive="false"] .ti-display:hover {
+    border-color: var(--border-color-accent, #f97316);
+}
+
+.ti-widget[data-interactive="false"] .ti-display-hint {
+    display: none;
+}
+
+/* Read-only: only copy stays useful (there's still a value to grab) —
+   toggle/clear/quick-fills all mutate the field, so hide them entirely
+   rather than leave disabled-looking buttons that do nothing. */
+.ti-widget[data-interactive="false"] .ti-btns .ti-btn:not(.ti-copy),
+.ti-widget[data-interactive="false"] .ti-btns .ti-pill {
+    display: none;
+}
+
+/* Clear/reset button */
+.ti-clear {
+    color: var(--body-text-color-subdued, #6b7280);
+}
+
+.ti-clear:hover {
+    color: var(--error-icon-color, #ef4444);
+    border-color: var(--error-icon-color, #ef4444);
+    background: color-mix(in srgb, #ef4444 10%, transparent);
+}
