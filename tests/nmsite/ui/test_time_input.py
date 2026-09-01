@@ -167,6 +167,51 @@ def test_demo_b_toggle_back_to_ajhms(settings_page: Page) -> None:
     assert toggle.inner_text() == first_label
 
 
+def test_demo_b_format_toggle_preserves_full_duration_value(settings_page: Page) -> None:
+    """Regression: toggling AJHMS -> HH:MM:SS used to wipe the higher units
+    (days here; years in a full-AJHMS instance) instead of folding them into
+    the aggregated hours segment. toDisplayState(state, OLD fmt) paired with
+    fromDisplayState(_, NEW fmt) is not a valid round-trip — they're only
+    inverses for the SAME fmt, which is how every other call site (editing)
+    uses them — so the toggle handler was silently corrupting `state`."""
+    page = settings_page
+    _enter_edit_mode(page, "ti_demo_b")
+    days_seg = _seg(page, "ti_demo_b", "days")
+    days_seg.click()
+    page.keyboard.press("0")
+    page.keyboard.press("0")
+    page.keyboard.press("1")  # 3-digit field — 3 digits auto-commits immediately
+    expect(days_seg).to_have_text("001")
+
+    page.locator("#ti_demo_b .ti-toggle").click()
+
+    # 1 day = 24 hours — must survive the format switch, not reset to 0.
+    expect(_seg(page, "ti_demo_b", "hours")).to_have_text("24", timeout=3_000)
+
+
+def test_demo_b_scroll_down_from_zero_stays_at_zero(settings_page: Page) -> None:
+    """Regression: scrolling the leftmost/highest segment below an all-zero
+    duration used to leave a large stray remainder instead of clamping to
+    zero. normalize()'s underflow handling only reset the single highest
+    enabled segment (here: days, since demo B has no years) after a lower
+    segment (hours) had already borrowed from it — leaving hours at 23
+    instead of 0. A negative total duration isn't representable, so the
+    whole value should collapse to zero, not just its top field."""
+    page = settings_page
+    _enter_edit_mode(page, "ti_demo_b")
+    # Demo B defaults to AJHMS — switch to HH:MM:SS, where the aggregated
+    # "hours" segment is the leftmost/highest one shown.
+    page.locator("#ti_demo_b .ti-toggle").click()
+    expect(page.locator("#ti_demo_b .ti-toggle")).to_have_text("HH:MM:SS")
+
+    hours_seg = _seg(page, "ti_demo_b", "hours")
+    hours_seg.click()
+    page.keyboard.press("ArrowDown")
+
+    expect(hours_seg).to_have_text("00")
+    expect(_output(page, "ti_demo_b")).to_have_value(re.compile(r"timedelta\(0\)|timedelta\(\)"), timeout=3_000)
+
+
 # ── Tests: Quick-fill (Demo D — clock_time) ──────────────────────────────────
 
 def test_demo_d_current_time_fill_updates_segments(settings_page: Page) -> None:

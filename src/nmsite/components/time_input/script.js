@@ -118,9 +118,21 @@ function normalize(s) {
             s[key] = s[key] + borrow * lim;
         }
     }
-    // Clamp highest enabled segment to >= 0
+    // A negative *total* duration isn't representable, so if the highest
+    // enabled segment is still negative after borrowing (the borrow chain
+    // above ran out of segments to borrow from), the whole value collapses
+    // to zero — not just that one segment. Zeroing only the highest segment
+    // left every lower one stranded at whatever the borrow chain had
+    // already given it (e.g. scrolling "hours" below zero from an all-zero
+    // duration used to leave hours at 23, borrowed from a days segment that
+    // then got clamped to 0 out from under it, instead of the whole
+    // duration staying at zero).
     const highest = [...order].reverse().find(k => ENABLED_KEYS.includes(k));
-    if (highest && s[highest] < 0) s[highest] = 0;
+    if (highest && s[highest] < 0) {
+        for (const key of order) {
+            if (ENABLED_KEYS.includes(key)) s[key] = 0;
+        }
+    }
 }
 
 function clampField(key, val, displayFmt) {
@@ -676,13 +688,19 @@ widget.addEventListener('click', e => {
     if (toggleBtn) {
         const currentIdx = FORMATS.indexOf(activeFormat);
         const nextIdx = (currentIdx + 1) % FORMATS.length;
-        const nextFmt = FORMATS[nextIdx];
-
-        // Convert state through display representation
-        const displayState = toDisplayState(state, activeFormat);
-        state = applyDefaults(fromDisplayState(displayState, nextFmt));
-        normalize(state);
-        activeFormat = nextFmt;
+        // `state` is always the canonical (years/days/hours/minutes/seconds)
+        // representation — every edit path normalize()s it right after
+        // mutating, regardless of which format is currently displayed — so
+        // switching formats needs no state conversion at all, just a
+        // fresh render() (via commit() below) under the new activeFormat.
+        // A previous version ran state through toDisplayState(state, OLD
+        // fmt) then fromDisplayState(_, NEW fmt): those two are only valid
+        // inverses for the SAME fmt (how every other call site pairs them,
+        // correctly) — mismatching the fmt args treated un-aggregated raw
+        // state as already-aggregated, discarding days/years into the
+        // aggregated-hours field's leftover-modulo (e.g. 1 day -> 24h
+        // silently became 0 on AJHMS -> HH:MM:SS).
+        activeFormat = FORMATS[nextIdx];
         toggleBtn.textContent = activeFormat;
         commit();
         return;
