@@ -71,7 +71,7 @@ class SynchroTab:
                 if mode in ("hybrid", "experimental"):
                     self.time_input_new = TimeInput(
                         mode="datetime",
-                        quick_fills=["now"],
+                        quick_fills=["today", "current_time"],
                         value=lambda: dt.datetime.now(),  # type: ignore
                         label="Heure de départ",
                         elem_id="synchro_time_input" if mode == "experimental" else "synchro_time_input_new",

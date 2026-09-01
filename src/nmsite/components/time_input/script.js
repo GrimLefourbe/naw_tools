@@ -742,26 +742,32 @@ widget.addEventListener('click', e => {
 
 // ---- Quick fills ----
 
+// Quick-fills are a one-click shortcut to "close enough", not a stopwatch —
+// nobody presses one *for* the seconds. Every fill that sets a time-of-day
+// lands on :00 rather than the wall clock's actual seconds, consistently
+// (now in duration/clock_time/datetime mode, and current_time) — one rule
+// instead of one button behaving differently from another that does the
+// same kind of fill.
 function applyQuickFill(fill) {
     const now = new Date();
     if (fill === 'now') {
         if (MODE === 'duration') {
-            // Math.floor((mins*60+secs)/3600) is always exactly now.getHours()
-            // (minutes+seconds can never total a full hour) — use it directly.
+            // Math.floor((mins*60)/3600) is always exactly now.getHours()
+            // (minutes alone can never total a full hour) — use it directly.
             state = fromDisplayState(
-                {hours: now.getHours(), minutes: now.getMinutes(), seconds: now.getSeconds()}, 'HH:MM:SS'
+                {hours: now.getHours(), minutes: now.getMinutes(), seconds: 0}, 'HH:MM:SS'
             );
         } else if (MODE === 'clock_time') {
             state.hours = now.getHours();
             state.minutes = now.getMinutes();
-            state.seconds = now.getSeconds();
+            state.seconds = 0;
         } else {
             state.year = now.getFullYear();
             state.month = now.getMonth() + 1;
             state.day = now.getDate();
             state.hours = now.getHours();
             state.minutes = now.getMinutes();
-            state.seconds = now.getSeconds();
+            state.seconds = 0;
         }
     } else if (fill === 'today') {
         state.year = now.getFullYear();
@@ -770,10 +776,58 @@ function applyQuickFill(fill) {
     } else if (fill === 'current_time') {
         state.hours = now.getHours();
         state.minutes = now.getMinutes();
-        state.seconds = now.getSeconds();
+        state.seconds = 0;
     }
     applyDefaults(state);
     commitAndNormalize();
+}
+
+// ---- Quick-fill pill labels ----
+//
+// Each pill shows exactly the value pressing it will set (computed the same
+// way applyQuickFill computes the fill itself), with the original French
+// wording (_FILL_LABELS, Python-side) moved to a `title` tooltip instead of
+// being dropped — see the pill-sizing discussion in TODO.md/memory for why
+// showing the live value replaced the wordier static labels.
+function fillLabel(fill) {
+    const now = new Date();
+    const hm = `${pad(now.getHours(), 2)}:${pad(now.getMinutes(), 2)}`;
+    const dmy = `${pad(now.getDate(), 2)}/${pad(now.getMonth() + 1, 2)}/${pad(now.getFullYear() % 100, 2)}`;
+    if (fill === 'today') return dmy;
+    if (fill === 'current_time') return hm;
+    if (fill === 'now') {
+        // Mirrors applyQuickFill's own per-mode branching: duration and
+        // clock_time only ever touch hours/minutes, datetime touches both.
+        return MODE === 'datetime' ? `${dmy} ${hm}` : hm;
+    }
+    return '';
+}
+
+let pillEls = null;  // cached on first use — the pill set is fixed at construction time
+
+function updatePillLabels() {
+    if (!pillEls) pillEls = Array.from(widget.querySelectorAll('.ti-pill[data-fill]'));
+    for (const el of pillEls) {
+        el.textContent = fillLabel(el.dataset.fill);
+    }
+}
+
+// today/current_time/now only ever change on a minute boundary (the date
+// only on the rarer day boundary, but that's just a special case of "still
+// the same minute" — no need for a second timer just for that, recomputing
+// a date string on the 1439 minutes/day it didn't change is effectively
+// free). A recursive setTimeout aligned to the next minute boundary — not
+// setInterval(fn, 60000) — both avoids polling 1440 times/day for the ~1
+// real change, and fires exactly on the dot instead of up to 60s late
+// (whatever offset the widget happened to mount at).
+let pillRefreshTimeout = null;
+
+function scheduleMinuteTick() {
+    const msUntilNextMinute = 60000 - (Date.now() % 60000);
+    pillRefreshTimeout = setTimeout(() => {
+        updatePillLabels();
+        scheduleMinuteTick();
+    }, msUntilNextMinute);
 }
 
 // ---- Paste ----
@@ -852,6 +906,13 @@ watch('interactive', () => {
 
 render();
 updateDisplayBadge();
+
+// Populate live pill labels before the reserve measurement below, so it
+// measures .ti-btns at its real (final) width rather than empty pills'.
+if (widget.querySelector('.ti-pill[data-fill]')) {
+    updatePillLabels();
+    scheduleMinuteTick();
+}
 
 // Reserve exactly as much space in .ti-display/.ti-field as the overlaid
 // .ti-btns actually needs, instead of a fixed guess (see the padding

@@ -148,12 +148,11 @@ class Settings:
                 self._ti_b_out = gr.Text(label="Python", interactive=False, elem_id="ti_demo_b_out")
 
             with gr.Column():
-                gr.Markdown("**C** — durée complète AJHMS + Maintenant")
+                gr.Markdown("**C** — durée complète AJHMS")
                 self._ti_c = TimeInput(
                     mode="duration",
                     segments=["years", "days", "hours", "minutes", "seconds"],
                     formats=["AJHMS"],
-                    quick_fills=["now"],
                     label="Durée",
                     elem_id="ti_demo_c",
                 )

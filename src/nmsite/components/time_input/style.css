@@ -181,19 +181,24 @@
     background: color-mix(in srgb, var(--color-accent) 15%, var(--background-fill-secondary));
 }
 
-/* Quick-fill pills */
+/* Quick-fill pills — same font-size as .ti-btn's icon buttons (was larger,
+   0.7rem vs 0.72rem font-size but ~1.5 line-height vs 1.4 and looser
+   padding, which reads as noticeably bigger next to the single-glyph icon
+   buttons beside it) and tightened padding to match, so a label like
+   "Aujourd'hui"/"Heure actuelle" doesn't eat into the .ti-btns-reserve
+   space (and the value display it's carved out of) more than it has to. */
 .ti-pill {
     display: inline-flex;
     align-items: center;
-    padding: 1px 7px;
+    padding: 1px 6px;
     border: 1px solid var(--border-color-primary, #d1d5db);
     border-radius: 12px;
     background: var(--background-fill-secondary, #f9fafb);
     color: var(--body-text-color, #374151);
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     cursor: pointer;
     white-space: nowrap;
-    line-height: 1.5;
+    line-height: 1.4;
     transition: background 0.1s, border-color 0.1s;
     font-family: inherit;
 }

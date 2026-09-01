@@ -77,14 +77,47 @@ def test_demo_b_days_segment_visible_after_entering_edit_mode(settings_page: Pag
     expect(_seg(page, "ti_demo_b", "days")).to_be_visible()
 
 
-def test_demo_c_renders_quick_fill_button(settings_page: Page) -> None:
+def test_demo_c_has_no_quick_fill_pills(settings_page: Page) -> None:
+    """Duration mode doesn't get any of the 3 quick-fills (now/today/current_time)
+    — none has a clear meaning for a duration yet; a real duration-specific
+    quick-fill is a separate, not-yet-designed future improvement (TODO.md)."""
     page = settings_page
-    expect(page.locator("#ti_demo_c .ti-pill[data-fill='now']")).to_be_visible()
+    expect(page.locator("#ti_demo_c .ti-pill")).to_have_count(0)
 
 
 def test_demo_d_renders_current_time_pill(settings_page: Page) -> None:
     page = settings_page
     expect(page.locator("#ti_demo_d .ti-pill[data-fill='current_time']")).to_be_visible()
+
+
+def test_demo_d_current_time_pill_shows_live_time_and_tooltip(settings_page: Page) -> None:
+    """The pill's own label mirrors what clicking it will actually set —
+    live HH:MM (no seconds, see the fill test below) — with the original
+    French wording moved to a hover tooltip instead of dropped."""
+    page = settings_page
+    pill = page.locator("#ti_demo_d .ti-pill[data-fill='current_time']")
+    expect(pill).to_be_visible()
+    expect(pill).to_have_attribute("title", "Heure actuelle")
+    expect(pill).to_have_text(re.compile(r"^\d{2}:\d{2}$"))
+
+
+def test_demo_e_today_pill_shows_live_date_and_tooltip(settings_page: Page) -> None:
+    page = settings_page
+    pill = page.locator("#ti_demo_e .ti-pill[data-fill='today']")
+    expect(pill).to_be_visible()
+    expect(pill).to_have_attribute("title", "Aujourd'hui")
+    expect(pill).to_have_text(re.compile(r"^\d{2}/\d{2}/\d{2}$"))
+
+
+def test_demo_e_now_pill_shows_live_datetime_and_tooltip(settings_page: Page) -> None:
+    """demo E is the one place `now` still exists (kept as a demo of the
+    full feature — see TODO.md/memory), showing the combined date+time
+    it'll set."""
+    page = settings_page
+    pill = page.locator("#ti_demo_e .ti-pill[data-fill='now']")
+    expect(pill).to_be_visible()
+    expect(pill).to_have_attribute("title", "Maintenant")
+    expect(pill).to_have_text(re.compile(r"^\d{2}/\d{2}/\d{2} \d{2}:\d{2}$"))
 
 
 def test_copy_button_present_on_all_demos(settings_page: Page) -> None:
@@ -238,6 +271,9 @@ def test_demo_d_current_time_fill_updates_segments(settings_page: Page) -> None:
     now = dt.datetime.now()
     # Allow ±1 minute tolerance for test timing
     assert abs(hours_text - now.hour) <= 1, f"Hours {hours_text} too far from now {now.hour}"
+    # Quick-fills are a shortcut, not a stopwatch — seconds always land on :00
+    # (nobody presses the button *for* the seconds).
+    expect(_seg(page, "ti_demo_d", "seconds")).to_have_text("00")
 
 
 # ── Tests: Wrap-around carry, bounded modes (Demo D — clock_time) ───────────

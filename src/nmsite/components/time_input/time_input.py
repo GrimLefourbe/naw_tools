@@ -237,9 +237,12 @@ class TimeInput(gr.HTML):
         # Clear/reset button (always present)
         clear_html = '<button class="ti-btn ti-clear" type="button" title="Réinitialiser">✕</button>'
 
-        # Quick-fill pills
+        # Quick-fill pills — text content is left empty here: script.js fills
+        # in the live value the pill will actually set (e.g. "18:36") rather
+        # than a static word, on mount and every minute after. The original
+        # French wording moves to a `title` tooltip instead of being dropped.
         pills_html = "".join(
-            f'<button class="ti-pill" data-fill="{f}" type="button">{_FILL_LABELS[f]}</button>'
+            f'<button class="ti-pill" data-fill="{f}" type="button" title="{_FILL_LABELS[f]}"></button>'
             for f in fill_list
         )
 

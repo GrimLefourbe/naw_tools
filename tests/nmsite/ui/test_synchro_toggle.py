@@ -74,6 +74,20 @@ def test_toggle_on_shows_new_time_input(gradio_server: str, page: Page) -> None:
     expect(_old_time_input(page)).to_be_hidden()
 
 
+def test_toggle_on_new_time_input_has_today_and_current_time_pills_not_now(gradio_server: str, page: Page) -> None:
+    """`today`+`current_time` together cover the same ground `now` would in
+    one extra click, so `now` is intentionally left out of this production
+    field's quick_fills (kept only as a Réglages demo — see TODO.md)."""
+    page.goto(gradio_server)
+    _enable_time_input_toggle(page)
+    page.get_by_role("tab", name="Synchro").click()
+    page.locator("#synchro_time_input_new").wait_for(state="visible")
+
+    expect(page.locator("#synchro_time_input_new .ti-pill[data-fill='today']")).to_be_visible()
+    expect(page.locator("#synchro_time_input_new .ti-pill[data-fill='current_time']")).to_be_visible()
+    expect(page.locator("#synchro_time_input_new .ti-pill[data-fill='now']")).to_have_count(0)
+
+
 def test_toggle_on_new_time_input_defaults_to_now_not_epoch(gradio_server: str, page: Page) -> None:
     """Regression: TimeInput's `value=lambda: dt.datetime.now()` default was
     silently discarded (double gr.HTML.postprocess()'d instead of resolved),

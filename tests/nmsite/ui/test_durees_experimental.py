@@ -67,3 +67,20 @@ def test_editing_start_time_twice_does_not_close_the_editor(durees_page: Page) -
 
     page.keyboard.press("ArrowUp")
     expect(hours_seg).to_have_text("02", timeout=5_000)
+
+
+def test_start_and_arrival_have_current_time_pill(durees_page: Page) -> None:
+    """current_time is the only quick-fill that makes sense for a clock_time
+    field (no date segment, so `today` doesn't apply) — present on both
+    start/arrival since either can be the editable one depending on target.
+    A non-editable field's pills are CSS-hidden (see style.css's
+    data-interactive="false" rule), so each is checked while it's the
+    target's editable one rather than asserting both visible at once."""
+    page = durees_page
+
+    # Default target (Arrivée): start is editable.
+    expect(page.locator("#durees_start_time .ti-pill[data-fill='current_time']")).to_be_visible()
+
+    # Switch to Départ: arrival becomes the editable one instead.
+    page.locator("#durees_target").get_by_role("button", name="Départ").click()
+    expect(page.locator("#durees_arrival_time .ti-pill[data-fill='current_time']")).to_be_visible()
