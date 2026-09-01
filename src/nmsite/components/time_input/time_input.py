@@ -151,7 +151,14 @@ class TimeInput(gr.HTML):
         self._hidden_defaults = hidden_defaults
 
         _merge_elem_classes(kwargs, "ti-outer")
-        kwargs.setdefault("container", False)
+        # container=True gets us Gradio's standard bordered/padded block
+        # chrome for free — the same card native siblings (gr.Number,
+        # gr.Textbox) render in the same row/column — so the widget doesn't
+        # float bare against the page background. show_label stays False:
+        # the widget draws its own label (.ti-label, inside html_template)
+        # rather than Gradio's own label chip, which carries an unwanted
+        # "raw HTML" icon for a plain gr.HTML subclass.
+        kwargs.setdefault("container", True)
         kwargs.setdefault("show_label", False)
         kwargs.setdefault("apply_default_css", False)
         kwargs.setdefault("padding", False)

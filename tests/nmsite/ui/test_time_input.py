@@ -33,6 +33,19 @@ def _enter_edit_mode(page: Page, elem_id: str) -> None:
     page.locator(f"#{elem_id} .ti-field").wait_for(state="visible")
 
 
+def test_widget_renders_inside_gradio_container_chrome(settings_page: Page) -> None:
+    """TimeInput's outer block should get Gradio's standard bordered/padded
+    card chrome — the same visual grouping native siblings (gr.Number,
+    gr.Textbox) get in the same row/column — instead of floating bare
+    against the page background with no border of its own. Gradio marks an
+    opted-out block with a `hide-container` class on the element `elem_id`
+    resolves to; its absence is what "renders like everything else" means
+    here."""
+    page = settings_page
+    class_attr = page.locator("#ti_demo_a").get_attribute("class")
+    assert "hide-container" not in (class_attr or ""), class_attr
+
+
 # ── Tests: Rendering ─────────────────────────────────────────────────────────
 
 def test_demo_a_display_badge_visible_by_default(settings_page: Page) -> None:
@@ -296,6 +309,70 @@ def test_demo_e_datetime_day_carries_into_month(settings_page: Page) -> None:
 
     expect(day_seg).to_have_text("31")
     expect(month_seg).to_have_text("12")
+
+
+# ── Tests: Throttled server sync during rapid ticking ───────────────────────
+
+def test_rapid_wheel_ticks_throttle_server_round_trips(settings_page: Page) -> None:
+    """A burst of wheel ticks on one segment must not fire one server round
+    trip per tick — local rendering (segment text) stays smooth every tick,
+    but the number of actual server calls during a rapid burst is capped,
+    not 1:1 with ticks. Counts requests to Gradio's event-submission endpoint
+    directly rather than sampling the output textbox, since output changes
+    can be too fast/slow relative to our own polling to count reliably."""
+    page = settings_page
+    _enter_edit_mode(page, "ti_demo_a")
+    hours_seg = _seg(page, "ti_demo_a", "hours")
+
+    join_requests: list[str] = []
+    page.on("request", lambda req: join_requests.append(req.url) if "queue/join" in req.url else None)
+
+    # Dispatch synthetic wheel events synchronously in one JS turn — real
+    # mouse.wheel() calls round-trip through Playwright's IPC per call, which
+    # spaces them out past our throttle window on its own and never actually
+    # exercises the "rapid burst" case this test targets.
+    TICKS = 10
+    page.evaluate(
+        """(ticks) => {
+            const seg = document.querySelector("#ti_demo_a .ti-seg[data-key='hours']");
+            for (let i = 0; i < ticks; i++) {
+                seg.dispatchEvent(new WheelEvent('wheel', {deltaY: -120, bubbles: true, cancelable: true}));
+            }
+        }""",
+        TICKS,
+    )
+
+    # Local rendering must still track every tick immediately, throttle or not.
+    expect(hours_seg).to_have_text("10")
+
+    page.wait_for_timeout(500)  # let any trailing throttle flush settle
+
+    assert len(join_requests) < TICKS, (
+        f"expected fewer server round trips than ticks dispatched (throttled), "
+        f"got {len(join_requests)} requests for {TICKS} ticks"
+    )
+
+
+def test_wheel_scroll_does_not_emit_debug_console_output(settings_page: Page) -> None:
+    """The wheel handler's now-diagnosed 'missed ticks' instrumentation
+    (a console.debug per event, including ignored ones) was temporary
+    debugging scaffolding, not something that should ship live — it's pure
+    overhead on the one path already established as timing-critical."""
+    page = settings_page
+    _enter_edit_mode(page, "ti_demo_a")
+
+    console_messages: list[str] = []
+    page.on("console", lambda msg: console_messages.append(msg.text))
+
+    page.evaluate(
+        """() => {
+            const seg = document.querySelector("#ti_demo_a .ti-seg[data-key='hours']");
+            seg.dispatchEvent(new WheelEvent('wheel', {deltaY: -120, bubbles: true, cancelable: true}));
+        }"""
+    )
+    page.wait_for_timeout(100)
+
+    assert not any("[TI wheel]" in m for m in console_messages), console_messages
 
 
 # ── Tests: Python value output ────────────────────────────────────────────────

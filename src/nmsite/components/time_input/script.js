@@ -406,20 +406,58 @@ function exitEditMode() {
     commit();
 }
 
+// ---- Throttled server sync ----
+//
+// commit() updates local state/render/badge on every single tick (wheel,
+// touch drag, keyboard) so the display always stays current — but relaying
+// every tick to the server as its own round trip isn't needed for that: a
+// fast burst (a wheel-scroll flurry, a touch drag) can produce many ticks
+// well under a second apart, and nothing looks or feels different if the
+// server-facing sync collapses a burst into a few periodic updates instead
+// of one per tick. Leading+trailing throttle: the first tick after an idle
+// gap syncs immediately (so a single discrete action — click, Tab, paste —
+// still feels instant), a burst gets one periodic sync per interval so
+// other fields stay live while scrolling, and the trailing sync always
+// fires with whatever the latest state is by the time it runs, so the
+// final value of a burst is never dropped.
+const SERVER_SYNC_INTERVAL_MS = 200;  // cap at 5 server syncs/sec — plenty smooth, no need for every tick
+
+let lastServerSyncTs = -Infinity;
+let serverSyncTimeout = null;
+
+function syncToServer() {
+    clearTimeout(serverSyncTimeout);
+    serverSyncTimeout = null;
+    lastServerSyncTs = performance.now();
+    trigger('input');
+    trigger('change');
+}
+
+function scheduleServerSync() {
+    const elapsed = performance.now() - lastServerSyncTs;
+    if (elapsed >= SERVER_SYNC_INTERVAL_MS) {
+        syncToServer();
+    } else if (!serverSyncTimeout) {
+        serverSyncTimeout = setTimeout(syncToServer, SERVER_SYNC_INTERVAL_MS - elapsed);
+    }
+    // else: a trailing sync is already scheduled for this burst — it'll
+    // pick up the latest state, since props.value is already current by
+    // the time it fires.
+}
+
 function commit() {
     isInternalCommit = true;
     props.value = JSON.stringify(state);
     isInternalCommit = false;
-    trigger('input');
-    trigger('change');
     render();
     updateDisplayBadge();
+    scheduleServerSync();
 }
 
 // ---- Keyboard ----
 
 function nextSegKey(key, dir) {
-    const items = getSegmentsForFormat(activeFormat).filter(i => i.type === 'seg');
+    const items = itemsForActiveFormat().items.filter(i => i.type === 'seg');
     const idx = items.findIndex(i => i.key === key);
     const nextIdx = idx + dir;
     if (nextIdx < 0 || nextIdx >= items.length) return null;
@@ -585,31 +623,9 @@ const WHEEL_IDLE_RESET_MS = 200;  // matches jQuery Mousewheel's own reset windo
 let wheelUnitEstimate = null;  // null until the first real sample is observed (or after an idle reset)
 let wheelResetTimeout = null;
 
-// TEMP DEBUG — instrumentation for tracking down "missed" wheel ticks.
-// Logs every wheel event this listener receives, including ones we end up
-// ignoring, with a sequence number and time-since-last-event so the actual
-// browser dispatch rate can be compared against physical scroll notches by
-// eye/ear while testing. Remove once diagnosed.
-let __wheelDebugCount = 0;
-let __wheelDebugLastTs = null;
-
 widget.addEventListener('wheel', e => {
-    __wheelDebugCount++;
-    const now = performance.now();
-    const sinceLast = __wheelDebugLastTs !== null ? (now - __wheelDebugLastTs).toFixed(1) : '-';
-    __wheelDebugLastTs = now;
-
     const seg = e.target.closest('.ti-seg');
-    const targetDesc = `${e.target.tagName.toLowerCase()}.${[...e.target.classList].join('.')}`;
-    console.debug(
-        `[TI wheel] #${__wheelDebugCount} +${sinceLast}ms deltaY=${e.deltaY} deltaMode=${e.deltaMode}`,
-        `target=${targetDesc} seg=${seg ? seg.dataset.key : 'none'} interactive=${INTERACTIVE}`,
-    );
-
-    if (!seg || !INTERACTIVE) {
-        console.debug(`[TI wheel] #${__wheelDebugCount} IGNORED (no seg under pointer, or non-interactive)`);
-        return;
-    }
+    if (!seg || !INTERACTIVE) return;
     e.preventDefault();
     const key = seg.dataset.key;
     focusedSegKey = key;
@@ -631,7 +647,6 @@ widget.addEventListener('wheel', e => {
     }
     clearTimeout(wheelResetTimeout);
     wheelResetTimeout = setTimeout(() => { wheelUnitEstimate = null; }, WHEEL_IDLE_RESET_MS);
-    console.debug(`[TI wheel] #${__wheelDebugCount} APPLIED key=${key} unit=${unit} steps=${-steps} -> ${state[key]}`);
 }, {passive: false});
 
 // ---- Touch drag ----
@@ -842,11 +857,26 @@ updateDisplayBadge();
 // .ti-btns actually needs, instead of a fixed guess (see the padding
 // comment in style.css) — different instances have different numbers of
 // quick-fill pills/toggle/clear/copy, so a single hardcoded reserve can't
-// fit all of them. The button set is fixed at construction time (set once
-// from Python props, never changes at runtime), so this only needs to run
-// once, after the initial render/layout.
+// fit all of them. The button set itself is fixed at construction time
+// (set once from Python props, never changes at runtime), but a one-shot
+// measurement right after mount isn't: an instance that starts hidden
+// (Hybrid mode's dual-mounted TimeInput is display:none until its toggle
+// reveals it) measures a real width of 0 at that point — getBoundingClientRect()
+// on a display:none element is always zero — locking the reserve at a
+// too-small fallback forever, with nothing to ever recompute it once the
+// widget is actually shown. That leaves .ti-btns overlapping segments that
+// should've had clearance, so a wheel-scroll or edit click can land on a
+// button instead. A ResizeObserver re-measures whenever .ti-btns's real
+// layout size changes, including the display:none -> visible transition,
+// so the reserve self-corrects instead of staying stuck at 0.
 const btnsEl = widget.querySelector('.ti-btns');
 if (btnsEl) {
-    const reserve = Math.ceil(btnsEl.getBoundingClientRect().width) + 16;  // + a little breathing room
-    widget.style.setProperty('--ti-btns-reserve', `${reserve}px`);
+    const applyReserve = () => {
+        const width = btnsEl.getBoundingClientRect().width;
+        if (width > 0) {
+            widget.style.setProperty('--ti-btns-reserve', `${Math.ceil(width) + 16}px`);
+        }
+    };
+    applyReserve();
+    new ResizeObserver(applyReserve).observe(btnsEl);
 }
